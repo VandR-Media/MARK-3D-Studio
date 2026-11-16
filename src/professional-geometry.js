@@ -64,7 +64,7 @@ export class EditableMesh {
   this.name=name;this.material=material||{name:'MARK Core PBR',color:[.77,.54,.42,1],roughness:.8,metallic:0};
   this.vertices=new Map();this.faces=new Map();this.edges=new Map();this.halfEdges=new Map();
   this.adj=new Map();this._edgeIds=new Map();this._next={v:1,e:1,f:1};
-  this.selection=new Set();this.masks=new Map();this.landmarks={};this.regions={};this.history=[];this.future=[];this.revision=0;this.maxHistory=20;
+  this.selection=new Set();this.masks=new Map();this.landmarks={};this.regions={};this.referenceViews={};this.history=[];this.future=[];this.revision=0;this.maxHistory=20;
   this._spatial=null;
  }
  static fromGeometry(geom,options={}){
@@ -143,13 +143,13 @@ export class EditableMesh {
   return {name:this.name,material:clone(this.material),vertices:[...this.vertices.values()].map(clone),
    faces:[...this.faces.values()].map(clone),selection:[...this.selection],
    masks:[...this.masks].map(([name,items])=>[name,[...items]]),
-   next:clone(this._next),edgeIds:[...this._edgeIds],landmarks:clone(this.landmarks),regions:clone(this.regions),revision:this.revision};
+   next:clone(this._next),edgeIds:[...this._edgeIds],landmarks:clone(this.landmarks),regions:clone(this.regions),referenceViews:clone(this.referenceViews),revision:this.revision};
  }
  _restore(s){
   this.name=s.name;this.material=clone(s.material);this.vertices=new Map(s.vertices.map(v=>[v.id,clone(v)]));
   this.faces=new Map(s.faces.map(f=>[f.id,clone(f)]));this.selection=new Set(s.selection);
   this.masks=new Map(s.masks.map(([name,items])=>[name,new Map(items)]));
-  this._next=clone(s.next);this._edgeIds=new Map(s.edgeIds);this.landmarks=clone(s.landmarks||{});this.regions=clone(s.regions||{});this.revision=s.revision;
+  this._next=clone(s.next);this._edgeIds=new Map(s.edgeIds);this.landmarks=clone(s.landmarks||{});this.regions=clone(s.regions||{});this.referenceViews=clone(s.referenceViews||{});this.revision=s.revision;
   this._rebuild();
  }
  transact(label,fn){
