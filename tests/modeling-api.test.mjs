@@ -52,6 +52,9 @@ test('all components preserve valid indices, normals, UV and independent accesso
   assert.equal(doc.accessors[prim.indices].count,editor.indices.length);
  }
  assert.equal(r.audit.boundaryEdges,0);
+ assert.equal(r.meshDiagnostics.length,r.summary.meshes);
+ assert.ok(r.meshDiagnostics.every(m=>m.invalidNormals===0&&m.maxNormalLengthError<.015));
+ assert.ok(r.meshDiagnostics.every(m=>m.audit.invalidTriangles===0&&m.audit.nonManifoldEdges===0));
 });
 test('safe geometry sweep and loft create standalone real glTF objects',()=>{
  const simple={schema:'mark-modeling/0.4',project:{id:'test-geometry',base:'practice-head'},
