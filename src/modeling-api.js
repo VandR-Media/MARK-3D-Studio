@@ -169,6 +169,30 @@ export function describeGlb(bytes){
  return {nodes:meshStats,meshes:meshStats.length,triangles:allTriangles,materials:(doc.materials||[]).length,
   trianglesHead:meshStats[0]?.parts[0]?.triangles||0};
 }
+
+/** Per-mesh topology and normal diagnostics for the exported binary GLB. */
+export function auditAllMeshes(bytes){
+ const doc=parseGlb(bytes).json;
+ const results=[];
+ for(let nodeIndex=0;nodeIndex<(doc.nodes||[]).length;nodeIndex++){
+  const node=doc.nodes[nodeIndex];
+  if(!Number.isInteger(node.mesh)||node.extras?.markDeleted)continue;
+  const prim=doc.meshes[node.mesh]?.primitives||[];
+  // v0.4 emitted nodes each contain exactly one primitive.
+  if(prim.length!==1)throw Error('Unsupported multi-primitive audit at node '+nodeIndex);
+  const e=new MeshEditor(bytes,nodeIndex);
+  const audit=inspectMesh(e.positions,e.indices);
+  let invalidNormals=0,maxUnitError=0;
+  for(let i=0;i<e.normals.length;i+=3){
+   const d=Math.hypot(e.normals[i],e.normals[i+1],e.normals[i+2]);
+   if(!Number.isFinite(d)||d<.001)invalidNormals++;
+   else maxUnitError=Math.max(maxUnitError,Math.abs(d-1));
+  }
+  results.push({nodeIndex,name:node.name,audit:{...audit,degenerateFaces:undefined},
+   invalidNormals,maxNormalLengthError:maxUnitError});
+ }
+ return results;
+}
 function mainAudit(bytes){
  const data=readPrimitive(bytes,0,0),audit=inspectMesh(data.positions,data.indices);
  if(audit.invalidTriangles||audit.nonManifoldEdges||audit.boundaryEdges)
@@ -254,7 +278,11 @@ export function runRecipe(recipe,{sourceBytes=null}={}){
    const e=new Error(message);e.report=report;throw e;
   }
  }
- const audit=mainAudit(bytes),summary=describeGlb(bytes);
- return {bytes,report,snapshots,warnings,audit,summary,recipeVersion:VERSION};
+ const audit=mainAudit(bytes),summary=describeGlb(bytes),meshDiagnostics=auditAllMeshes(bytes);
+ if(meshDiagnostics.some(m=>m.audit.invalidTriangles||m.audit.nonManifoldEdges||m.invalidNormals||m.maxNormalLengthError>.015))
+  throw Error('Final GLB component validation failed');
+ const openComponents=meshDiagnostics.filter(m=>m.audit.boundaryEdges>0);
+ if(openComponents.length)warnings.push('У некоторых контурных поверхностей есть намеренно открытые границы: '+openComponents.map(m=>m.name).join(', '));
+ return {bytes,report,snapshots,warnings,audit,meshDiagnostics,summary,recipeVersion:VERSION};
 }
 export const MODELING_API_VERSION=VERSION;
