@@ -142,7 +142,8 @@ export function makeAnatomicalChildHead({rings=106,columns=192}={}){
   }else{
    regions.mouth_upper_lip=rings.slice(0,3).flatMap(r=>r.filter(id=>mesh.vertices.get(id).position[1]>=center[1]));
    regions.mouth_lower_lip=rings.slice(0,3).flatMap(r=>r.filter(id=>mesh.vertices.get(id).position[1]<center[1]));
-   regions.mouth_corners=boundary.filter(id=>Math.abs(mesh.vertices.get(id).position[0]-center[0])>.75*.32);
+   const mouthExtent=Math.max(...boundary.map(id=>Math.abs(mesh.vertices.get(id).position[0]-center[0])));
+   regions.mouth_corners=boundary.filter(id=>Math.abs(mesh.vertices.get(id).position[0]-center[0])>=.58*mouthExtent);
   }
  }
  mesh._rebuild();
