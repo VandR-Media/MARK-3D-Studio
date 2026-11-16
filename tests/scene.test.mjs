@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createTestHeadGlb} from '../src/head-fixture.js';
-import {parseGlb} from '../src/glb.js';
+import {parseGlb,writeGlb} from '../src/glb.js';
 import {MeshEditor} from '../src/mesh-core.js';
 import {editScene,getSceneObjects,MATERIAL_PRESETS} from '../src/scene-objects.js';
 const sample=createTestHeadGlb();
@@ -57,7 +57,7 @@ test('prevent cyclic hierarchy and animated node removal',()=>{
  assert.throws(()=>editScene(bytes,{operation:'reparent',nodeIndex:0,parentIndex:1}),/циклическую/);
  const parsed=parseGlb(bytes);
  parsed.json.animations=[{channels:[{target:{node:1,path:'translation'}}],samplers:[]}];
- const file=(await import('../src/glb.js')).writeGlb(parsed,parsed.json);
+ const file=writeGlb(parsed,parsed.json);
  assert.throws(()=>editScene(file,{operation:'delete',nodeIndex:1}),/анимац/);
 });
 test('delete removes node from renderable scene but preserves original mesh and IDs',()=>{
