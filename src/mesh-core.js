@@ -235,36 +235,51 @@ export class MeshEditor {
    },symmetry);return this.commit();
   }catch(e){this.cancel();throw e;}
  }
- brush(point,radius,strength,mode,delta=[0,0,0],symmetry=false){
+ brush(point,radius,strength,mode,delta=[0,0,0],symmetry=false,profile='smooth'){
   if(!this.pending)throw Error('Вначале начните мазок кисти.');
-  if(!(radius>0)||!(strength>=0&&strength<=1)||!['grab','smooth','inflate','pinch'].includes(mode))
-   throw Error('Неверные настройки кисти.');
+  if(!(radius>0)||!(strength>=0&&strength<=1)||
+    !['grab','smooth','inflate','pinch','flatten','crease','clay','relax'].includes(mode))
+    throw Error('Неверные настройки кисти.');
+  if(!['smooth','linear','sharp'].includes(profile))throw Error('Неизвестный профиль кисти.');
   if(!this.hash||this.hashRadius!==radius){this.hash=new SpatialHash(this.positions,radius);this.hashRadius=radius;}
   const ids=new Set(this.hash.query(point,radius)),old=this.positions.slice();
   const pairs=symmetry?this.pairMap():null;
   const centerSign=Math.abs(point[0])<.002?0:Math.sign(point[0]);
+  let closest=-1,best=Infinity;
+  for(const i of ids){const k=i*3,d=dist2([old[k],old[k+1],old[k+2]],point);
+   if(d<best){closest=i;best=d;}}
+  const planeNormal=closest<0?[0,0,1]:Array.from(this.normals.slice(closest*3,closest*3+3));
+  const falloff=t=>profile==='linear'?1-t:profile==='sharp'?(1-t)**4:(1-t*t)**2;
   const mod=(i,p)=>{
-   const d=Math.sqrt(dist2(p,point));const f=(1-(d/radius)**2)**2*strength;
-   const out=p.slice();
+   const d=Math.sqrt(dist2(p,point)),f=falloff(Math.min(1,d/radius))*strength;
+   const out=p.slice(),n=[this.normals[i*3],this.normals[i*3+1],this.normals[i*3+2]];
    if(mode==='grab')for(let a=0;a<3;a++)out[a]+=delta[a]*f;
-   if(mode==='inflate')for(let a=0;a<3;a++)out[a]+=this.normals[i*3+a]*radius*.16*f;
-   if(mode==='smooth'){
+   if(mode==='inflate'||mode==='clay')for(let a=0;a<3;a++)out[a]+=n[a]*radius*(mode==='clay'?.12:.16)*f;
+   if(mode==='smooth'||mode==='relax'){
     const neighbors=this.adj[i];if(neighbors?.length){
+     const dif=[0,0,0];
      for(let a=0;a<3;a++){
-      let avg=0;for(const n of neighbors)avg+=old[n*3+a];
-      out[a]+=(avg/neighbors.length-p[a])*f*.6;
+      let avg=0;for(const k of neighbors)avg+=old[k*3+a];
+      dif[a]=avg/neighbors.length-p[a];
      }
+     if(mode==='relax'){
+      const dot=dif.reduce((v,x,a)=>v+x*n[a],0);
+      for(let a=0;a<3;a++)out[a]+=(dif[a]-dot*n[a])*f*.65;
+     }else for(let a=0;a<3;a++)out[a]+=dif[a]*f*.6;
     }
    }
-   if(mode==='pinch'){
-    const toward=point.map((v,a)=>v-p[a]),n=[this.normals[i*3],this.normals[i*3+1],this.normals[i*3+2]];
-    const dot=toward[0]*n[0]+toward[1]*n[1]+toward[2]*n[2];
-    for(let a=0;a<3;a++)out[a]+=(toward[a]-n[a]*dot)*f*.24;
+   if(mode==='pinch'||mode==='crease'){
+    const toward=point.map((v,a)=>v-p[a]),dot=toward.reduce((v,x,a)=>v+x*n[a],0);
+    for(let a=0;a<3;a++)out[a]+=(toward[a]-n[a]*dot)*f*(mode==='crease'?.37:.24);
+    if(mode==='crease')for(let a=0;a<3;a++)out[a]-=n[a]*radius*f*.13;
+   }
+   if(mode==='flatten'){
+    const signed=p.reduce((sum,v,a)=>sum+(v-point[a])*planeNormal[a],0);
+    for(let a=0;a<3;a++)out[a]-=signed*planeNormal[a]*f*.8;
    }
    return out;
   };
   const ordered=[...ids].filter(i=>!symmetry||!pairs||(pairs[i]<0||pairs[i]===i||centerSign===0||this.positions[3*i]*centerSign>=-.002));
-  // Avoid double applying a central stroke to both sides.
   const touched=new Set();
   for(const i of ordered){
    if(touched.has(i))continue;
