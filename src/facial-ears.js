@@ -32,7 +32,7 @@ export function buildEarPatch(mesh,boundary,{center,side}={}){
    const lobe=(level>=1&&level<=3)?lower*.038:0;
    // Tragus is a shallow inner cartilage prominence, not a separate ball.
    const localTragus=(level===3||level===4)?
-    .022*Math.exp(-((yy+.11)/.085)**2)*Math.exp(-((p[2]-center[2]-.05)/.12)**2):0;
+    .022*Math.exp(-(((yy+.11)/.085)**2))*Math.exp(-(((p[2]-center[2]-.05)/.12)**2)):0;
    const pos=[
     center[0]+(p[0]-center[0])*spread+side*(push+lobe+localTragus),
     center[1]+yy*spread-lobe*.7,
