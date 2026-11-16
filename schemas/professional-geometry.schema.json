@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MARK Geometry Core 0.1 — programmatic editable mesh",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "project",
+    "commands"
+  ],
+  "properties": {
+    "schema": {
+      "const": "mark-geometry/0.1"
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "id",
+        "base"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{3,60}$"
+        },
+        "base": {
+          "enum": [
+            "contour-head-v1",
+            "source-glb",
+            "empty"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 150,
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation"
+      ],
+      "properties": {
+        "operation": {
+          "enum": [
+            "mesh.create",
+            "mesh.select",
+            "mesh.edit",
+            "mesh.subdivide",
+            "mesh.extrude",
+            "sculpt.brush",
+            "sculpt.mask",
+            "mesh.inspect",
+            "project.undo",
+            "project.redo",
+            "project.checkpoint",
+            "project.export"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "onError": {
+          "enum": [
+            "skip",
+            "abort"
+          ]
+        }
+      }
+    }
+  }
+}
