@@ -1,0 +1,170 @@
+{
+  "schema": "mark-modeling/0.4",
+  "project": {
+    "id": "mark-cosmic-approved-lookdev-v1",
+    "name": "MARK Cosmic approved concept -> 3D face/cap/headphones lookdev v1 (unapproved 3D)",
+    "base": "contour-head-v1",
+    "controls": {
+      "head": {
+        "width": 0.51,
+        "height": 0.51,
+        "forehead": 0.55,
+        "cheeks": 0.6,
+        "jaw": 0.44,
+        "chin": 0.47,
+        "nose": 0.46,
+        "sockets": 0.61,
+        "mouth": 0.5
+      },
+      "eyes": {
+        "spacing": 0.43,
+        "size": 0.38,
+        "height": 0.47,
+        "socketDepth": 0.62,
+        "upperEyelid": 0.6,
+        "lowerEyelid": 0.55
+      },
+      "eyelids": {
+        "thickness": 0.2
+      },
+      "eyebrows": {
+        "arch": 0.49,
+        "browRaise": 0.46
+      },
+      "nose": {
+        "width": 0.47,
+        "length": 0.46,
+        "bridgeHeight": 0.5,
+        "nostrilDepth": 0.5
+      },
+      "cheeks": {
+        "volume": 0.56,
+        "boneHeight": 0.52
+      },
+      "chin": {
+        "projection": 0.48,
+        "jawWidth": 0.47
+      },
+      "mouth": {
+        "width": 0.5,
+        "volume": 0.46
+      },
+      "lips": {
+        "fullness": 0.24,
+        "smile": 0.54
+      },
+      "ears": {
+        "width": 0.4,
+        "height": 0.42,
+        "size": 0.44
+      },
+      "hair": {
+        "strands": 0.12,
+        "length": 0.27,
+        "volume": 0.51
+      },
+      "skin": {
+        "roughness": 0.78
+      }
+    },
+    "references": {
+      "approvedConcept": "Latest user-approved MARK Cosmic character turnaround, 16 Nov 2026 (kept outside repository)",
+      "realPhotos": "User-provided Mark photographs, private conversation only (not copied into GitHub)",
+      "likenessStatus": "NOT CHECKED; no image fitting is performed"
+    }
+  },
+  "commands": [
+    {
+      "operation": "checkpoint.save",
+      "target": "continuous-contour-head"
+    },
+    {
+      "operation": "face.modify",
+      "target": "eyes"
+    },
+    {
+      "operation": "face.modify",
+      "target": "nose"
+    },
+    {
+      "operation": "face.modify",
+      "target": "cheeks"
+    },
+    {
+      "operation": "face.modify",
+      "target": "chin"
+    },
+    {
+      "operation": "face.modify",
+      "target": "mouth"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "connected-face-shaped"
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyes"
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyelids"
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyebrows"
+    },
+    {
+      "operation": "feature.build",
+      "target": "lips"
+    },
+    {
+      "operation": "feature.build",
+      "target": "ears"
+    },
+    {
+      "operation": "feature.build",
+      "target": "hair"
+    },
+    {
+      "operation": "feature.build",
+      "target": "nostrils"
+    },
+    {
+      "operation": "feature.build",
+      "target": "cap"
+    },
+    {
+      "operation": "feature.build",
+      "target": "headphones"
+    },
+    {
+      "operation": "material.set",
+      "target": "Candidate skin PBR",
+      "parameters": {
+        "color": [
+          0.75,
+          0.52,
+          0.42,
+          1
+        ],
+        "roughness": 0.78
+      }
+    },
+    {
+      "operation": "mesh.inspect"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "first-candidate"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "portrait-study-v2"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "approved-lookdev-head-v1"
+    }
+  ]
+}
