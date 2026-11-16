@@ -1,3 +1,4 @@
+import {fillQuadDisk} from './quad-cap.js';
 /**
  * MARK Facial Topology v0.6.1 — no high-valence triangle-fan caps.
  * Makes a series of inward quad rings, then quad-strip fills the final loop.
@@ -51,10 +52,7 @@ export function closeCavityWithQuads(mesh,boundary,{center,depth,kind='eye'}={})
  // Pair opposite arcs into quads. No common center or valence-N apex.
  // At the very deepest ring this fills the disk with (N/2 - 1) quads.
  // Each rim boundary edge is used exactly once in the opposite direction.
- const half=n/2;
- for(let k=0;k<half-1;k++){
-  mesh._face([rim[n-1-k],rim[n-2-k],rim[k+1],rim[k]]);
- }
- return {rings,capQuads:half-1,totalNewFaces:mesh.faces.size-start,
-  capTriangles:0,feature:kind,capValenceLimit:4};
+ const cap=fillQuadDisk(mesh,rim,{dish:kind==='nostril'?.005:.003});
+ return {rings,capQuads:cap.quads,totalNewFaces:mesh.faces.size-start,
+  capTriangles:0,feature:kind,capValenceLimit:4,capGridSize:cap.gridSize};
 }
