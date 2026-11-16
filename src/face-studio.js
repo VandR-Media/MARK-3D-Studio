@@ -12,7 +12,7 @@ export const FACE_PARAMETERS=[
  ['mouthWidth','Ширина рта'],['lips','Объём губ'],['ears','Уши'],['nostrils','Ноздри']
 ];
 const valid=new Set(FACE_PARAMETERS.map(p=>p[0]));
-const gauss=(x,c,r)=>Math.exp(-((x-c)/r)**2*2);
+const gauss=(x,c,r)=>Math.exp(-2*(((x-c)/r)**2));
 const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
 export function deformFace(editor,param,amount){
  if(!valid.has(param))throw Error('Face Studio: неизвестный параметр');
