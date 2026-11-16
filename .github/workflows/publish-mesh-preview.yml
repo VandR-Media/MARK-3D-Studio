@@ -1,0 +1,73 @@
+name: Publish MARK 3D Studio v0.2 Mesh Preview
+on:
+  push:
+    branches: ['develop/mesh-editor-v0.2']
+    paths:
+      - '.github/workflows/publish-mesh-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned packages
+        run: npm install --no-audit --no-fund
+      - name: Verify binary geometry and autonomous HTML
+        run: |
+          npm test
+          npm run test:mesh
+          npm run mesh:fixtures
+          npm run build:standalone
+          npm run test:standalone
+      - name: Assemble direct-download assets
+        run: |
+          mkdir -p release
+          cp dist/MARK-3D-Studio-standalone.html release/MARK-3D-Studio-Huawei-Mesh-v0.2.html
+          cp samples/organic-head-before.glb release/
+          cp samples/organic-head-edited.glb release/
+          cd release
+          zip -q -9 MARK-3D-Studio-Huawei-Mesh-v0.2.zip MARK-3D-Studio-Huawei-Mesh-v0.2.html
+      - name: Download latest WebGL evidence if available
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          RUN_ID="$(gh run list --workflow 'Mesh Editor WebGL screenshot acceptance' --branch develop/mesh-editor-v0.2 --status success --limit 1 --json databaseId --jq '.[0].databaseId' || true)"
+          if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+            mkdir -p release/evidence
+            gh run download "$RUN_ID" -n mark-studio-v0.2-browser-evidence -D release/evidence || true
+            if [ -n "$(ls -A release/evidence 2>/dev/null)" ]; then
+              (cd release/evidence && zip -q -9 -r ../MARK-3D-Studio-v0.2-real-browser-screenshots.zip .)
+            fi
+          fi
+      - name: Publish private-repository GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG=mark-3d-studio-v0.2-mesh-preview
+          NOTES="EXPERIMENTAL Mesh Editor v0.2, not stable and not the approved MARK Cosmic.
+          Offline HTML includes Three.js. Practice organic head 18,882 vertices and 37,760 triangles, original and edited GLB files. Download ZIP if browser blocks direct HTML.
+          WebGL and export tested in headless Chromium; Huawei Pura 80 Ultra compatibility not yet measured.
+          Skinning, morphs, shared geometry and compressed meshes blocked for safe editing.
+          Source: develop/mesh-editor-v0.2. Draft PR #2. Main remains unchanged."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/MARK-3D-Studio-Huawei-Mesh-v0.2.html \
+              release/MARK-3D-Studio-Huawei-Mesh-v0.2.zip \
+              release/organic-head-before.glb release/organic-head-edited.glb --clobber
+          else
+            gh release create "$TAG" release/MARK-3D-Studio-Huawei-Mesh-v0.2.html \
+              release/MARK-3D-Studio-Huawei-Mesh-v0.2.zip \
+              release/organic-head-before.glb release/organic-head-edited.glb \
+              --target "$GITHUB_SHA" --title 'MARK 3D Studio v0.2 DEV — Mesh Editor' \
+              --notes "$NOTES" --prerelease
+          fi
+          if [ -f release/MARK-3D-Studio-v0.2-real-browser-screenshots.zip ]; then
+            gh release upload "$TAG" release/MARK-3D-Studio-v0.2-real-browser-screenshots.zip --clobber
+          fi

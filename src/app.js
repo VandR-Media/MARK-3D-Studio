@@ -4,6 +4,8 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {parseGlb,writeGlb,assertSelfContainedGlb} from './glb.js';
 import {getMaterialValues,setMaterialValues} from './materials.js';
 import {createSampleGlb} from './sample.js';
+import {createTestHeadGlb} from './head-fixture.js';
+import {initMeshUi} from './mesh-ui.js';
 
 const $=id=>document.getElementById(id);
 const ui={holder:$('canvasHolder'),file:$('modelFile'),name:$('modelName'),
@@ -13,7 +15,7 @@ const ui={holder:$('canvasHolder'),file:$('modelFile'),name:$('modelName'),
  roughness:$('roughnessInput'),roughnessValue:$('roughnessValue'),
  reset:$('resetButton'),export:$('exportButton'),cameraReset:$('resetCamera'),
  count:$('materialCount'),renderMode:$('renderMode'),hint:$('materialHint')};
-let scene,camera,renderer,controls,grid,active=null,lastFile='mark-model.glb',timer=0,raf=0;
+let scene,camera,renderer,controls,grid,active=null,meshApi=null,lastFile='mark-model.glb',timer=0,raf=0;
 
 function notify(text,bad=false) {
  ui.status.textContent=text;ui.status.classList.toggle('error',bad);ui.status.classList.add('show');
@@ -49,7 +51,8 @@ function createViewer(){
   notify('Контекст WebGL потерян. Перезагрузите страницу и откройте GLB снова.',true);
  });
  function resize(){const w=Math.max(1,ui.holder.clientWidth),h=Math.max(1,ui.holder.clientHeight);
-  camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false);}
+  if(camera.isOrthographicCamera){const half=(camera.top-camera.bottom)/2;camera.left=-half*w/h;camera.right=half*w/h;}
+  else camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false);}
  new ResizeObserver(resize).observe(ui.holder);resize();
  function frame(){if(document.hidden){raf=0;return;}raf=requestAnimationFrame(frame);controls.update();renderer.render(scene,camera);}
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!raf)frame();});
@@ -60,9 +63,10 @@ function reframe(){
  const box=new THREE.Box3().setFromObject(active.gltf.scene);if(box.isEmpty())return;
  const center=box.getCenter(new THREE.Vector3()),sphere=box.getBoundingSphere(new THREE.Sphere());
  const radius=Math.max(.05,sphere.radius);
- const distance=radius*1.8/Math.sin(THREE.MathUtils.degToRad(camera.fov*.5));
+ const distance=radius*1.8/Math.sin(THREE.MathUtils.degToRad((camera.fov||43)*.5));
  camera.position.set(center.x+distance*.73,center.y+distance*.3,center.z+distance*.72);
  camera.near=Math.max(.001,distance/10000);camera.far=Math.max(100,distance*100);camera.updateProjectionMatrix();
+ if(camera.isOrthographicCamera){const aspect=Math.max(.3,renderer.domElement.clientWidth/Math.max(1,renderer.domElement.clientHeight));const half=radius*1.8;camera.top=half;camera.bottom=-half;camera.left=-half*aspect;camera.right=half*aspect;camera.updateProjectionMatrix();}
  controls.target.copy(center);controls.minDistance=Math.max(.002,radius*.1);
  controls.maxDistance=Math.max(2,radius*80);controls.update();
  grid.position.y=box.min.y-radius*.015;grid.scale.setScalar(Math.max(.05,radius/2));
@@ -101,6 +105,7 @@ function applyLive(idx){
   if('roughness' in m)m.roughness=v.roughness;
   m.needsUpdate=true;
  }
+ meshApi?.requestAutosave();
 }
 function setFields(idx){
  if(!active||!Number.isInteger(idx)||idx<0)return;
@@ -124,10 +129,11 @@ function edit(){
    hex:ui.color.value,
    metallic:old.unlit?old.metallic:Number(ui.metallic.value),
    roughness:old.unlit?old.roughness:Number(ui.roughness.value)});
-  setFields(idx);applyLive(idx);
+  setFields(idx);applyLive(idx);meshApi?.requestAutosave();
  }catch(e){notify(e.message,true);}
 }
 function clearModel(){
+ meshApi?.clear();
  if(!active)return;
  scene.remove(active.gltf.scene);
  const geometries=new Set(),materials=new Set(),textures=new Set();
@@ -150,6 +156,7 @@ async function openModel(bytes,name){
  const draft=structuredClone(parsed.json);
  active={parsed,draft,gltf,bindings:bindMaterials(gltf)};
  lastFile=name;scene.add(gltf.scene);ui.empty.hidden=true;ui.name.textContent=name;
+ meshApi?.onModel(bytes,gltf);
  const count=draft.materials?.length||0;ui.count.textContent=String(count);ui.select.replaceChildren();
  for(let i=0;i<count;i++){
   const option=document.createElement('option');option.value=String(i);
@@ -173,12 +180,13 @@ function reset(){
  if(!active)return;
  active.draft=structuredClone(active.parsed.json);
  for(let i=0;i<(active.draft.materials?.length||0);i++)applyLive(i);
- setFields(Number(ui.select.value));notify('Изменения сброшены.');
+ if((active.draft.materials?.length||0)>0)setFields(Number(ui.select.value));
+ meshApi?.requestAutosave();notify('Материалы сброшены. Для геометрии используйте Undo.');
 }
 function save(){
  if(!active)return;
  try{
-  const bytes=writeGlb(active.parsed,active.draft);
+  const bytes=meshApi?.exportGlb(active.draft)??writeGlb(active.parsed,active.draft);
   const blob=new Blob([bytes],{type:'model/gltf-binary'}),url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=lastFile.replace(/\.glb$/i,'')+'-edited.glb';
   document.body.append(a);a.click();a.remove();
@@ -188,15 +196,21 @@ function save(){
 }
 ui.file.addEventListener('change',async()=>{const file=ui.file.files?.[0];ui.file.value='';await loadFile(file);});
 ui.sample.addEventListener('click',async()=>{
- try{await openModel(createSampleGlb(),'cosmic-test.glb');}
+ try{await openModel(createTestHeadGlb(),'organic-head-before.glb');}
  catch(e){notify('Ошибка тестовой модели: '+e.message,true);}
+});
+document.getElementById('loadOriginalSample')?.addEventListener('click',async()=>{
+ try{await openModel(createSampleGlb(),'cosmic-test.glb');}
+ catch(e){notify('Ошибка тестовой сетки: '+e.message,true);}
 });
 ui.select.addEventListener('change',()=>setFields(Number(ui.select.value)));
 [ui.color,ui.metallic,ui.roughness].forEach(c=>c.addEventListener('input',edit));
 ui.reset.addEventListener('click',reset);ui.export.addEventListener('click',save);
 ui.cameraReset.addEventListener('click',reframe);
 try {
-  createViewer();
+  if(createViewer())meshApi=initMeshUi({renderer,scene,controls,getCamera:()=>camera,
+   setCamera:newCamera=>{camera=newCamera;controls.object=camera;controls.update();},
+   getActive:()=>active?{...active,filename:lastFile}:null,openModel,notify});
   window.__MARK_STUDIO_READY__ = true;
 } catch (error) {
   const el = document.getElementById('startupError');

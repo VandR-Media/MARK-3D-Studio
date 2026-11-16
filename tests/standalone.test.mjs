@@ -9,7 +9,7 @@ test('Offline HTML bundles Three.js and does not need CDN',()=>{
  assert.match(html,/__MARK_STUDIO_READY__/);
  assert.doesNotMatch(html,/https?:\/\/cdn\.jsdelivr\.net|<script[^>]+src=|<link[^>]+href=/i);
  assert.doesNotMatch(html,/type="importmap"|type="module"/);
- assert.match(html,/Открыть тестовую 3D-модель/);
+ assert.match(html,/Открыть тестовую голову/);
  assert.match(html,/Ошибка запуска/);
  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(x=>x[1]);
  assert.equal(scripts.length,2,'Expected bootstrap and bundled editor scripts');

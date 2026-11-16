@@ -1,0 +1,41 @@
+name: Mesh Editor WebGL screenshot acceptance
+on:
+  workflow_dispatch:
+  push:
+    branches: ['develop/mesh-editor-v0.2']
+    paths:
+      - 'scripts/capture-preview.mjs'
+      - 'src/app.js'
+      - 'src/mesh-ui.js'
+      - 'src/mesh-core.js'
+      - 'src/head-fixture.js'
+      - 'index.html'
+      - '.github/workflows/browser-preview.yml'
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install build dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Playwright browser
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Build offline HTML
+        run: npm run build:standalone
+      - name: Real WebGL2 interaction and GLB download
+        run: node scripts/capture-preview.mjs
+      - name: Screenshots and exported GLB
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-studio-v0.2-browser-evidence
+          path: screenshots/
+          if-no-files-found: warn

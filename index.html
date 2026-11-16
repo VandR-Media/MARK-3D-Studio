@@ -34,7 +34,7 @@
 <div class="shell">
  <header class="topbar">
   <div class="brand"><div class="mark-icon">M<span>3</span></div>
-    <div><strong>MARK <em>3D</em> Studio</strong><small>GLB MATERIAL EDITOR · MVP 0.1.2</small></div>
+    <div><strong>MARK <em>3D</em> Studio</strong><small>MESH EDITOR · DEV v0.2</small></div>
   </div>
   <div class="header-actions">
    <label class="button primary" for="modelFile">Загрузить GLB</label>
@@ -51,7 +51,8 @@
     <h1>Настоящие 3D-модели</h1>
     <p>Загрузите полигональную модель .glb, вращайте её, меняйте PBR-материалы и сохраняйте изменённый файл.</p>
     <label class="button primary" for="modelFile">Выбрать GLB</label>
-    <button class="text-link" id="loadSample">Открыть тестовую 3D-модель</button>
+    <button class="text-link" id="loadSample">Открыть тестовую голову (GLB)</button>
+    <button class="text-link" id="loadOriginalSample">Открыть прежнюю тестовую сетку</button>
    </div>
    <div class="viewer-foot">
     <span>1 палец — вращать · 2 пальца — масштаб / сдвиг</span>
@@ -60,6 +61,7 @@
   </section>
   <aside class="inspector" aria-label="Редактор материалов">
    <div class="panel-heading"><div><span class="eyebrow">ИНСПЕКТОР</span><h2>Материалы</h2></div><span id="materialCount" class="counter">0</span></div>
+   <section id="meshUi" class="mesh-ui" aria-label="Инструменты полигонального моделирования"></section>
    <div class="inspector-body">
     <label class="field-label" for="materialSelect">Материал из файла</label>
     <select id="materialSelect" disabled><option>Загрузите модель</option></select>
@@ -71,7 +73,7 @@
     <div class="field-row"><label class="field-label" for="roughnessInput">Шероховатость</label><output id="roughnessValue">1.00</output></div>
     <input id="roughnessInput" type="range" min="0" max="1" step="0.01" value="1" disabled>
     <p id="materialHint" class="fine-print">Изменения PBR-материала будут сохранены в экспортированном GLB.</p>
-    <button id="resetButton" class="button secondary full-width" disabled>Сбросить изменения</button>
+    <button id="resetButton" class="button secondary full-width" disabled>Сбросить материалы</button>
     <div class="divider"></div>
     <span class="eyebrow">СТРУКТУРА МОДЕЛИ</span>
     <div class="stats">
