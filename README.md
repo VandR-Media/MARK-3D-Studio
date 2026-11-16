@@ -38,3 +38,7 @@ Work occurs in `develop/mvp-v0.1.0` and draft PRs. **Do not merge into main** un
 ## Licenses
 
 Code is MIT. Three.js is MIT (linked externally via jsDelivr, not redistributed). The generated polygonal GLB is original test geometry. No third-party humanoid models are bundled.
+
+## Переносимый HTML-файл для Huawei
+
+GitHub Actions также собирает `MARK-3D-Studio-standalone.html` и публикует его в артефакте `mark-3d-studio-standalone-preview`. HTML, CSS и собственный JavaScript редактора включены в один файл; **Three.js всё ещё требует подключения к jsDelivr**. Локальное открытие HTML из «Загрузок» зависит от браузера и пока не подтверждено на Pura 80 Ultra. Надёжный вариант — размещение на HTTPS-хостинге. Для локальной сборки выполните `npm run build:standalone`.
