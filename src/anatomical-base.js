@@ -11,6 +11,7 @@
 import {EditableMesh} from './professional-geometry.js';
 import {closeCavityWithQuads} from './facial-cavity.js';
 import {addEditableEyeGlobe} from './facial-eyes.js';
+import {buildEarPatch} from './facial-ears.js';
 const TAU=2*Math.PI,gauss=(x,c,r)=>Math.exp(-.5*((x-c)/r)**2);
 const wrapped=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 const profile=[
@@ -28,7 +29,9 @@ const HOLES=[
  {key:'eye_left',angle:-.51,y:.35,aw:.225,yw:.125,depth:.30},
  {key:'nostril_right',angle:.16,y:-.225,aw:.068,yw:.046,depth:.19},
  {key:'nostril_left',angle:-.16,y:-.225,aw:.068,yw:.046,depth:.19},
- {key:'mouth',angle:0,y:-.52,aw:.32,yw:.055,depth:.32}
+ {key:'mouth',angle:0,y:-.52,aw:.32,yw:.055,depth:.32},
+ {key:'ear_right',angle:Math.PI/2,y:-.12,aw:.24,yw:.32,depth:.15},
+ {key:'ear_left',angle:-Math.PI/2,y:-.12,aw:.24,yw:.32,depth:.15}
 ];
 function point(y,a){
  const ra=interpolate(y,1),rb=interpolate(y,2);
@@ -86,6 +89,8 @@ function centroid(mesh,ids){
  return [0,1,2].map(k=>p.reduce((s,v)=>s+v[k],0)/p.length);
 }
 function labelLoop(center){
+ if(Math.abs(center[0])>.68&&Math.abs(center[1])<.40)
+  return center[0]>0?'ear_right':'ear_left';
  if(center[1]>.10)return center[0]>0?'eye_right':'eye_left';
  if(center[1]<-.37)return 'mouth';
  return center[0]>0?'nostril_right':'nostril_left';
@@ -128,6 +133,14 @@ export function makeAnatomicalChildHead({rings=106,columns=192,includeEyeGlobes=
   const params=HOLES.find(h=>h.key===label),depth=params.depth;
   regions[label+'_rim']=[...boundary];
   landmarks[label]={vertex:boundary[0],center:[...center],rim:[...boundary]};
+  if(label.startsWith('ear')){
+   const side=label.endsWith('_left')?-1:1;
+   const ear=buildEarPatch(mesh,boundary,{center,side});
+   regions[label]=ear.vertices;regions[label+'_helix']=ear.helix;
+   regions[label+'_antihelix']=ear.antihelix;
+   regions[label+'_concha']=ear.concha;regions[label+'_lobe']=ear.lobe;
+   continue;
+  }
   const {rings,capTriangles}=closeCavityWithQuads(mesh,boundary,{
    center,depth,kind:label.startsWith('eye')?'eye':label.startsWith('nostril')?'nostril':'mouth'
   });
