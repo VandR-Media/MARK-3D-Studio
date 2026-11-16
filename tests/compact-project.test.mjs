@@ -84,6 +84,12 @@ test('approx 50k triangles + ten local edits fit <= 15MB binary without losing u
  assert.ok(bytes.byteLength<=15*1024*1024,'Binary project above 15 MiB: '+bytes.length);
  assert.equal(copy.history.length,10);
  const changed=sha(copy.toGlb());assert.notEqual(original,changed);
+ if(sha(copy.toGlb())!==sha(m.toGlb())){
+  const mismatch=[...m.vertices].filter(([id,v])=>!v.position.every((x,i)=>Object.is(x,copy.vertices.get(id)?.position?.[i])));
+  console.log('RELOAD DEBUG',JSON.stringify({vertexMismatch:mismatch.length,firstVertex:mismatch.slice(0,1).map(([id,v])=>({id,old:v.position,restored:copy.vertices.get(id)?.position})),faces:m.faces.size,restoredFaces:copy.faces.size,material:JSON.stringify(m.material)===JSON.stringify(copy.material),keys:[...m.vertices.keys()].slice(0,3),otherKeys:[...copy.vertices.keys()].slice(0,3),geometryCounts:[m.toGeometry().positions.length,copy.toGeometry().positions.length]}));
+  const a=m.toGlb(),b=copy.toGlb();let index=0;while(index<a.length&&a[index]===b[index])index++;
+  console.log('FIRST GLB BYTE DIFF',index,'sizes',a.length,b.length,'nearA',Array.from(a.slice(index,index+30)),'nearB',Array.from(b.slice(index,index+30)));
+ }
  assert.equal(sha(copy.toGlb()),sha(m.toGlb()),'Binary changed edited GLB unexpectedly');
  for(let i=0;i<10;i++)copy.undo();
  const drift=[...copy.vertices].filter(([id,v])=>v.position.some((n,i)=>!Object.is(n,originalPositions.get(id)[i])));
