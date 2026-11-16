@@ -2,13 +2,14 @@
  * MARK Anatomical Base Mesh — experimental child-head topology prototype.
  *
  * Independent profile-driven QUAD surface (NOT contour-head-v1) with actual
- * boundary loops and recessed, capped surface cavities for both orbital sockets,
- * mouth and paired nostrils. Caps represent temporary interior surfaces;
+ * boundary loops and recessed, QUAD-sealed surface cavities for both orbital sockets,
+ * mouth and paired nostrils. Interior QUAD caps are temporary surfaces;
  * they are NOT a final riggable mouth or anatomically complete ears/eyelids.
  *
  * All polygons, rim rings and stable vertex IDs remain editable in EditableMesh.
  */
 import {EditableMesh} from './professional-geometry.js';
+import {closeCavityWithQuads} from './facial-cavity.js';
 const TAU=2*Math.PI,gauss=(x,c,r)=>Math.exp(-.5*((x-c)/r)**2);
 const wrapped=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 const profile=[
@@ -126,25 +127,23 @@ export function makeAnatomicalChildHead({rings=106,columns=192}={}){
   const params=HOLES.find(h=>h.key===label),depth=params.depth;
   regions[label+'_rim']=[...boundary];
   landmarks[label]={vertex:boundary[0],center:[...center],rim:[...boundary]};
-  let prev=boundary;
-  for(let layer=1;layer<=3;layer++){
-   const next=boundary.map((id,index)=>{
-    const v=mesh.vertices.get(id),p=v.position;
-    const f=[0,.18,.50,.77][layer],t=layer/3;
-    // Inward transition across three actual quad loops.
-    return mesh._vertex([
-     p[0]*(1-f)+center[0]*f,
-     p[1]*(1-f)+center[1]*f,
-     p[2]*(1-f)+center[2]*f-depth*t
-    ],v.uv);
-   });
-   for(let j=0;j<prev.length;j++)mesh._face([
-    prev[(j+1)%prev.length],prev[j],next[j],next[(j+1)%next.length]
-   ]);
-   prev=next;
+  const {rings,capTriangles}=closeCavityWithQuads(mesh,boundary,{
+   center,depth,kind:label.startsWith('eye')?'eye':label.startsWith('nostril')?'nostril':'mouth'
+  });
+  if(capTriangles!==0)throw Error('Facial cavity contains radial triangle fans');
+  const span=rings[0].length;
+  if(label.startsWith('eye')){
+   const side=label.endsWith('_left')?'left':'right';
+   regions['eye_'+side]=rings.slice(0,4).flat();
+   regions['upper_eyelid_'+side]=rings.slice(0,3).flatMap(r=>r.filter(id=>mesh.vertices.get(id).position[1]>=center[1]));
+   regions['lower_eyelid_'+side]=rings.slice(0,3).flatMap(r=>r.filter(id=>mesh.vertices.get(id).position[1]<center[1]));
+  }else if(label.startsWith('nostril')){
+   regions['nose_alar_'+(label.endsWith('_left')?'left':'right')]=rings.slice(0,3).flat();
+  }else{
+   regions.mouth_upper_lip=rings.slice(0,3).flatMap(r=>r.filter(id=>mesh.vertices.get(id).position[1]>=center[1]));
+   regions.mouth_lower_lip=rings.slice(0,3).flatMap(r=>r.filter(id=>mesh.vertices.get(id).position[1]<center[1]));
+   regions.mouth_corners=boundary.filter(id=>Math.abs(mesh.vertices.get(id).position[0]-center[0])>.75*.32);
   }
-  const end=mesh._vertex([center[0],center[1],center[2]-depth],[.5,.5]);
-  for(let j=0;j<prev.length;j++)mesh._face([end,prev[(j+1)%prev.length],prev[j]]);
  }
  mesh._rebuild();
  // Named ID-based geometry anchors survive ordinary positional sculpting,
@@ -161,6 +160,13 @@ export function makeAnatomicalChildHead({rings=106,columns=192}={}){
   }
   landmarks[name]={vertex:best,center:[...mesh.vertices.get(best).position]};
  }
+ // Named vertex clusters for local programmatic modeling; no detached spheres.
+ const pick=(name,test)=>{const ids=[...mesh.vertices.values()].filter(v=>test(v.position)).map(v=>v.id);if(ids.length)regions[name]=ids;};
+ pick('nose_bridge',p=>Math.abs(p[0])<.12&&p[1]>.02&&p[1]<.35&&p[2]>.72);
+ pick('nose_tip',p=>Math.abs(p[0])<.17&&p[1]>-.35&&p[1]<-.12&&p[2]>.78);
+ pick('cheeks',p=>Math.abs(p[0])>.32&&Math.abs(p[0])<.65&&p[1]>-.24&&p[1]<.19&&p[2]>.40);
+ pick('chin',p=>Math.abs(p[0])<.34&&p[1]>-1.03&&p[1]<-.70&&p[2]>.39);
+ pick('jaw',p=>Math.abs(p[0])>.28&&p[1]>-1.10&&p[1]<-.55);
  mesh.landmarks=landmarks;mesh.regions=regions;
  mesh.validate({strict:true});
  const diag=mesh.inspect();
