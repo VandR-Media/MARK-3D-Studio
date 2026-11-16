@@ -86,7 +86,7 @@ export function encodeMark3d(mesh,{includeUndo=true,level=6}={}){
  writer.add('selected',[...mesh.selection].map(id=>lookup.get(id)),'u32');
  const masks=[...mesh.masks].map(([name,values])=>[name,[...values].map(([id,w])=>[lookup.get(id),w])]);
  const meta={schema:'mark3d/binary-v2',name:mesh.name,material:mesh.material,
-  next:mesh._next,revision:mesh.revision,maxHistory:mesh.maxHistory,landmarks:mesh.landmarks||{},regions:mesh.regions||{},
+  next:mesh._next,revision:mesh.revision,maxHistory:mesh.maxHistory,landmarks:mesh.landmarks||{},regions:mesh.regions||{},referenceViews:mesh.referenceViews||{},
   masks,history:includeUndo?mesh.history:[],future:includeUndo?mesh.future:[],
   sections:writer.sections,metadata:{coordinatePrecision:'float64',cornerUVPrecision:'float64',
    ids:'numeric stable prefixes v/f/e',halfEdges:'rebuild-from-polygons'}};
@@ -166,7 +166,7 @@ export function decodeMark3d(input){
  })]);
  const mesh=EditableMesh.fromProject({schema:'mark3d/0.1',mesh:{
   name:meta.name,material:meta.material,vertices,faces,selection:select,masks,
-  edgeIds:edgePairs,next:meta.next,revision:meta.revision,landmarks:meta.landmarks||{},regions:meta.regions||{}
+  edgeIds:edgePairs,next:meta.next,revision:meta.revision,landmarks:meta.landmarks||{},regions:meta.regions||{},referenceViews:meta.referenceViews||{}
  },undo:meta.history||[],redo:meta.future||[]});
  mesh.maxHistory=meta.maxHistory||20;
  return {mesh,migrated:false,version:2};
