@@ -1,6 +1,6 @@
 {
   "name": "mark-3d-studio",
-  "version": "0.2.0-dev",
+  "version": "0.3.0-dev",
   "private": true,
   "type": "module",
   "description": "Mobile-first browser editor of real GLB PBR materials",
@@ -14,7 +14,8 @@
     "build:standalone": "node scripts/build-standalone.mjs",
     "test:standalone": "node --test tests/standalone.test.mjs",
     "test:mesh": "node --test tests/mesh.test.mjs",
-    "mesh:fixtures": "node scripts/export-head.mjs"
+    "mesh:fixtures": "node scripts/export-head.mjs",
+    "test:topology": "node --test tests/topology.test.mjs"
   },
   "license": "MIT",
   "dependencies": {
