@@ -71,7 +71,8 @@ export function readPrimitive(bytes,nodeIndex=0,primitiveIndex=0){
  if(attrs.some(x=>!allowed.includes(x)))fail('дополнительные атрибуты требуют переноса весов/цветов/тангентов: '+attrs.filter(x=>!allowed.includes(x)).join(', '));
  if(p.extensions&&Object.keys(p.extensions).length)fail('расширения примитива не поддерживают редактирование топологии');
  // Constructing MeshEditor also verifies shared normal accessors, stride and indices.
- const editor=new MeshEditor(bytes,sceneMeshList(doc).indexOf(selected)); // fallback below if descriptor identity differs
+ const index=sceneMeshList(doc).findIndex(d=>d.nodeIndex===nodeIndex&&d.primitiveIndex===primitiveIndex);
+ const editor=new MeshEditor(bytes,index);
  const positions=Array.from(editor.positions),indices=Array.from(editor.indices);
  const uvs=p.attributes.TEXCOORD_0===undefined?null:getAccessor(doc,bin,p.attributes.TEXCOORD_0,'VEC2');
  if(uvs&&uvs.length!==positions.length/3*2)fail('число UV не соответствует вершинам');
@@ -126,8 +127,8 @@ export function topologyEdit(bytes,{nodeIndex=0,primitiveIndex=0,operation='subd
  }else if(operation==='inset'||operation==='extrude'){
   const amountSafe=Number(amount),t=Number(ratio);
   if(!Number.isFinite(amountSafe)||Math.abs(amountSafe)>2||!(t>.02&&t<.9))fail('допустимый Inset: 0.02–0.90; Extrude: −2…2');
-  const normal=recalcNormals(p,ia)[ia[0]*3]!==undefined?(()=>{const a=at(ia[0]),b=at(ia[1]),c=at(ia[2]),u=b.map((x,i)=>x-a[i]),v=c.map((x,i)=>x-a[i]);
-   const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...n);if(l<EPS)fail('нельзя выдавить вырожденную грань');return n.map(x=>x/l);})():[0,0,1];
+  const normal=(()=>{const a=at(ia[0]),b=at(ia[1]),c=at(ia[2]),u=b.map((x,i)=>x-a[i]),v=c.map((x,i)=>x-a[i]);
+   const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...n);if(l<EPS)fail('нельзя выдавить вырожденную грань');return n.map(x=>x/l);})();
   const top=ia.map(i=>{
    const orig=at(i),pt=operation==='inset'?orig.map((v,k)=>v*(1-t)+center[k]*t):orig.map((v,k)=>v+normal[k]*amountSafe);
    const uv0=uv(i);return add(pt,operation==='inset'?uv0?.map((v,k)=>v*(1-t)+centerUV[k]*t):uv0);
@@ -153,7 +154,7 @@ export function topologyEdit(bytes,{nodeIndex=0,primitiveIndex=0,operation='subd
   const newIndex=idx.map(i=>remap[i]);
   if(newIndex.some((v,k)=>newIndex[Math.floor(k/3)*3+(k+1)%3]===v||newIndex[Math.floor(k/3)*3+(k+2)%3]===v))
    fail('объединение создаёт вырожденные грани; операция отменена');
-  idx.splice(0,idx.length,...newIndex); // Orphan vertices are allowed and do not damage glTF.
+  for(let i=0;i<idx.length;i++)idx[i]=newIndex[i]; // Preserve unattached seam-safe vertices.
  }else if(operation==='normals'){
   // no topology change; still rewrite accessor to ensure normal vectors stored in BIN.
  }else if(operation==='delete'){
