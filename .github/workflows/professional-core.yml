@@ -1,0 +1,68 @@
+name: MARK Professional Geometry Core — real mesh / GLB / Chromium
+on:
+  push:
+    branches: ['develop/professional-geometry-core']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mark-professional-core
+  cancel-in-progress: true
+jobs:
+  geometry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned free dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check native geometry source and CLI
+        run: |
+          node --check src/professional-geometry.js
+          node --check src/professional-api.js
+          node --check scripts/professional-build.mjs
+      - name: Native Half-Edge and sculpt regression on actual meshes
+        run: npm run test:professional
+      - name: Legacy GLB tests remain supported
+        run: |
+          npm test
+          npm run test:mesh
+          npm run test:topology
+          npm run test:scene
+          npm run test:face
+          npm run test:modeling
+      - name: Build .mark3d, original + sculpted GLB and diagnostics
+        run: npm run professional:build -- --recipe recipes/professional-face-sculpt.json
+      - name: Build Huawei standalone and verify source SHA
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+      - name: Install Chromium renderer
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Seven actual WebGL2 views of original native project
+        run: |
+          node scripts/render-character.mjs --runs 1 --glb dist/professional/professional-face-sculpt/checkpoint-initial.glb --out dist/professional/professional-face-sculpt/renders/before
+      - name: Seven actual WebGL2 views of sculpted exported GLB
+        run: |
+          node scripts/render-character.mjs --runs 1 --glb dist/professional/professional-face-sculpt/professional-face-sculpt.glb --out dist/professional/professional-face-sculpt/renders/after
+      - name: Verify real before/after GLB hashes differ and screenshot evidence exists
+        run: |
+          node -e "const fs=require('fs'),p='dist/professional/professional-face-sculpt',r=require('./'+p+'/report.json'),a=require('./'+p+'/renders/after/camera-report.json'),b=require('./'+p+'/renders/before/camera-report.json');if(r.checkpoints[0].sha256===r.glbSha256||!a.allPassed||!b.allPassed||a.sourceCommit!==process.env.GITHUB_SHA)throw Error('Model render pipeline failed');if(!fs.existsSync(p+'/renders/after/01-front.png'))throw Error('PNG missing');"
+      - name: Upload original and edited GLB, editable mark3d, recipes, reports, real screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-professional-core-geometric-files-and-real-webgl-renders
+          path: dist/professional/
+          if-no-files-found: error
+      - name: Offline Huawei preview with precise SHA
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-professional-core-Huawei-offline-HTML
+          path: |
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json
