@@ -23,7 +23,7 @@ const unit=a=>mul(a,1/(norm(a)||1));
 const edgeKey=(a,b)=>a<b?a+'|'+b:b+'|'+a;
 const clamp=x=>Math.max(0,Math.min(1,x));
 function insist(ok,message){if(!ok)throw Error('MARK Geometry Core: '+message);}
-function clone(x){return JSON.parse(JSON.stringify(x));}
+function clone(x){return structuredClone(x);} // preserves signed zero and exact FLOAT64 on binary re-import
 function triangulatePolygon(ids,lookup){
  if(ids.length===3)return [[0,1,2]];
  // Ear clipping for simple planar concave polygons; fails closed if not triangulable.
@@ -64,7 +64,7 @@ export class EditableMesh {
   this.name=name;this.material=material||{name:'MARK Core PBR',color:[.77,.54,.42,1],roughness:.8,metallic:0};
   this.vertices=new Map();this.faces=new Map();this.edges=new Map();this.halfEdges=new Map();
   this.adj=new Map();this._edgeIds=new Map();this._next={v:1,e:1,f:1};
-  this.selection=new Set();this.masks=new Map();this.history=[];this.future=[];this.revision=0;
+  this.selection=new Set();this.masks=new Map();this.landmarks={};this.regions={};this.referenceViews={};this.history=[];this.future=[];this.revision=0;this.maxHistory=20;
   this._spatial=null;
  }
  static fromGeometry(geom,options={}){
@@ -110,8 +110,8 @@ export class EditableMesh {
   this.faces.set(fid,{id:fid,vertices:[...ids],uv:uv.map(a=>[...a]),material:0});return fid;
  }
  _rebuild(){
-  this.edges=new Map();this.halfEdges=new Map();this.adj=new Map();
-  for(const id of this.vertices.keys())this.adj.set(id,new Set());
+  this.edges=new Map();this.halfEdges=new Map();this.adj=new Map();this.incidentFaces=new Map();
+  for(const id of this.vertices.keys()){this.adj.set(id,new Set());this.incidentFaces.set(id,new Set());}
   const twins=new Map();
   for(const face of this.faces.values()){
    const n=face.vertices.length,halfIds=[];
@@ -127,7 +127,7 @@ export class EditableMesh {
     const hid='h:'+face.id+':'+i;
     const he={id:hid,edgeId:edge.id,face:face.id,from,to,next:null,prev:null,twin:null};
     this.halfEdges.set(hid,he);halfIds.push(hid);edge.halfEdges.push(hid);
-    this.adj.get(from).add(to);this.adj.get(to).add(from);
+    this.adj.get(from).add(to);this.adj.get(to).add(from);this.incidentFaces.get(from).add(face.id);
     const opposite=twins.get(to+'>'+from);
     if(opposite){he.twin=opposite;this.halfEdges.get(opposite).twin=hid;}
     twins.set(from+'>'+to,hid);
@@ -143,13 +143,13 @@ export class EditableMesh {
   return {name:this.name,material:clone(this.material),vertices:[...this.vertices.values()].map(clone),
    faces:[...this.faces.values()].map(clone),selection:[...this.selection],
    masks:[...this.masks].map(([name,items])=>[name,[...items]]),
-   next:clone(this._next),edgeIds:[...this._edgeIds],revision:this.revision};
+   next:clone(this._next),edgeIds:[...this._edgeIds],landmarks:clone(this.landmarks),regions:clone(this.regions),referenceViews:clone(this.referenceViews),revision:this.revision};
  }
  _restore(s){
   this.name=s.name;this.material=clone(s.material);this.vertices=new Map(s.vertices.map(v=>[v.id,clone(v)]));
   this.faces=new Map(s.faces.map(f=>[f.id,clone(f)]));this.selection=new Set(s.selection);
   this.masks=new Map(s.masks.map(([name,items])=>[name,new Map(items)]));
-  this._next=clone(s.next);this._edgeIds=new Map(s.edgeIds);this.revision=s.revision;
+  this._next=clone(s.next);this._edgeIds=new Map(s.edgeIds);this.landmarks=clone(s.landmarks||{});this.regions=clone(s.regions||{});this.referenceViews=clone(s.referenceViews||{});this.revision=s.revision;
   this._rebuild();
  }
  transact(label,fn){
@@ -158,18 +158,64 @@ export class EditableMesh {
   try{
    const result=fn(this);
    this._rebuild();this.validate({strict:true});
-   this.history.push({label,before});if(this.history.length>12)this.history.shift();
+   this.history.push({label,kind:'topology',before});if(this.history.length>this.maxHistory)this.history.shift();
    this.future=[];this.revision++;
    return result;
   }catch(e){this._restore(before);throw e;}
  }
+ /** Coordinate-only transactions never allocate full mesh snapshots.
+  * Deltas retain only changed IDs and exact FLOAT64 before/after coordinates.
+  */
+ _coordinateEdit(label,updates){
+  const entries=[];
+  for(const [id,next] of updates){
+   const v=this.vertices.get(id);
+   insist(v&&vec(next),'invalid coordinate edit: '+id);
+   if(v.position.some((x,i)=>x!==next[i]))entries.push([id,[...v.position],[...next]]);
+  }
+  if(!entries.length)return 0;
+  const selected=new Set(entries.map(a=>a[0]));
+  try{
+   for(const [id,,after] of entries)this.vertices.get(id).position=after;
+   // Validate only incident polygon triangles; topology/adjacency are unchanged.
+   const affected=new Set();
+   for(const he of this.halfEdges.values())if(selected.has(he.from))affected.add(he.face);
+   for(const id of affected){
+    const f=this.faces.get(id);
+    for(const [a,b,c] of triangulatePolygon(f.vertices,this.vertices)){
+     const p=this.vertices.get(f.vertices[a]).position;
+     const q=this.vertices.get(f.vertices[b]).position;
+     const r=this.vertices.get(f.vertices[c]).position;
+     insist(norm(cross(sub(q,p),sub(r,p)))>EPS,'brush creates degenerate face '+id);
+    }
+   }
+  }catch(e){
+   for(const [id,before] of entries)this.vertices.get(id).position=before;
+   throw e;
+  }
+  this._spatial=null;
+  this.history.push({kind:'coordinates',label,changes:entries});
+  if(this.history.length>this.maxHistory)this.history.shift();
+  this.future=[];this.revision++;
+  return entries.length;
+ }
  undo(){
   const prev=this.history.pop();if(!prev)return false;
-  this.future.push({label:prev.label,before:this._state()});this._restore(prev.before);return true;
+  if(prev.kind==='coordinates'){
+   for(const [id,before] of prev.changes)this.vertices.get(id).position=[...before];
+   this._spatial=null;this.future.push(prev);this.revision++;return true;
+  }
+  this.future.push({label:prev.label,kind:'topology',before:this._state()});
+  this._restore(prev.before);return true;
  }
  redo(){
   const next=this.future.pop();if(!next)return false;
-  this.history.push({label:next.label,before:this._state()});this._restore(next.before);return true;
+  if(next.kind==='coordinates'){
+   for(const [id,,after] of next.changes)this.vertices.get(id).position=[...after];
+   this._spatial=null;this.history.push(next);this.revision++;return true;
+  }
+  this.history.push({label:next.label,kind:'topology',before:this._state()});
+  this._restore(next.before);return true;
  }
  select(ids){
   insist(Array.isArray(ids)&&ids.every(k=>this.vertices.has(k)),'неизвестный vertex ID');
@@ -188,10 +234,9 @@ export class EditableMesh {
  moveSelected(delta,{weight=1}={}){
   insist(vec(delta)&&num(weight)&&weight>=0&&weight<=1,'перемещение должно содержать XYZ и weight');
   insist(this.selection.size>0,'сначала выделите область');
-  return this.transact('mesh.edit',()=>{
-   for(const id of this.selection){const v=this.vertices.get(id);v.position=add(v.position,mul(delta,weight));}
-   return {verticesChanged:this.selection.size};
-  });
+  const updates=new Map();
+  for(const id of this.selection)updates.set(id,add(this.vertices.get(id).position,mul(delta,weight)));
+  return {verticesChanged:this._coordinateEdit('mesh.edit',updates)};
  }
  faceSubdivide(faceId){
   return this.transact('mesh.subdivide',()=>{
@@ -250,11 +295,20 @@ export class EditableMesh {
    return near;
   };
   const groups=[{point:center,reflect:false},...(symmetry&&Math.abs(center[0])>1e-7?[{point:[-center[0],center[1],center[2]],reflect:true}]:[])];
+  // Area-weighted face normals: no approximate Laplacian "curvature normal".
+  // Collect only faces incident to an affected vertex, then sum oriented area.
   const normalAt=id=>{
-   const p=orig.get(id),adj=this.adj.get(id);
-   if(!adj?.size)return [0,0,1];
-   let avg=[0,0,0];for(const n of adj)avg=add(avg,sub(orig.get(n),p));
-   return unit(mul(avg,-1)); // coarse curvature normal; explicit approximation
+   const incident=this.incidentFaces.get(id);
+   if(!incident?.size)return [0,0,1];
+   let sum=[0,0,0];
+   for(const fid of incident){
+    const f=this.faces.get(fid);
+    for(const [a,b,c] of triangulatePolygon(f.vertices,this.vertices)){
+     const p=orig.get(f.vertices[a]),q=orig.get(f.vertices[b]),r=orig.get(f.vertices[c]);
+     sum=add(sum,cross(sub(q,p),sub(r,p)));
+    }
+   }
+   return norm(sum)>EPS?unit(sum):[0,0,1];
   };
   const affected=new Map();
   for(const g of groups)for(const [id,w] of brushAt(g.point)){
@@ -262,7 +316,7 @@ export class EditableMesh {
    affected.set(id,{weight:w,center:g.point,reflect:g.reflect});
   }
   insist(affected.size>0,'кисть не попала на полигональную поверхность');
-  return this.transact('sculpt.'+mode,()=>{
+  const updates=new Map();
    for(const [id,hit] of affected){
     const pos=orig.get(id),center=hit.center,masked=mask?this.masks.get(mask).get(id)??0:1;
     const weight=hit.weight*strength*masked;
@@ -276,10 +330,10 @@ export class EditableMesh {
      if(neighbors.length)change=mul(sub(mul(avg,1/neighbors.length),pos),weight*(mode==='relax'?.6:1));
     }else if(mode==='flatten')change=mul([0,0,center[2]-pos[2]],weight);
     else if(mode==='crease')change=add(mul(sub(center,pos),weight*.20),mul(normalAt(id),-weight*.038));
-    this.vertices.get(id).position=add(pos,change);
+    updates.set(id,add(pos,change));
    }
-   return {touched:affected.size,mode,symmetry};
-  });
+   const touched=this._coordinateEdit('sculpt.'+mode,updates);
+   return {touched,mode,symmetry};
  }
  setMask(name,ids,weight=1){
   insist(typeof name==='string'&&/^[a-z0-9_-]{1,60}$/.test(name),'неверное имя маски');

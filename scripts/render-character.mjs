@@ -16,7 +16,8 @@ const html=resolve(opt('--html','dist/MARK-3D-Studio-standalone.html'));
 const out=resolve(opt('--out','dist/character/stylized-face-demo/renders'));
 const runs=Number(opt('--runs','5'));
 if(!Number.isInteger(runs)||runs<1||runs>10)throw Error('Allowed --runs: 1–10; use 5 for candidate acceptance');
-const views=['front','left','right','threequarter-left','threequarter-right','face-close','wireframe'];
+const views=opt('--views','front,left,right,threequarter-left,threequarter-right,face-close,wireframe').split(',').map(s=>s.trim());
+if(views.some(s=>!s||!/^[a-z-]+$/.test(s))||new Set(views).size!==views.length)throw Error('Invalid or duplicated --views');
 const build=JSON.parse(readFileSync(resolve('dist/build-info.json'),'utf8'));
 const sourceSha=process.env.GITHUB_SHA||'local-unverified';
 const glbHash=createHash('sha256').update(readFileSync(glb)).digest('hex');
@@ -101,7 +102,7 @@ try{
  writeFileSync(join(out,'camera-report.json'),JSON.stringify({
   renderer:'Three.js WebGL2 / Chromium SwiftShader',
   sourceCommit:sourceSha,glbSha256:glbHash,requiredRuns:runs,successfulRuns:outcomes.length,
-  sevenViewsPerRun:views,allPassed:outcomes.every(x=>x.status==='pass'),outcomes
+  viewsPerRun:views,sevenViewsPerRun:views,allPassed:outcomes.every(x=>x.status==='pass'),outcomes
  },null,2)+'\n');
 }finally{
  if(outcomes.some(x=>x.status==='fail'))writeFileSync(join(out,'render-errors.json'),JSON.stringify(outcomes,null,2));

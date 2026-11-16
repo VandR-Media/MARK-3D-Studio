@@ -49,3 +49,6 @@
 .character-ui [hidden]{display:none!important}
 #charAudit{display:block;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:520px){.character-panel>summary{padding:15px 12px}.character-inner{padding:0 12px 14px}}
+
+/* Native professional geometry editing, compact touch controls */
+.professional-ui{padding:0 12px}.pro-details{margin:10px 0;border:1px solid #546182;border-radius:12px;background:#202d43;padding:11px}.pro-details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:800;font-size:14px;color:#dfdcff}.pro-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}.pro-buttons .button{flex:1 1 120px;white-space:normal;min-height:46px;font-size:12px}.pro-xyz{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}.pro-xyz label{font-size:12px;color:#c7d7f2}.pro-xyz input{width:100%;min-width:0;background:#152238;color:#f5f7ff;border:1px solid #586886;border-radius:8px;padding:10px 6px;font-size:14px}.pro-toggle{display:flex;align-items:center;gap:10px;padding:9px 0;color:#cad3ec}.pro-details .field-label{margin-top:12px}.pro-details input[type=range]{min-height:32px}@media(max-width:540px){.professional-ui{padding:0 8px}.pro-buttons .button{min-height:48px;font-size:13px}.pro-details{padding:10px}}

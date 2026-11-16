@@ -1,0 +1,115 @@
+{
+  "schema": "mark-geometry/0.1",
+  "project": {
+    "id": "anatomical-head-stage2-demo",
+    "base": "empty",
+    "description": "Editable child-head QUAD topology with real recessed eye, mouth and nostril loops. NOT final MARK Cosmic"
+  },
+  "commands": [
+    {
+      "operation": "character.createBaseMesh",
+      "parameters": {
+        "type": "stylized-child-head",
+        "rings": 106,
+        "columns": 192
+      }
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "anatomical-before"
+    },
+    {
+      "operation": "mesh.selectLoop",
+      "parameters": {
+        "region": "eye_left_rim"
+      }
+    },
+    {
+      "operation": "sculpt.contour",
+      "parameters": {
+        "region": "eye_left_rim",
+        "delta": [
+          0,
+          0.008,
+          -0.009
+        ],
+        "weight": 0.4
+      }
+    },
+    {
+      "operation": "face.adjustLandmarks",
+      "parameters": {
+        "name": "brow_left",
+        "delta": [
+          0,
+          0.008,
+          0.006
+        ],
+        "strength": 0.5,
+        "radius": 0.15
+      }
+    },
+    {
+      "operation": "face.adjustLandmarks",
+      "parameters": {
+        "name": "nose_tip",
+        "delta": [
+          0,
+          0,
+          0.018
+        ],
+        "strength": 0.42,
+        "radius": 0.13
+      }
+    },
+    {
+      "operation": "sculpt.brush",
+      "parameters": {
+        "center": [
+          0.45,
+          -0.04,
+          0.68
+        ],
+        "radius": 0.16,
+        "strength": 0.28,
+        "mode": "smooth",
+        "symmetry": true
+      }
+    },
+    {
+      "operation": "sculpt.contour",
+      "parameters": {
+        "region": "mouth_rim",
+        "delta": [
+          0,
+          -0.004,
+          0.008
+        ],
+        "weight": 0.35
+      }
+    },
+    {
+      "operation": "face.adjustLandmarks",
+      "parameters": {
+        "name": "chin",
+        "delta": [
+          0,
+          -0.008,
+          0.013
+        ],
+        "strength": 0.3,
+        "radius": 0.18
+      }
+    },
+    {
+      "operation": "mesh.inspect"
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "anatomical-after"
+    },
+    {
+      "operation": "project.export"
+    }
+  ]
+}

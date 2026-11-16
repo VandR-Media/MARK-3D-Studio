@@ -7,6 +7,7 @@ import {createSampleGlb} from './sample.js';
 import {createTestHeadGlb} from './head-fixture.js';
 import {initMeshUi} from './mesh-ui.js';
 import {initCharacterUi} from './character-ui.js';
+import {initProfessionalUi} from './professional-ui.js';
 
 const $=id=>document.getElementById(id);
 const ui={holder:$('canvasHolder'),file:$('modelFile'),name:$('modelName'),
@@ -16,7 +17,7 @@ const ui={holder:$('canvasHolder'),file:$('modelFile'),name:$('modelName'),
  roughness:$('roughnessInput'),roughnessValue:$('roughnessValue'),
  reset:$('resetButton'),export:$('exportButton'),cameraReset:$('resetCamera'),
  count:$('materialCount'),renderMode:$('renderMode'),hint:$('materialHint')};
-let scene,camera,renderer,controls,grid,active=null,meshApi=null,characterApi=null,lastFile='mark-model.glb',timer=0,raf=0;
+let scene,camera,renderer,controls,grid,active=null,meshApi=null,characterApi=null,lastFile='mark-model.glb',timer=0,raf=0,professionalApi=null;
 let requestSerial=0;
 const phaseOrder=['idle','loading','parsed','geometry_created','scene_added','camera_configured','first_frame','ready'];
 const sceneState={phase:'idle',request:0,file:null,meshes:0,triangles:0,error:null,events:[],renderedTriangles:0};
@@ -220,6 +221,7 @@ async function openModel(bytes,name){
 async function loadFile(file){
  if(!file)return;
  if(!file.name.toLowerCase().endsWith('.glb')){notify('Открываются только бинарные .glb.',true);return;}
+ professionalApi?.clear();
  if(file.size>80*1024*1024){notify('Для MVP установлен предел 80 МБ.',true);return;}
  ui.name.textContent='Чтение: '+file.name;
  try{await openModel(new Uint8Array(await file.arrayBuffer()),file.name);}
@@ -235,7 +237,7 @@ function reset(){
 function save(){
  if(!active)return;
  try{
-  const bytes=meshApi?.exportGlb(active.draft)??writeGlb(active.parsed,active.draft);
+  const bytes=professionalApi?.hasProject()?professionalApi.exportGlb():(meshApi?.exportGlb(active.draft)??writeGlb(active.parsed,active.draft));
   const verified=parseGlb(bytes);
   if(!verified.json.meshes||!verified.json.nodes)throw Error('Неверная структура экспортируемого GLB.');
   const blob=new Blob([bytes],{type:'model/gltf-binary'}),url=URL.createObjectURL(blob);
@@ -256,15 +258,19 @@ window.__MARK_CAPTURE_VIEW__=function(view){
  if(sceneState.phase!=='ready'||!active?.gltf?.scene||!renderer||!controls)
   throw Error('3D scene not ready: '+JSON.stringify({phase:sceneState.phase,file:sceneState.file,error:sceneState.error,meshes:sceneState.meshes,triangles:sceneState.triangles}));
  const dirs={
-  front:[0,0,1],left:[-1,0,0],right:[1,0,0],
+  front:[0,0,1],back:[0,0,-1],left:[-1,0,0],right:[1,0,0],
   'threequarter-left':[-.72,.10,1],'threequarter-right':[.72,.10,1],
-  'face-close':[0,0,1],wireframe:[0,0,1]
+  'face-close':[0,0,1],'eyes-close':[0,0,1],'nose-close':[0,0,1],'mouth-close':[0,0,1],wireframe:[0,0,1]
  };
  const direction=dirs[view];if(!direction)throw Error('Unknown camera view '+view);
  const aspect=Math.max(.2,renderer.domElement.clientWidth/Math.max(1,renderer.domElement.clientHeight));
- const half=view==='face-close'?.78:1.42;
+ const close={ 'face-close':{half:.78,aim:[0,.27,.20]},
+  'eyes-close':{half:.32,aim:[0,.36,.63]},
+  'nose-close':{half:.27,aim:[0,-.17,.70]},
+  'mouth-close':{half:.28,aim:[0,-.52,.65]}};
+ const half=close[view]?.half??1.42;
  const next=new THREE.OrthographicCamera(-half*aspect,half*aspect,half,-half,.01,40);
- const aim=view==='face-close'?new THREE.Vector3(0,.27,.20):new THREE.Vector3(0,0,0);
+ const aim=new THREE.Vector3(...(close[view]?.aim??[0,0,0]));
  const dir=new THREE.Vector3(...direction).normalize();
  next.position.copy(aim).addScaledVector(dir,7);
  next.up.set(0,1,0);next.lookAt(aim);next.updateProjectionMatrix();
@@ -282,10 +288,12 @@ window.__MARK_CAPTURE_VIEW__=function(view){
 
 ui.file.addEventListener('change',async()=>{const file=ui.file.files?.[0];ui.file.value='';await loadFile(file);});
 ui.sample.addEventListener('click',async()=>{
+ professionalApi?.clear();
  try{await openModel(createTestHeadGlb(),'organic-head-before.glb');}
  catch(e){notify('Ошибка тестовой модели: '+e.message,true);}
 });
 document.getElementById('loadOriginalSample')?.addEventListener('click',async()=>{
+ professionalApi?.clear();
  try{await openModel(createSampleGlb(),'cosmic-test.glb');}
  catch(e){notify('Ошибка тестовой сетки: '+e.message,true);}
 });
@@ -298,6 +306,7 @@ try {
    setCamera:newCamera=>{camera=newCamera;controls.object=camera;controls.update();},
    getActive:()=>active?{...active,filename:lastFile}:null,openModel,notify});
   if(meshApi)characterApi=initCharacterUi({getActive:()=>active?{...active,filename:lastFile}:null,openModel,notify},meshApi);
+  if(meshApi)professionalApi=initProfessionalUi({openModel,notify});
   window.__MARK_STUDIO_READY__ = true;
 } catch (error) {
   const el = document.getElementById('startupError');
