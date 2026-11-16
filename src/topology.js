@@ -80,7 +80,7 @@ export function readPrimitive(bytes,nodeIndex=0,primitiveIndex=0){
  if(original.invalidTriangles||original.nonManifoldEdges)fail('исходная сетка содержит вырожденные грани или неманифолдные рёбра');
  return {parsed,doc,bin,selected,primitive:p,positions,indices,uvs,original};
 }
-function appendViews(ctx,positions,indices,uvs){
+export function appendViews(ctx,positions,indices,uvs){
  const {doc,parsed,primitive}=ctx;
  const norm=recalcNormals(positions,indices),p=Float32Array.from(positions);
  const index=positions.length/3<=65535?Uint16Array.from(indices):Uint32Array.from(indices);
