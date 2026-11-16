@@ -1,0 +1,51 @@
+name: MARK Cosmic approved-look 3D review (experimental)
+on:
+  push:
+    branches: ['feature/mark-cosmic-approved-lookdev-v1']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mark-cosmic-approval-v1
+  cancel-in-progress: true
+jobs:
+  render-approved-look:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install modeling dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check core code and modeling tests
+        run: |
+          node --check src/cosmic-head.js
+          node --check src/production-geometry.js
+          node --check src/modeling-api.js
+          npm run test:modeling
+          npm run test:face
+      - name: Build MARK Cosmic GLB from user-approved look brief
+        run: npm run character:build -- --recipe recipes/mark-cosmic-approved-lookdev-v1.json
+      - name: Build exact-SHA offline studio viewer
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+      - name: Install genuine Chromium WebGL renderer
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Render two independent import cycles and seven 3D views
+        run: |
+          node scripts/render-character.mjs --runs 2 --glb dist/character/mark-cosmic-approved-lookdev-v1/mark-cosmic-approved-lookdev-v1.glb --out dist/character/mark-cosmic-approved-lookdev-v1/renders
+      - name: Save real GLB, reports, render evidence, offline viewer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-cosmic-3d-project-for-approval-v1
+          path: |
+            dist/character/mark-cosmic-approved-lookdev-v1/
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json
+          if-no-files-found: warn

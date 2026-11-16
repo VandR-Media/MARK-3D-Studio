@@ -19,12 +19,12 @@ const PALETTE={
  skin:{name:'Stylized warm skin',color:color(.68,.43,.31),roughness:.8},
  lid:{name:'Soft lid skin',color:color(.57,.33,.29),roughness:.82},
  eye:{name:'Eye sclera',color:color(.94,.92,.84),roughness:.32},
- iris:{name:'Iris blue-cyan',color:color(.035,.26,.40),roughness:.42},
+ iris:{name:'Iris warm brown',color:color(.18,.075,.035),roughness:.42},
  pupil:{name:'Pupil',color:color(.018,.018,.028),roughness:.2},
  brows:{name:'Soft dark brows',color:color(.11,.075,.063),roughness:.9},
  lips:{name:'Lips',color:color(.59,.24,.23),roughness:.55},
  ear:{name:'Ear skin',color:color(.68,.43,.32),roughness:.8},
- hair:{name:'Brown hair',color:color(.085,.052,.048),roughness:.75},
+ hair:{name:'Chestnut brown hair',color:color(.13,.078,.045),roughness:.77},
  nostril:{name:'Nostril dark relief',color:color(.15,.075,.065),roughness:.9},
  cap:{name:'Red cap fabric',color:color(.72,.035,.095),roughness:.78},
  visor:{name:'Red cap visor',color:color(.68,.026,.078),roughness:.64},
@@ -115,14 +115,14 @@ function faceModify(bytes,target,p){
 function featureMeshes(target,p){
  const specs=[],add=(name,geometry,material)=>specs.push({name,geometry,material:PALETTE[material]});
  const eyeSpacing=param(p,'spacing',.46)*.44+.23; // 0.23..0.67
- const eyeWidth=.151+param(p,'size',.55)*.064,eyeHeight=.090+param(p,'height',.55)*.044;
+ const eyeWidth=.136+param(p,'size',.55)*.047,eyeHeight=.076+param(p,'height',.55)*.036;
  if(target==='eyes'){
   const width=eyeWidth,height=eyeHeight;
   for(const side of [-1,1]){
    const label=side<0?'Left':'Right',options={spacing:eyeSpacing,width,height};
    add(label+' eyeball',eyeLens(side,options),'eye');
-   add(label+' iris',irisDisk(side,{spacing:eyeSpacing,radius:height*.52,forward:.906}),'iris');
-   add(label+' pupil',pupilDisk(side,{spacing:eyeSpacing,radius:height*.245,forward:.919}),'pupil');
+   add(label+' iris',irisDisk(side,{spacing:eyeSpacing,radius:height*.56,forward:.645}),'iris');
+   add(label+' pupil',pupilDisk(side,{spacing:eyeSpacing,radius:height*.26,forward:.660}),'pupil');
   }
  }else if(target==='eyelids'){
   const thickness=.012+param(p,'thickness',.5)*.020;
@@ -161,7 +161,7 @@ function featureMeshes(target,p){
  }else if(target==='nostrils'){
   const spread=.11+param(p,'spread',.5)*.08,r=.020+param(p,'radius',.5)*.020;
   for(const side of [-1,1])add((side<0?'Left':'Right')+' nostril inset relief',
-   shell([side*spread,-.18,.96],r,r*.64,.007,{rings:10,segments:24}),'nostril');
+   shell([side*spread,-.18,.835],r*.68,r*.50,.005,{rings:10,segments:24}),'nostril');
  }else throw Error('feature.build: неизвестная область '+target);
  return specs;
 }

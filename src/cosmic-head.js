@@ -40,9 +40,9 @@ export function makeContourHead({width=.5,height=.5,forehead=.5,cheeks=.5,
    const chinPad=gauss(ax,.13,.28)*gauss(y,-.80,.17);
    const jawContour=gauss(ax,.52,.20)*gauss(y,-.63,.27);
    const nasolabial=gauss(ax,.31,.085)*gauss(y,-.36,.24);
-   z+=front*(.040*eyebrow-.100*socket +(.082+.06*(cheeks-.5))*cheek+
-    .195*nasalRoot+(.165+.11*(nose-.5))*nasalTip+.042*alar
-    +.012*mouthRim+.032*upperLip+.030*lowerLip+.077*chinPad+.035*jawContour-.026*nasolabial);
+   z+=front*(.026*eyebrow-.075*socket +(.052+.05*(cheeks-.5))*cheek+
+    .105*nasalRoot+(.112+.055*(nose-.5))*nasalTip+.032*alar
+    +.010*mouthRim+.019*upperLip+.021*lowerLip+.060*chinPad+.026*jawContour-.020*nasolabial);
    // Temple, chin and zygomatic silhouette supported by entire continuous mesh.
    x*=1+.034*cheekLevel*front-.026*gauss(y,-.83,.18);
    z+=.016*Math.sin(a*2)**2*gauss(y,.78,.27);
