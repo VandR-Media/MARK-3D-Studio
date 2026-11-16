@@ -10,6 +10,7 @@
  */
 import {EditableMesh} from './professional-geometry.js';
 import {closeCavityWithQuads} from './facial-cavity.js';
+import {addEditableEyeGlobe} from './facial-eyes.js';
 const TAU=2*Math.PI,gauss=(x,c,r)=>Math.exp(-.5*((x-c)/r)**2);
 const wrapped=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 const profile=[
@@ -89,7 +90,7 @@ function labelLoop(center){
  if(center[1]<-.37)return 'mouth';
  return center[0]>0?'nostril_right':'nostril_left';
 }
-export function makeAnatomicalChildHead({rings=106,columns=192}={}){
+export function makeAnatomicalChildHead({rings=106,columns=192,includeEyeGlobes=true}={}){
  if(!Number.isInteger(rings)||rings<80||rings>200||!Number.isInteger(columns)||columns<128||columns>320)
   throw Error('Anatomical mesh rings 80..200; columns 128..320 required');
  const mesh=new EditableMesh({name:'Anatomical child head socket and mouth loops',
@@ -169,6 +170,14 @@ export function makeAnatomicalChildHead({rings=106,columns=192}={}){
  pick('chin',p=>Math.abs(p[0])<.34&&p[1]>-1.03&&p[1]<-.70&&p[2]>.39);
  pick('jaw',p=>Math.abs(p[0])>.28&&p[1]>-1.10&&p[1]<-.55);
  mesh.landmarks=landmarks;mesh.regions=regions;
+ if(includeEyeGlobes){
+  for(const name of ['left','right']){
+   const h=mesh.landmarks['eye_'+name];
+   const centered=[h.center[0],h.center[1],h.center[2]-.07];
+   addEditableEyeGlobe(mesh,{name,center:centered,radius:.108,segments:12});
+  }
+  mesh._rebuild();
+ }
  mesh.validate({strict:true});
  const diag=mesh.inspect();
  if(diag.boundaryEdges||diag.nonManifoldEdges||diag.degenerateFaces)
