@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {makeAnatomicalChildHead} from '../src/anatomical-base.js';
 import {adjustFaceContour,applySculptStroke} from '../src/face-precision.js';
+import {previewFacialPose} from '../src/face-pose-preview.js';
 import {encodeMark3d,decodeMark3d} from '../src/compact-project.js';
 import {runGeometryRecipe} from '../src/professional-api.js';
 const sha=x=>createHash('sha256').update(x).digest('hex');
@@ -54,4 +55,23 @@ test('JSON API exercises actual facial contour and grouped sculpt strokes',()=>{
  assert.ok(result.events.every(x=>x.status==='ok'));
  assert.ok(result.mesh.history.some(h=>h.label.startsWith('sculpt.stroke.')));
  assert.equal(sha(decodeMark3d(result.project).mesh.toGlb()),sha(result.glb));
+});
+
+test('bounded facial blink, smile and mouth-open previews each alter true geometry and undo losslessly',()=>{
+ const mesh=makeAnatomicalChildHead({rings:94,columns:144});
+ const base=sha(mesh.toGlb());
+ for(const pose of ['blink','smile','mouth-open']){
+  const before=sha(mesh.toGlb());
+  const result=previewFacialPose(mesh,{pose,amount:.5});
+  assert.ok(result.verticesChanged>2,pose);
+  const after=sha(mesh.toGlb());
+  assert.notEqual(after,before,pose+' must modify XYZ');
+  assert.equal(mesh.inspect().degenerateFaces,0);
+  assert.equal(mesh.undo(),true);
+  assert.equal(sha(mesh.toGlb()),before,'Undo '+pose+' must restore GLB exactly');
+  assert.equal(mesh.redo(),true);
+  assert.equal(sha(mesh.toGlb()),after);
+  assert.equal(mesh.undo(),true);
+ }
+ assert.equal(sha(mesh.toGlb()),base);
 });
