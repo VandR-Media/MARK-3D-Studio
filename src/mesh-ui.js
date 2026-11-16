@@ -8,7 +8,7 @@ export function initMeshUi(api){
  const root=document.getElementById('meshUi');
  if(!root)return {onModel(){},clear(){},exportGlb:null};
  root.innerHTML=[
- '<div class="mesh-title"><strong>Геометрия · v0.2</strong><small>Тестовый редактор формы</small></div>',
+ '<div class="mesh-title"><strong>Геометрия · v0.3</strong><small>Тестовый редактор формы</small></div>',
  '<div class="mesh-buttons" role="group" aria-label="Режим">',
  ' <button id="modeObject" class="mesh-btn chosen">Объекты</button>',
  ' <button id="modeEdit" class="mesh-btn">Mesh Edit</button></div>',
@@ -34,9 +34,13 @@ export function initMeshUi(api){
  ' <div id="meshBrushControls" hidden>',
  '  <div class="mesh-buttons wrap">',
  '  <button data-brush="grab" class="mesh-btn chosen">Grab</button><button data-brush="smooth" class="mesh-btn">Smooth</button>',
- '  <button data-brush="inflate" class="mesh-btn">Inflate</button><button data-brush="pinch" class="mesh-btn">Pinch</button></div>',
+ '  <button data-brush="inflate" class="mesh-btn">Inflate</button><button data-brush="pinch" class="mesh-btn">Pinch</button>',
+ '  <button data-brush="flatten" class="mesh-btn">Flatten</button><button data-brush="crease" class="mesh-btn">Crease</button>',
+ '  <button data-brush="clay" class="mesh-btn">Clay</button><button data-brush="relax" class="mesh-btn">Relax</button></div>',
  '  <label class="mesh-slider">Радиус <output id="brushRadiusLabel">0.35</output><input id="brushRadius" type="range" min="0.04" max="1.4" step="0.01" value="0.35"></label>',
  '  <label class="mesh-slider">Сила <output id="brushStrengthLabel">0.45</output><input id="brushStrength" type="range" min="0.01" max="1" step="0.01" value="0.45"></label>',
+ '  <label class="field-label" for="brushFalloff">Профиль затухания</label>',
+ '  <select id="brushFalloff"><option value="smooth">Плавный</option><option value="linear">Линейный</option><option value="sharp">Чёткий контур</option></select>',
  '  <p class="mesh-note">Одним пальцем — кисть. Нажмите «Камера», чтобы снова вращать модель.</p>',
  ' </div>',
  ' <label class="mesh-check"><input type="checkbox" id="meshSymmetry" checked> Симметрия X=0</label>',
@@ -61,6 +65,7 @@ export function initMeshUi(api){
  '<label>Позиция X<input id="referenceX" type="number" value="0" step="0.1"></label>',
  '<label>Позиция Y<input id="referenceY" type="number" value="0" step="0.1"></label>',
  '<label>Позиция Z<input id="referenceZ" type="number" value="-1.5" step="0.1"></label></div>',
+ '<label class="mesh-check"><input id="referenceLock" type="checkbox" checked> Зафиксировать референс</label>',
  '<button class="mesh-btn full-width" id="removeReference">Убрать выбранный референс</button>',
  '<div class="mesh-divider"></div>',
  '<div class="mesh-title"><strong>Локальное восстановление</strong></div>',
@@ -71,8 +76,8 @@ export function initMeshUi(api){
  const obj=$('meshObject'),modeEdit=$('modeEdit'),modeObject=$('modeObject'),meshControls=$('meshControls');
  const selectionControls=$('meshSelectionControls'),brushControls=$('meshBrushControls');
  const ctx={gltf:null,original:null,choices:[],mapping:new Map(),sessions:new Map(),current:null,currentIndex:-1,
-  selected:new Set(),component:'vertex',mode:'object',tool:'camera',brush:'grab',
-  stroke:null,wire:null,normals:null,references:new Map(),saveTimeout:null};
+  selected:new Set(),selectedFaceIndex:null,component:'vertex',mode:'object',tool:'camera',brush:'grab',
+  stroke:null,wire:null,normals:null,references:new Map(),saveTimeout:null,keepReferences:false,dirty:false};
  const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),v1=new THREE.Vector3(),v2=new THREE.Vector3();
  let refLoaded=false;
  function setStatus(text){$('meshSafety').textContent=text;}
@@ -161,7 +166,7 @@ export function initMeshUi(api){
  }
  function activeChoice(index){
   if(ctx.stroke)finishStroke();
-  ctx.selected.clear();stopOverlay();if(ctx.current?.overlay){
+  ctx.selected.clear();ctx.selectedFaceIndex=null;stopOverlay();if(ctx.current?.overlay){
    ctx.current.overlay.parent?.remove(ctx.current.overlay);ctx.current.overlay.geometry.dispose();
    ctx.current.overlay.material.dispose();ctx.current.overlay=null;}
   if(ctx.current?.lineOverlay){ctx.current.lineOverlay.parent?.remove(ctx.current.lineOverlay);
@@ -213,7 +218,7 @@ export function initMeshUi(api){
        name:api.getActive()?.filename||'mark-geometry.glb',saved:Date.now()},'last');
      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
     });
-    db.close();$('meshAutosaveStatus').textContent='Автосейв сохранён локально.';
+    db.close();ctx.dirty=false;$('meshAutosaveStatus').textContent='Автосейв сохранён локально · '+new Date().toLocaleTimeString('ru-RU');
    }catch(e){$('meshAutosaveStatus').textContent='Автосейв недоступен: '+e.message;}
   },delay);
  }
@@ -239,7 +244,7 @@ export function initMeshUi(api){
   return writeGlb(glb,doc);
  }
  function changed(){
-  updateButtons();saveLater();
+  ctx.dirty=true;updateButtons();$('meshAutosaveStatus').textContent='Изменения ещё не сохранены…';saveLater();
  }
  function setMode(mode){
   ctx.mode=mode;if(mode==='edit'&&!ctx.current){ctx.mode='object';api.notify('Для Mesh Edit выберите доступный объект.',true);}
@@ -286,6 +291,7 @@ export function initMeshUi(api){
    ids=[tri[edges[0][0]],tri[edges[0][1]]];
   }
   if(!$('multiSelect').checked)ctx.selected.clear();
+  ctx.selectedFaceIndex=Number.isInteger(h.faceIndex)?h.faceIndex:null;
   for(const i of ids)ctx.selected.add(i);
   updateSelected();updateButtons();
  }
@@ -308,7 +314,7 @@ export function initMeshUi(api){
   }
   const point=stroke.local.toArray();
   try{
-   const touched=s.brush(point,radius,strength,ctx.brush,delta,$('meshSymmetry').checked);
+   const touched=s.brush(point,radius,strength,ctx.brush,delta,$('meshSymmetry').checked,$('brushFalloff').value);
    if(touched)applyLive(false);
   }catch(err){api.notify('Скульптинг: '+err.message,true);finishStroke();}
  }
@@ -408,6 +414,8 @@ export function initMeshUi(api){
  function refSettings(type){
   const defaults={front:[0,0,-1.5],side:[-1.5,0,0],threequarter:[-1,0,-1]};
   const r=ctx.references.get(type);$('referenceOpacity').value=r?.opacity??.45;
+  $('referenceLock').checked=r?.locked??true;
+  for(const id of ['referenceOpacity','referenceScale','referenceX','referenceY','referenceZ'])$(id).disabled=!!r?.locked;
   $('referenceScale').value=r?.scale??1;
   ['X','Y','Z'].forEach((a,i)=>{$('reference'+a).value=r?.mesh?.position[['x','y','z'][i]]??defaults[type][i];});
   $('referenceOpacityLabel').textContent=Number($('referenceOpacity').value).toFixed(2);
@@ -415,7 +423,7 @@ export function initMeshUi(api){
  }
  function updateRef(){
   const r=ctx.references.get($('referenceType').value);
-  if(!r)return;
+  if(!r||r.locked)return;
   r.opacity=Number($('referenceOpacity').value);r.scale=Number($('referenceScale').value);
   r.mesh.material.opacity=r.opacity;
   r.mesh.scale.set(r.scale*r.aspect,r.scale,1);
@@ -424,6 +432,7 @@ export function initMeshUi(api){
   refSettings($('referenceType').value);
  }
  $('referenceType').addEventListener('change',()=>refSettings($('referenceType').value));
+ $('referenceLock').addEventListener('change',()=>{const r=ctx.references.get($('referenceType').value);if(r){r.locked=$('referenceLock').checked;refSettings($('referenceType').value);}});
  ['referenceOpacity','referenceScale','referenceX','referenceY','referenceZ'].forEach(id=>$(id).addEventListener('input',updateRef));
  function removeRef(type){const r=ctx.references.get(type);if(!r)return;
   api.scene.remove(r.mesh);r.mesh.geometry.dispose();r.mesh.material.dispose();r.texture.dispose();URL.revokeObjectURL(r.url);
@@ -447,7 +456,7 @@ export function initMeshUi(api){
   plane.rotation.y=type==='side'?Math.PI/2:type==='threequarter'?Math.PI/4:0;
   const defaults={front:[0,0,-1.5],side:[-1.5,0,0],threequarter:[-1,0,-1]};
   plane.position.set(...defaults[type]);api.scene.add(plane);
-  ctx.references.set(type,{mesh:plane,texture,url,opacity:.45,scale:1,aspect:1});
+  ctx.references.set(type,{mesh:plane,texture,url,opacity:.45,scale:1,aspect:1,locked:true});
   refSettings(type);api.notify('Референс загружен: '+file.name);
  });
  $('restoreMesh').addEventListener('click',async()=>{
@@ -463,10 +472,10 @@ export function initMeshUi(api){
  });
  function clear(){
   clearTimeout(ctx.saveTimeout);if(ctx.stroke)finishStroke();stopOverlay();
-  for(const type of Array.from(ctx.references.keys()))removeRef(type);
+  if(!ctx.keepReferences)for(const type of Array.from(ctx.references.keys()))removeRef(type);
   for(const s of ctx.sessions.values())s.pending=null;
   ctx.gltf=null;ctx.original=null;ctx.sessions.clear();ctx.current=null;ctx.currentIndex=-1;
-  ctx.choices=[];ctx.selected.clear();ctx.mode='object';ctx.tool='camera';
+  ctx.choices=[];ctx.selected.clear();ctx.selectedFaceIndex=null;ctx.mode='object';ctx.tool='camera';
   obj.replaceChildren();obj.disabled=true;setStatus('Загрузите GLB.');updateButtons();
  }
  function onModel(bytes,gltf){
@@ -480,10 +489,21 @@ export function initMeshUi(api){
   const first=ctx.choices.findIndex(c=>c.editable);
   if(first>=0){obj.value=String(first);activeChoice(first);}
   else setStatus('В этом GLB нет безопасных для Mesh Edit примитивов.');
-  updateButtons();
+  ctx.keepReferences=false;updateButtons();
  }
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&ctx.sessions.size)saveLater(0);});
  window.addEventListener('pagehide',()=>{if(ctx.sessions.size)saveLater(0);});
+ window.addEventListener('beforeunload',event=>{if(!ctx.dirty)return;event.preventDefault();event.returnValue='';});
  updateButtons();refSettings('front');
- return {onModel,clear,exportGlb,requestAutosave:saveLater,getEditor:()=>ctx.current?.session||null};
+ return {onModel,clear,exportGlb,requestAutosave:saveLater,
+  getEditor:()=>ctx.current?.session||null,
+  getDescriptor:()=>ctx.current?.descriptor||null,
+  getSelectedFaceIndex:()=>ctx.component==='face'?ctx.selectedFaceIndex:null,
+  getSelectedVertices:()=>[...ctx.selected],
+  selectNode:nodeIndex=>{const i=ctx.choices.findIndex(c=>c.nodeIndex===nodeIndex);if(i<0)return false;obj.value=String(i);activeChoice(i);return true;},
+  syncLive:()=>{applyLive();changed();},
+  preserveReferencesOnce:()=>{ctx.keepReferences=true;},
+  hasUnsavedChanges:()=>ctx.dirty,
+  markSaved:()=>{ctx.dirty=false;$('meshAutosaveStatus').textContent='GLB экспортирован вручную.';}
+ };
 }
