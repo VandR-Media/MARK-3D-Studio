@@ -85,18 +85,18 @@ export function earShell(side,{height=.45,width=.28,depth=.18,headWidth=.5}={}){
  }));
  return loft(sections);
 }
-export function eyeLens(side,{spacing=.43,width=.215,height=.145,forward=.80}={}){
+export function eyeLens(side,{spacing=.43,width=.190,height=.110,forward=.56}={}){
  check(side===1||side===-1,'сторона глаза');
  check([spacing,width,height,forward].every(finite),'параметры глаза');
  return shell([side*spacing,.34,forward],width,height,.10,{rings:22,segments:40});
 }
-export function irisDisk(side,{spacing=.43,radius=.077,forward=.906}={}){
+export function irisDisk(side,{spacing=.43,radius=.066,forward=.645}={}){
  return shell([side*spacing,.34,forward],radius,radius,.013,{rings:10,segments:32});
 }
-export function pupilDisk(side,{spacing=.43,radius=.036,forward=.918}={}){
+export function pupilDisk(side,{spacing=.43,radius=.029,forward=.660}={}){
  return shell([side*spacing,.34,forward],radius,radius,.012,{rings:10,segments:32});
 }
-export function eyelid(side,upper=true,{spacing=.43,width=.215,height=.145,forward=.86,thickness=.028,lidShape=.5}={}){
+export function eyelid(side,upper=true,{spacing=.43,width=.190,height=.110,forward=.578,thickness=.021,lidShape=.5}={}){
  const points=[];
  for(let i=0;i<=32;i++){
   const u=-.98+1.96*i/32,v=Math.sqrt(Math.max(0,1-u*u));
@@ -107,14 +107,14 @@ export function eyelid(side,upper=true,{spacing=.43,width=.215,height=.145,forwa
  }
  return sweep(points,{radius:thickness,depth:thickness*.7});
 }
-export function eyebrow(side,{spacing=.43,width=.24,height=.11,forward=.84,browRaise=.5}={}){
+export function eyebrow(side,{spacing=.43,width=.205,height=.095,forward=.63,browRaise=.5}={}){
  const path=[];
  for(let i=0;i<=28;i++){const u=-1+2*i/28;
   path.push([side*spacing+width*u,.57+height*.35*Math.cos(u*Math.PI/2)+.018*u+.17*(browRaise-.5),forward-.06*Math.abs(u)]);
  }
  return sweep(path,{radius:.023,depth:.026});
 }
-export function lip(upper=true,{width=.34,smile=.015,fullness=.068,forward=.81}={}){
+export function lip(upper=true,{width=.32,smile=.015,fullness=.048,forward=.755}={}){
  const path=[];
  for(let i=0;i<=48;i++){
   const u=-1+2*i/48,c=Math.max(0,1-u*u);
