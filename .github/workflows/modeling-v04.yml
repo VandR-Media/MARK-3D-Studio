@@ -21,6 +21,7 @@ jobs:
           node --check src/production-geometry.js
           node --check src/modeling-api.js
           node --check scripts/character-build.mjs
+          node --check scripts/render-character.mjs
       - name: Test deterministic JSON modeling and real GLB
         run: npm run test:modeling
       - name: Original v0.3 binary geometry compatibility
@@ -30,10 +31,22 @@ jobs:
           npm run test:topology
           npm run test:scene
           npm run test:face
-      - name: Generate complex styled face from JSON
-        run: npm run character:build -- --recipe recipes/stylized-face-demo.json
-      - name: Change nose through alternate JSON recipe
-        run: npm run character:build -- --recipe recipes/stylized-face-nose-variant.json
+      - name: Compile EVERY JSON recipe committed to recipes/ (independent ChatGPT workflow)
+        run: |
+          for recipe in recipes/*.json; do
+            echo "Modeling $recipe"
+            npm run character:build -- --recipe "$recipe"
+          done
+      - name: Install Chromium for real GLB screenshots
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Render six facial viewpoints and wireframe from exported GLB
+        run: |
+          for recipe in recipes/*.json; do
+            id="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).project.id)" "$recipe")"
+            node scripts/render-character.mjs --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
+          done
       - name: Build offline Huawei HTML, validate no CDN
         run: |
           npm run build:standalone
