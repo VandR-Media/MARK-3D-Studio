@@ -74,7 +74,10 @@
             "mesh.selectLoop",
             "mesh.selectRegion",
             "sculpt.contour",
-            "face.adjustLandmarks"
+            "face.adjustLandmarks",
+            "reference.landmarks",
+            "reference.compare",
+            "face.adjustToReference"
           ]
         },
         "target": {
