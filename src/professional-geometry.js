@@ -64,7 +64,7 @@ export class EditableMesh {
   this.name=name;this.material=material||{name:'MARK Core PBR',color:[.77,.54,.42,1],roughness:.8,metallic:0};
   this.vertices=new Map();this.faces=new Map();this.edges=new Map();this.halfEdges=new Map();
   this.adj=new Map();this._edgeIds=new Map();this._next={v:1,e:1,f:1};
-  this.selection=new Set();this.masks=new Map();this.history=[];this.future=[];this.revision=0;
+  this.selection=new Set();this.masks=new Map();this.history=[];this.future=[];this.revision=0;this.maxHistory=20;
   this._spatial=null;
  }
  static fromGeometry(geom,options={}){
@@ -158,18 +158,64 @@ export class EditableMesh {
   try{
    const result=fn(this);
    this._rebuild();this.validate({strict:true});
-   this.history.push({label,before});if(this.history.length>12)this.history.shift();
+   this.history.push({label,kind:'topology',before});if(this.history.length>this.maxHistory)this.history.shift();
    this.future=[];this.revision++;
    return result;
   }catch(e){this._restore(before);throw e;}
  }
+ /** Coordinate-only transactions never allocate full mesh snapshots.
+  * Deltas retain only changed IDs and exact FLOAT64 before/after coordinates.
+  */
+ _coordinateEdit(label,updates){
+  const entries=[];
+  for(const [id,next] of updates){
+   const v=this.vertices.get(id);
+   insist(v&&vec(next),'invalid coordinate edit: '+id);
+   if(v.position.some((x,i)=>x!==next[i]))entries.push([id,[...v.position],[...next]]);
+  }
+  if(!entries.length)return 0;
+  const selected=new Set(entries.map(a=>a[0]));
+  try{
+   for(const [id,,after] of entries)this.vertices.get(id).position=after;
+   // Validate only incident polygon triangles; topology/adjacency are unchanged.
+   const affected=new Set();
+   for(const he of this.halfEdges.values())if(selected.has(he.from))affected.add(he.face);
+   for(const id of affected){
+    const f=this.faces.get(id);
+    for(const [a,b,c] of triangulatePolygon(f.vertices,this.vertices)){
+     const p=this.vertices.get(f.vertices[a]).position;
+     const q=this.vertices.get(f.vertices[b]).position;
+     const r=this.vertices.get(f.vertices[c]).position;
+     insist(norm(cross(sub(q,p),sub(r,p)))>EPS,'brush creates degenerate face '+id);
+    }
+   }
+  }catch(e){
+   for(const [id,before] of entries)this.vertices.get(id).position=before;
+   throw e;
+  }
+  this._spatial=null;
+  this.history.push({kind:'coordinates',label,changes:entries});
+  if(this.history.length>this.maxHistory)this.history.shift();
+  this.future=[];this.revision++;
+  return entries.length;
+ }
  undo(){
   const prev=this.history.pop();if(!prev)return false;
-  this.future.push({label:prev.label,before:this._state()});this._restore(prev.before);return true;
+  if(prev.kind==='coordinates'){
+   for(const [id,before] of prev.changes)this.vertices.get(id).position=[...before];
+   this._spatial=null;this.future.push(prev);this.revision++;return true;
+  }
+  this.future.push({label:prev.label,kind:'topology',before:this._state()});
+  this._restore(prev.before);return true;
  }
  redo(){
   const next=this.future.pop();if(!next)return false;
-  this.history.push({label:next.label,before:this._state()});this._restore(next.before);return true;
+  if(next.kind==='coordinates'){
+   for(const [id,,after] of next.changes)this.vertices.get(id).position=[...after];
+   this._spatial=null;this.history.push(next);this.revision++;return true;
+  }
+  this.history.push({label:next.label,kind:'topology',before:this._state()});
+  this._restore(next.before);return true;
  }
  select(ids){
   insist(Array.isArray(ids)&&ids.every(k=>this.vertices.has(k)),'неизвестный vertex ID');
@@ -188,10 +234,9 @@ export class EditableMesh {
  moveSelected(delta,{weight=1}={}){
   insist(vec(delta)&&num(weight)&&weight>=0&&weight<=1,'перемещение должно содержать XYZ и weight');
   insist(this.selection.size>0,'сначала выделите область');
-  return this.transact('mesh.edit',()=>{
-   for(const id of this.selection){const v=this.vertices.get(id);v.position=add(v.position,mul(delta,weight));}
-   return {verticesChanged:this.selection.size};
-  });
+  const updates=new Map();
+  for(const id of this.selection)updates.set(id,add(this.vertices.get(id).position,mul(delta,weight)));
+  return {verticesChanged:this._coordinateEdit('mesh.edit',updates)};
  }
  faceSubdivide(faceId){
   return this.transact('mesh.subdivide',()=>{
@@ -262,7 +307,7 @@ export class EditableMesh {
    affected.set(id,{weight:w,center:g.point,reflect:g.reflect});
   }
   insist(affected.size>0,'кисть не попала на полигональную поверхность');
-  return this.transact('sculpt.'+mode,()=>{
+  const updates=new Map();
    for(const [id,hit] of affected){
     const pos=orig.get(id),center=hit.center,masked=mask?this.masks.get(mask).get(id)??0:1;
     const weight=hit.weight*strength*masked;
@@ -276,10 +321,10 @@ export class EditableMesh {
      if(neighbors.length)change=mul(sub(mul(avg,1/neighbors.length),pos),weight*(mode==='relax'?.6:1));
     }else if(mode==='flatten')change=mul([0,0,center[2]-pos[2]],weight);
     else if(mode==='crease')change=add(mul(sub(center,pos),weight*.20),mul(normalAt(id),-weight*.038));
-    this.vertices.get(id).position=add(pos,change);
+    updates.set(id,add(pos,change));
    }
-   return {touched:affected.size,mode,symmetry};
-  });
+   const touched=this._coordinateEdit('sculpt.'+mode,updates);
+   return {touched,mode,symmetry};
  }
  setMask(name,ids,weight=1){
   insist(typeof name==='string'&&/^[a-z0-9_-]{1,60}$/.test(name),'неверное имя маски');
