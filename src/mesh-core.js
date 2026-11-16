@@ -114,7 +114,7 @@ export class SpatialHash {
  }
  query(point,radius){
   const s=this.cellSize,a=point.map(v=>Math.floor((v-radius)/s)),b=point.map(v=>Math.floor((v+radius)/s)),out=[],r2=radius*radius;
-  for(let x=a[0];x<=b[0];x++)for(let y=a[1];y<=b[1];y++)for(let z=a[2];z<=b[2]++){
+  for(let x=a[0];x<=b[0];x++)for(let y=a[1];y<=b[1];y++)for(let z=a[2];z<=b[2];z++){
    for(const i of this.map.get(key(x,y,z))||[]){
     const j=i*3,dx=this.positions[j]-point[0],dy=this.positions[j+1]-point[1],dz=this.positions[j+2]-point[2];
     if(dx*dx+dy*dy+dz*dz<=r2)out.push(i);
