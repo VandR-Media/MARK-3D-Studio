@@ -6,18 +6,17 @@ import {writeGlb} from './glb.js';
 export function createTestHeadGlb({rings=118,segments=160}={}){
  if(!Number.isInteger(rings)||!Number.isInteger(segments)||rings<16||segments<24||rings>200||segments>320)
   throw Error('Неверное разрешение тестовой головы.');
- const count=(rings+1)*(segments+1),p=new Float32Array(count*3),uv=new Float32Array(count*2);
+ const count=rings*segments+2,p=new Float32Array(count*3),uv=new Float32Array(count*2);
  const tri=new Uint32Array(rings*segments*6),norm=new Float32Array(count*3);
  const gauss=(x,y,cx,cy,sx,sy)=>Math.exp(-.5*((x-cx)**2/(sx*sx)+(y-cy)**2/(sy*sy)));
- const at=(i,j)=>i*(segments+1)+j;
- for(let i=0;i<=rings;i++)for(let j=0;j<=segments;j++){
-  const latitude=-Math.PI/2+.004+(Math.PI-.008)*i/rings,t=2*Math.PI*j/segments;
+ const at=(i,j)=>i*segments+((j+segments)%segments);
+ for(let i=0;i<rings;i++)for(let j=0;j<segments;j++){
+  const latitude=-Math.PI/2+Math.PI*(i+1)/(rings+1),t=2*Math.PI*j/segments;
   const h=Math.sin(latitude),c=Math.cos(latitude);
   let x=.79*c*Math.sin(t),y=1.13*h,z=.77*c*Math.cos(t);
   const jaw=1-.13*gauss(0,y,0,-.81,10,.32);
   x*=jaw;
-  const front=z>0;
-  if(front){
+  if(z>0){
    const cheek=gauss(Math.abs(x),y,.43,-.12,.22,.22);
    const sockets=gauss(Math.abs(x),y,.32,.39,.19,.14);
    const brow=gauss(Math.abs(x),y,.32,.57,.2,.1);
@@ -27,16 +26,26 @@ export function createTestHeadGlb({rings=118,segments=160}={}){
    const mouth=gauss(x,y,0,-.47,.29,.052);
    const chin=gauss(x,y,0,-.79,.23,.14);
    z+=.088*cheek-.07*sockets+.044*brow+.22*bridge+.23*tip+.07*alae+.055*mouth+.09*chin;
-   z-=.045*gauss(Math.abs(x),y,.10,-.20,.052,.042); // nostril shelves
+   z-=.045*gauss(Math.abs(x),y,.10,-.20,.052,.042);
   }
-  x+=Math.sign(x)*.11*gauss(Math.abs(x),y,.69,-.03,.15,.25); // outer ears
+  x+=Math.sign(x)*.11*gauss(Math.abs(x),y,.69,-.03,.15,.25);
   y+=.027*Math.cos(4*t)*c*c;
-  const k=at(i,j);p.set([x,y,z],k*3);uv.set([j/segments,i/rings],k*2);
+  const k=at(i,j);p.set([x,y,z],k*3);
+  uv.set([.5+x/2.2,.5+y/2.5],k*2); // continuous planar UV avoids a split topology seam
  }
- let h=0;for(let i=0;i<rings;i++)for(let j=0;j<segments;j++){
+ const south=rings*segments,north=south+1;
+ p.set([0,-1.13,0],south*3);p.set([0,1.13,0],north*3);
+ uv.set([.5,.05],south*2);uv.set([.5,.95],north*2);
+ let n=0;
+ for(let i=0;i<rings-1;i++)for(let j=0;j<segments;j++){
   const a=at(i,j),b=at(i+1,j),c=at(i,j+1),d=at(i+1,j+1);
-  tri.set([a,c,b,c,d,b],h);h+=6;
+  tri.set([a,c,b,c,d,b],n);n+=6;
  }
+ for(let j=0;j<segments;j++){
+  tri.set([south,at(0,j+1),at(0,j)],n);n+=3;
+  tri.set([north,at(rings-1,j),at(rings-1,j+1)],n);n+=3;
+ }
+ if(n!==tri.length)throw Error('Head topology index count mismatch.');
  for(let i=0;i<tri.length;i+=3){
   const a=tri[i]*3,b=tri[i+1]*3,c=tri[i+2]*3;
   const ux=p[b]-p[a],uy=p[b+1]-p[a+1],uz=p[b+2]-p[a+2];

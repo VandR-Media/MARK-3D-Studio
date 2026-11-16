@@ -17,12 +17,14 @@ const nearest=(e,p)=>{
 };
 test('fixture is a genuinely triangulated organic head with PBR and UV',()=>{
  const p=parseGlb(fixture),e=new MeshEditor(fixture);
- assert.equal(e.count,(118+1)*(160+1));
+ assert.equal(e.count,118*160+2);
  assert.equal(e.triangleCount,118*160*2);
  assert.ok(e.triangleCount>25000);
  assert.equal(p.json.meshes[0].primitives[0].attributes.TEXCOORD_0,2);
  assert.equal(p.json.materials.length,1);
  assert.ok(e.indices.every(i=>i<e.count));
+ const edgeCount=new Map();for(let k=0;k<e.indices.length;k+=3){const t=[e.indices[k],e.indices[k+1],e.indices[k+2]];for(let j=0;j<3;j++){const a=Math.min(t[j],t[(j+1)%3]),b=Math.max(t[j],t[(j+1)%3]),key=a+':'+b;edgeCount.set(key,(edgeCount.get(key)||0)+1);}}
+ assert.ok([...edgeCount.values()].every(n=>n===2),'Practice head must be a closed 2-manifold mesh');
  assert.ok(e.normals.every(Number.isFinite));
 });
 test('move a physical vertex through GLB export then import',()=>{
