@@ -27,6 +27,7 @@
         "base": {
           "enum": [
             "contour-head-v1",
+            "anatomical-child-head-v1",
             "source-glb",
             "empty"
           ]
@@ -67,7 +68,13 @@
             "project.undo",
             "project.redo",
             "project.checkpoint",
-            "project.export"
+            "project.export",
+            "character.createBaseMesh",
+            "mesh.move",
+            "mesh.selectLoop",
+            "mesh.selectRegion",
+            "sculpt.contour",
+            "face.adjustLandmarks"
           ]
         },
         "target": {
