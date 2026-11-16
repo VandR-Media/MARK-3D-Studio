@@ -35,8 +35,8 @@ jobs:
           zip -q -9 MARK-3D-Studio-Huawei-Mesh-v0.2.zip MARK-3D-Studio-Huawei-Mesh-v0.2.html
       - name: Download latest WebGL evidence if available
         env:
-          GH_TOKEN: \${{ github.token }}
-          GH_REPO: \${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           RUN_ID="$(gh run list --workflow 'Mesh Editor WebGL screenshot acceptance' --branch develop/mesh-editor-v0.2 --status success --limit 1 --json databaseId --jq '.[0].databaseId' || true)"
           if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
@@ -48,8 +48,8 @@ jobs:
           fi
       - name: Publish private-repository GitHub prerelease
         env:
-          GH_TOKEN: \${{ github.token }}
-          GH_REPO: \${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG=mark-3d-studio-v0.2-mesh-preview
           NOTES="EXPERIMENTAL Mesh Editor v0.2, not stable and not the approved MARK Cosmic.
