@@ -69,6 +69,8 @@ export function sceneMeshList(doc){
   (mesh?.primitives||[]).forEach((p,primitiveIndex)=>{
    const reasons=[];
    if(usages.get(node.mesh)>1)reasons.push('общий меш нескольких объектов');
+   if(p.extensions?.KHR_draco_mesh_compression)reasons.push('Draco-сжатая геометрия');
+   if((doc.bufferViews||[]).some(v=>v.extensions?.EXT_meshopt_compression))reasons.push('Meshopt-сжатые буферы');
    if(node.skin!==undefined||p.attributes?.JOINTS_0!==undefined||p.attributes?.WEIGHTS_0!==undefined)reasons.push('skinning');
    if(p.targets?.length||mesh.weights?.length||node.weights?.length)reasons.push('morph targets');
    if(p.mode!==undefined&&p.mode!==4)reasons.push('не треугольная геометрия');
@@ -85,16 +87,34 @@ export function sceneMeshList(doc){
 }
 
 export class SpatialHash {
- constructor(positions,cellSize){this.positions=positions;this.cellSize=Math.max(1e-5,cellSize);this.map=new Map();this.rebuild();}
- cell(p){return p.map(v=>Math.floor(v/this.cellSize));}
+ constructor(positions,cellSize){
+  this.positions=positions;this.cellSize=Math.max(1e-5,cellSize);
+  this.map=new Map();this.keys=[];this.rebuild();
+ }
+ _cellAt(i){
+  const p=this.positions,s=this.cellSize,j=i*3;
+  return key(Math.floor(p[j]/s),Math.floor(p[j+1]/s),Math.floor(p[j+2]/s));
+ }
  rebuild(){
-  this.map.clear();const p=this.positions,s=this.cellSize;
-  for(let i=0;i<p.length;i+=3){const k=key(Math.floor(p[i]/s),Math.floor(p[i+1]/s),Math.floor(p[i+2]/s));
-   let b=this.map.get(k);if(!b){b=[];this.map.set(k,b);}b.push(i/3);}
+  this.map.clear();this.keys.length=0;
+  for(let i=0;i<this.positions.length/3;i++){
+   const k=this._cellAt(i);this.keys[i]=k;
+   let set=this.map.get(k);if(!set){set=new Set();this.map.set(k,set);}set.add(i);
+  }
+ }
+ update(indices){
+  for(const i of indices){
+   const old=this.keys[i],current=this._cellAt(i);
+   if(current===old)continue;
+   const prior=this.map.get(old);prior?.delete(i);
+   if(prior&&!prior.size)this.map.delete(old);
+   let next=this.map.get(current);if(!next){next=new Set();this.map.set(current,next);}
+   next.add(i);this.keys[i]=current;
+  }
  }
  query(point,radius){
   const s=this.cellSize,a=point.map(v=>Math.floor((v-radius)/s)),b=point.map(v=>Math.floor((v+radius)/s)),out=[],r2=radius*radius;
-  for(let x=a[0];x<=b[0];x++)for(let y=a[1];y<=b[1];y++)for(let z=a[2];z<=b[2];z++){
+  for(let x=a[0];x<=b[0];x++)for(let y=a[1];y<=b[1];y++)for(let z=a[2];z<=b[2]++){
    for(const i of this.map.get(key(x,y,z))||[]){
     const j=i*3,dx=this.positions[j]-point[0],dy=this.positions[j+1]-point[1],dz=this.positions[j+2]-point[2];
     if(dx*dx+dy*dy+dz*dz<=r2)out.push(i);
@@ -253,7 +273,7 @@ export class MeshEditor {
    this._set(i,next);touched.add(i);
    if(symmetry&&pair>=0&&pair!==i){this._set(pair,[-next[0],next[1],next[2]]);touched.add(pair);}
   }
-  if(ids.size){this.hash=null;}
+  if(touched.size)this.hash.update(touched);
   return touched.size;
  }
  exportGlb(){

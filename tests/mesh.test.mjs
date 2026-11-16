@@ -108,6 +108,8 @@ test('shared mesh instances, shared POSITION accessors and unsupported normals a
  const shared=structuredClone(p.json);
  shared.meshes[0].primitives.push(structuredClone(shared.meshes[0].primitives[0]));
  assert.throws(()=>new MeshEditor(writeGlb(p,shared)),/общий POSITION/);
+ const draco=structuredClone(p.json);draco.meshes[0].primitives[0].extensions={KHR_draco_mesh_compression:{bufferView:0,attributes:{POSITION:0}}};
+ assert.throws(()=>new MeshEditor(writeGlb(p,draco)),/Draco/);
  const noNormals=structuredClone(p.json);delete noNormals.meshes[0].primitives[0].attributes.NORMAL;
  assert.throws(()=>new MeshEditor(writeGlb(p,noNormals)),/POSITION и NORMAL/);
 });
@@ -115,6 +117,8 @@ test('spatial search picks only nearby vertices and supports 25k+ triangles',()=
  const e=new MeshEditor(fixture),h=new SpatialHash(e.positions,.25),hits=h.query([0,0,1],.25);
  assert.ok(e.triangleCount>25000);assert.ok(hits.length>0&&hits.length<e.count/4);
  const any=hits[0],x=e.positions[any*3],y=e.positions[any*3+1],z=e.positions[any*3+2];
+ e.positions[any*3]+=5;h.update([any]);assert.ok(!h.query([0,0,1],.25).includes(any));
+ e.positions[any*3]-=5;h.update([any]);assert.ok(h.query([0,0,1],.25).includes(any));
  assert.ok((x*x+y*y+(z-1)**2)<=.25**2+1e-6);
 });
 test('repeat export/import of edited GLB does not drift coordinates or lose metadata',()=>{
