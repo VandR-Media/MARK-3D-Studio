@@ -29,6 +29,7 @@ jobs:
         run: |
           npm run test:compact
           npm run test:professional
+          node --test tests/anatomical-stage2.test.mjs
       - name: Source GLB and previous format regressions
         run: |
           npm test
