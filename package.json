@@ -16,7 +16,8 @@
     "test:mesh": "node --test tests/mesh.test.mjs",
     "mesh:fixtures": "node scripts/export-head.mjs",
     "test:topology": "node --test tests/topology.test.mjs",
-    "test:scene": "node --test tests/scene.test.mjs"
+    "test:scene": "node --test tests/scene.test.mjs",
+    "test:face": "node --test tests/face.test.mjs"
   },
   "license": "MIT",
   "dependencies": {
