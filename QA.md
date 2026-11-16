@@ -15,3 +15,5 @@
 - Switched to pinned Three.js + esbuild, generating all-in-one classic-script HTML with no external JS imports.
 - Added startup-error banner and offline HTML structural test.
 - Huawei touch/WebGL2 test remains pending. Browser may block locally opened HTML; no claim of verified device compatibility.
+
+- A Chromium syntax smoke exposed malformed bundle text caused by JavaScript String.replace interpreting `$&` within minified code. Replaced generated string substitution with function replacement; new test compiles both inline JavaScript scripts via Node vm.Script.
