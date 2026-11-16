@@ -128,12 +128,12 @@ function featureMeshes(target,p){
   const thickness=.012+param(p,'thickness',.5)*.020;
   for(const side of [-1,1]){
    const label=side<0?'Left':'Right',options={spacing:eyeSpacing,width:eyeWidth,height:eyeHeight,thickness};
-   add(label+' upper eyelid',eyelid(side,true,options),'lid');
-   add(label+' lower eyelid',eyelid(side,false,options),'lid');
+   add(label+' upper eyelid',eyelid(side,true,{...options,lidShape:param(p,'upperEyelid',.5)}),'lid');
+   add(label+' lower eyelid',eyelid(side,false,{...options,lidShape:param(p,'lowerEyelid',.5)}),'lid');
   }
  }else if(target==='eyebrows'){
   for(const side of [-1,1])add((side<0?'Left':'Right')+' eyebrow',
-   eyebrow(side,{spacing:eyeSpacing,width:eyeWidth*1.14,height:.08+param(p,'arch',.5)*.08}),'brows');
+   eyebrow(side,{spacing:eyeSpacing,width:eyeWidth*1.14,height:.08+param(p,'arch',.5)*.08,browRaise:param(p,'browRaise',.5)}),'brows');
  }else if(target==='lips'){
   const width=.24+param(p,'width',.5)*.15,fullness=.025+param(p,'fullness',.5)*.050;
   const params={width,fullness,smile:(param(p,'smile',.5)-.5)*.07};
@@ -141,13 +141,13 @@ function featureMeshes(target,p){
   add('Lower lip volume',lip(false,params),'lips');
  }else if(target==='ears'){
   const h=.29+param(p,'height',.5)*.16,w=.155+param(p,'width',.5)*.13;
-  for(const side of [-1,1])add((side<0?'Left':'Right')+' auricle',earShell(side,{height:h,width:w}),'ear');
+  for(const side of [-1,1])add((side<0?'Left':'Right')+' auricle',earShell(side,{height:h,width:w,headWidth:param(p,'headWidth',.5)}),'ear');
  }else if(target==='hair'){
   const count=Math.round(6+param(p,'strands',.55)*12);
   const length=.21+param(p,'length',.5)*.34,volume=.82+param(p,'volume',.5)*.45;
-  add('Scalp fitted hair mass',hairCap({length,volume}),'hair');
+  add('Scalp fitted hair mass',hairCap({length,volume,headWidth:param(p,'headWidth',.5)}),'hair');
   for(let i=0;i<count;i++)add('Swept hair strand '+String(i+1).padStart(2,'0'),
-   hairStrand(i,{count,length,volume}),'hair');
+   hairStrand(i,{count,length,volume,headWidth:param(p,'headWidth',.5)}),'hair');
  }else if(target==='cap'){
   add('Red baseball cap crown',capCrown(),'cap');
   add('Baseball visor curved shell',capVisor(),'visor');
@@ -284,6 +284,29 @@ function command(bytes,cmd,project){
    const r=editScene(bytes,{operation:p.type||'transform',nodeIndex:p.nodeIndex??0,
     vector:p.vector,rotation:p.rotation,name:p.name,preset:p.preset});
    return {bytes:r.bytes,details:{nodeIndex:r.nodeIndex}};
+  }
+  case 'material.set':{
+   const parsed=parseGlb(bytes),doc=structuredClone(parsed.json),name=cmd.target;
+   if(typeof name!=='string'||!name||name.length>100)throw Error('material.set needs exact material name as target');
+   const index=doc.materials?.findIndex(m=>m.name===name)??-1;
+   if(index<0)throw Error('Unknown material name '+name);
+   const mat=doc.materials[index],pbr=mat.pbrMetallicRoughness||(mat.pbrMetallicRoughness={});
+   let updated=0;
+   if(p.color!==undefined){
+    if(!Array.isArray(p.color)||p.color.length!==4||p.color.some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0||v>1))
+     throw Error('material.set color must be rgba 0..1');
+    pbr.baseColorFactor=[...p.color];updated++;
+   }
+   for(const [key,attr] of [['roughness','roughnessFactor'],['metallic','metallicFactor']]){
+    if(p[key]!==undefined){pbr[attr]=bounded(p[key],key,0,1);updated++;}
+   }
+   if(p.emissive!==undefined){
+    if(!Array.isArray(p.emissive)||p.emissive.length!==3||p.emissive.some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0||v>1))
+     throw Error('material.set emissive must be RGB 0..1');
+    mat.emissiveFactor=[...p.emissive];updated++;
+   }
+   if(!updated)throw Error('material.set: no values supplied');
+   return {bytes:writeGlb(parsed,doc),details:{name,materialIndex:index,updated}};
   }
   case 'mesh.inspect':return {bytes,details:mainAudit(bytes)};
   case 'checkpoint.save':return {bytes,details:{snapshot:cmd.target||'checkpoint'}};
