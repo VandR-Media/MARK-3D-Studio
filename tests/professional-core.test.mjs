@@ -63,7 +63,7 @@ test('triangular face subdivide and extrusion are real watertight changes with r
  assert.equal(hash(m.toGlb()),snapshot);
  const again=EditableMesh.fromGlb(stable);
  assert.equal(again.inspect().boundaryEdges,0);
- assert.equal(again.inspect().faces,7);
+ assert.equal(again.inspect().faces,10,'GLB triangulates the three editable side quads');
 });
 test('arbitrary brush moves a finite local surface area and masks suppress unrelated edits',()=>{
  const m=EditableMesh.fromGeometry(tetra),id=[...m.vertices.keys()][0],unchanged=[...m.vertices.keys()][1];
