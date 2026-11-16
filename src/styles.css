@@ -29,3 +29,6 @@
 .mesh-ui button:focus-visible,.mesh-ui select:focus-visible{outline:2px solid #c9baff}
 @media(max-width:900px){.mesh-ui{padding:15px}}
 @media(max-width:520px){.mesh-ui{padding:13px}.mesh-btn{min-height:48px;font-size:12px;padding:7px}.mesh-ui .mesh-note{font-size:12px}}
+
+@media(min-width:901px){.inspector{overflow-y:auto;max-height:calc(100dvh - 112px);overscroll-behavior:contain}}
+@media(max-width:900px){.inspector{overflow:visible;max-height:none}}
