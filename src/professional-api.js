@@ -5,6 +5,7 @@
 import {EditableMesh} from './professional-geometry.js';
 import {encodeMark3d} from './compact-project.js';
 import {makeAnatomicalChildHead} from './anatomical-base.js';
+import {configureLandmarks,compareReference,adjustReferencePoint} from './reference-modeling.js';
 export const CORE_RECIPE_VERSION='mark-geometry/0.1';
 function requireObject(x,label){if(!x||typeof x!=='object'||Array.isArray(x))throw Error(label+' must be an object');}
 function requireId(x,label){if(typeof x!=='string'||!/^[a-z0-9_-]{3,60}$/.test(x))throw Error('Invalid '+label);}
@@ -46,6 +47,9 @@ function execute(mesh,cmd){
    mesh.select(mesh.regions[p.region]);
    return {...mesh.moveSelected(p.delta,{weight:p.weight??1}),region:p.region};
   }
+  case 'reference.landmarks':return configureLandmarks(mesh,p);
+  case 'reference.compare':return compareReference(mesh,p.view);
+  case 'face.adjustToReference':return adjustReferencePoint(mesh,p);
   case 'face.adjustLandmarks':{
    if(!mesh.landmarks?.[p.name])throw Error('Unknown anatomy landmark '+p.name);
    const vertexId=mesh.landmarks[p.name].vertex,vertex=mesh.vertices.get(vertexId);
