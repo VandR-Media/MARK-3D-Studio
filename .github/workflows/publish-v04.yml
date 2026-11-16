@@ -4,6 +4,9 @@ on:
     branches: ['develop/character-production-v0.4']
     paths: ['.github/workflows/publish-v04.yml']
   workflow_dispatch:
+concurrency:
+  group: mark-release-v04
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -59,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          TAG=mark-3d-studio-v0.4-modeling-preview
+          TAG=mark-3d-studio-v0.4-modeling-preview-${GITHUB_SHA:0:8}
           NOTES="EXPERIMENTAL, NOT AN APPROVED MARK COSMIC. Headless JSON Modeling API, real GLB with eyes/eyelids/lips/ears/hair/cap/headphones, deterministic nose variant and seven real WebGL2 screenshots. This visual style is a rough technical prototype and NOT high-quality likeness. No approved images published. Source commit $GITHUB_SHA. Compare embedded HTML meta mark-source-commit with build-info.json. Huawei performance unverified. PR #4 stays draft; main unchanged."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --clobber
