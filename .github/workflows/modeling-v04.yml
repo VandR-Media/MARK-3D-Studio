@@ -1,10 +1,10 @@
-name: MARK Modeling API v0.4 — deterministic GLB build
+name: MARK Modeling API v0.4.1 — deterministic GLB and 5x WebGL rendering
 on:
   push:
     branches: ['develop/character-production-v0.4']
   workflow_dispatch:
 concurrency:
-  group: mark-modeling-v04
+  group: mark-modeling-v041
   cancel-in-progress: true
 permissions:
   contents: read
@@ -52,7 +52,7 @@ jobs:
         run: |
           for recipe in recipes/*.json; do
             id="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).project.id)" "$recipe")"
-            node scripts/render-character.mjs --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
+            node scripts/render-character.mjs --runs 5 --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
           done
       - name: Model GLBs, JSON command log and diagnostics
         uses: actions/upload-artifact@v4
