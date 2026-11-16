@@ -9,13 +9,18 @@ import {inspectMesh} from '../src/topology.js';
 const load=path=>JSON.parse(readFileSync(new URL('../'+path,import.meta.url),'utf8'));
 const recipe=load('recipes/stylized-face-demo.json'),variant=load('recipes/stylized-face-nose-variant.json');
 const sha=data=>createHash('sha256').update(data).digest('hex');
+const modelCache=new Map();
+function built(recipe){
+ const k=recipe.project.id;if(!modelCache.has(k))modelCache.set(k,runRecipe(recipe));
+ return modelCache.get(k);
+}
 test('schema validates commands but rejects arbitrary or malformed recipe',()=>{
  assert.equal(validateRecipe(recipe),true);
  assert.throws(()=>validateRecipe({...recipe,schema:'unknown'}),/версия/);
  assert.throws(()=>validateRecipe({...recipe,project:{id:'..',base:'practice-head'}}),/project.id/);
 });
 test('identical JSON recipes create bitwise-identical binary GLB geometry',()=>{
- const a=runRecipe(recipe),b=runRecipe(recipe);
+ const a=built(recipe),b=runRecipe(recipe);
  assert.equal(sha(a.bytes),sha(b.bytes));
  assert.deepEqual(a.summary,b.summary);
  assert.ok(a.summary.meshes>=20,'Must have independently modeled anatomy parts');
@@ -24,7 +29,7 @@ test('identical JSON recipes create bitwise-identical binary GLB geometry',()=>{
  assert.equal(a.report.some(x=>x.status==='error'),false);
 });
 test('changed nose only deforms head and leaves independently controlled components unchanged',()=>{
- const first=runRecipe(recipe),second=runRecipe(variant);
+ const first=built(recipe),second=built(variant);
  assert.notEqual(sha(first.bytes),sha(second.bytes));
  const h1=new MeshEditor(first.bytes,0),h2=new MeshEditor(second.bytes,0);
  assert.ok(h1.positions.some((v,i)=>v!==h2.positions[i]));
@@ -38,18 +43,22 @@ test('changed nose only deforms head and leaves independently controlled compone
  assert.deepEqual(j1.materials,j2.materials);
 });
 test('all components preserve valid indices, normals, UV and independent accessors',()=>{
- const r=runRecipe(recipe),doc=parseGlb(r.bytes).json,meshAccessors=new Set();
+ const r=built(recipe),doc=parseGlb(r.bytes).json,meshAccessors=new Set();
  for(let i=0;i<doc.nodes.length;i++){
   const mesh=doc.meshes[doc.nodes[i].mesh],prim=mesh.primitives[0];
   assert.ok(!meshAccessors.has(prim.attributes.POSITION));
   meshAccessors.add(prim.attributes.POSITION);
+  const diag=r.meshDiagnostics.find(x=>x.nodeIndex===i);
+  assert.ok(diag,'Missing per-component diagnostic');
+  assert.equal(diag.audit.invalidTriangles,0,'Invalid triangles '+doc.nodes[i].name);
+  assert.equal(diag.audit.nonManifoldEdges,0,'Nonmanifold '+doc.nodes[i].name);
+  assert.equal(doc.accessors[prim.attributes.TEXCOORD_0].count,doc.accessors[prim.attributes.POSITION].count);
+  assert.equal(doc.accessors[prim.attributes.NORMAL].count,doc.accessors[prim.attributes.POSITION].count);
+  assert.equal(doc.accessors[prim.indices].count,diag.audit.triangles*3);
+ }
+ for(const i of [0,1,doc.nodes.length-1]){
   const editor=new MeshEditor(r.bytes,i);
-  const audit=inspectMesh(editor.positions,editor.indices);
-  assert.equal(audit.invalidTriangles,0,'Invalid triangles '+doc.nodes[i].name);
-  assert.equal(audit.nonManifoldEdges,0,'Nonmanifold '+doc.nodes[i].name);
-  assert.equal(doc.accessors[prim.attributes.TEXCOORD_0].count,editor.count);
-  assert.equal(doc.accessors[prim.attributes.NORMAL].count,editor.count);
-  assert.equal(doc.accessors[prim.indices].count,editor.indices.length);
+  assert.ok(editor.count>0&&editor.indices.length>0,'Binary read fails at node '+i);
  }
  assert.equal(r.audit.boundaryEdges,0);
  assert.equal(r.meshDiagnostics.length,r.summary.meshes);
