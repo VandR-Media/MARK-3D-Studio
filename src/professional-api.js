@@ -3,6 +3,7 @@
  * deterministic and transactional. Undo and rollback work on editable topology.
  */
 import {EditableMesh} from './professional-geometry.js';
+import {encodeMark3d} from './compact-project.js';
 export const CORE_RECIPE_VERSION='mark-geometry/0.1';
 function requireObject(x,label){if(!x||typeof x!=='object'||Array.isArray(x))throw Error(label+' must be an object');}
 function requireId(x,label){if(typeof x!=='string'||!/^[a-z0-9_-]{3,60}$/.test(x))throw Error('Invalid '+label);}
@@ -44,7 +45,7 @@ function execute(mesh,cmd){
   default:throw Error('Unsupported professional command: '+cmd.operation+' (never silently ignored)');
  }
 }
-export function runGeometryRecipe(recipe,{sourceBytes=null}={}){
+export function runGeometryRecipe(recipe,{sourceBytes=null,compact=false}={}){
  validateGeometryRecipe(recipe);
  let mesh;
  if(recipe.project.base==='source-glb'){
@@ -63,14 +64,16 @@ export function runGeometryRecipe(recipe,{sourceBytes=null}={}){
     continue;
    }
    if(!mesh)throw Error('No editable geometry: begin with mesh.create');
-   // Full transaction rollback even for selection/masks/undo and non-mutating commands.
-   before=mesh._state();
+   // Core operations validate & roll back atomically. Compact mode deliberately
+   // avoids transient O(vertices) backups for EACH brush/selection action.
+   if(!compact)before=mesh._state();
    const result=execute(mesh,cmd);
-   mesh.validate({strict:true});
+   if(!compact)mesh.validate({strict:true});
    if(cmd.operation==='project.checkpoint'){
     const name=String(cmd.target||'stage-'+i);
     requireId(name,'checkpoint name');
-    checkpoints.set(name,{glb:mesh.toGlb(),project:mesh.toProject({includeUndo:true})});
+    checkpoints.set(name,{glb:mesh.toGlb(),project:compact?
+     encodeMark3d(mesh,{includeUndo:true}):mesh.toProject({includeUndo:true})});
    }
    events.push({step:i,operation:cmd.operation,status:'ok',result});
   }catch(error){
@@ -83,5 +86,6 @@ export function runGeometryRecipe(recipe,{sourceBytes=null}={}){
  }
  if(!mesh)throw Error('Recipe did not create a polygonal mesh');
  const inspection=mesh.inspect(),glb=mesh.toGlb();
- return {mesh,glb,project:mesh.toProject({includeUndo:true}),inspection,events,warnings,checkpoints};
+ return {mesh,glb,project:compact?encodeMark3d(mesh,{includeUndo:true}):
+  mesh.toProject({includeUndo:true}),inspection,events,warnings,checkpoints};
 }
