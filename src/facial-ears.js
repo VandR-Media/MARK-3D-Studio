@@ -1,3 +1,4 @@
+import {fillQuadDisk} from './quad-cap.js';
 /**
  * Anatomical ear patch: contiguous quad surface stitched to an actual
  * aperture in the skull side, not a detached sphere or a tube overlay.
@@ -47,12 +48,11 @@ export function buildEarPatch(mesh,boundary,{center,side}={}){
   previous=next;rings.push(next);all.push(...next);
  }
  // Cap the deep concha with opposing quad arches, no valence-N star vertex.
- for(let k=0;k<n/2-1;k++)
-  mesh._face([previous[n-1-k],previous[n-2-k],previous[k+1],previous[k]]);
+ const cap=fillQuadDisk(mesh,previous,{dish:.006});
  return {
   vertices:all,helix:[...rings[2]],antihelix:[...rings[3]],
   concha:[...rings[5],...rings[6]],
   lobe:all.filter(id=>mesh.vertices.get(id).position[1]<center[1]-.18),
-  quadCapFaces:n/2-1,feature:'connected-ear'
+  quadCapFaces:cap.quads,feature:'connected-ear'
  };
 }
