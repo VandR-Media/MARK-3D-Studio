@@ -5,6 +5,7 @@ import {runGeometryRecipe} from '../src/professional-api.js';
 import {encodeMark3d,decodeMark3d} from '../src/compact-project.js';
 import {createHash} from 'node:crypto';
 import {parseGlb} from '../src/glb.js';
+import {projectPoint,configureLandmarks,compareReference,adjustReferencePoint} from '../src/reference-modeling.js';
 import {readFileSync} from 'node:fs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 test('new anatomically distinct quad surface has real 5 closed socket/oral/nostril cavities',()=>{
@@ -47,4 +48,22 @@ test('JSON creates anatomy and sculpts real eye, nose, lip and chin regions with
  assert.ok(fromBinary.landmarks.nose_tip.vertex.startsWith('v'));
  const meta=parseGlb(result.glb).json;
  assert.ok(meta.meshes?.length>=1);
+});
+
+test('private normalized reference control points move exact mesh-linked landmark and lower front-view RMSE',()=>{
+ const mesh=makeAnatomicalChildHead({rings:90,columns:144});
+ const vertex=mesh.vertices.get(mesh.landmarks.nose_tip.vertex);
+ const baseline=projectPoint(vertex.position,{view:'front',scale:.3,offset:[.5,.5]});
+ const target=[baseline[0]+.007,baseline[1]-.009];
+ configureLandmarks(mesh,{view:'front',scale:.3,offset:[.5,.5],points:{nose_tip:target}});
+ const initial=compareReference(mesh,'front').rmse;
+ assert.ok(initial>.005);
+ const affected=adjustReferencePoint(mesh,{view:'front',name:'nose_tip',radius:.15,strength:1});
+ assert.ok(affected.touched>1);
+ const final=compareReference(mesh,'front').rmse;
+ assert.ok(final<initial*.2,'Fitting must improve real linked 3D geometry');
+ const restored=decodeMark3d(encodeMark3d(mesh)).mesh;
+ assert.deepEqual(restored.referenceViews,mesh.referenceViews);
+ assert.equal(compareReference(restored,'front').rmse,final);
+ assert.throws(()=>configureLandmarks(mesh,{view:'front',points:{wrong:[.5,.5]}}));
 });
