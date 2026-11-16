@@ -30,7 +30,7 @@ export function createTestHeadGlb({rings=118,segments=160}={}){
    z-=.045*gauss(Math.abs(x),y,.10,-.20,.052,.042); // nostril shelves
   }
   x+=Math.sign(x)*.11*gauss(Math.abs(x),y,.69,-.03,.15,.25); // outer ears
-  y+=.027*Math.sin(4*t)*c*c;
+  y+=.027*Math.cos(4*t)*c*c;
   const k=at(i,j);p.set([x,y,z],k*3);uv.set([j/segments,i/rings],k*2);
  }
  let h=0;for(let i=0;i<rings;i++)for(let j=0;j<segments;j++){
