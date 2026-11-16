@@ -66,6 +66,7 @@ function reframe(){
  const distance=radius*1.8/Math.sin(THREE.MathUtils.degToRad((camera.fov||43)*.5));
  camera.position.set(center.x+distance*.73,center.y+distance*.3,center.z+distance*.72);
  camera.near=Math.max(.001,distance/10000);camera.far=Math.max(100,distance*100);camera.updateProjectionMatrix();
+ if(camera.isOrthographicCamera){const aspect=Math.max(.3,renderer.domElement.clientWidth/Math.max(1,renderer.domElement.clientHeight));const half=radius*1.8;camera.top=half;camera.bottom=-half;camera.left=-half*aspect;camera.right=half*aspect;camera.updateProjectionMatrix();}
  controls.target.copy(center);controls.minDistance=Math.max(.002,radius*.1);
  controls.maxDistance=Math.max(2,radius*80);controls.update();
  grid.position.y=box.min.y-radius*.015;grid.scale.setScalar(Math.max(.05,radius/2));
@@ -128,7 +129,7 @@ function edit(){
    hex:ui.color.value,
    metallic:old.unlit?old.metallic:Number(ui.metallic.value),
    roughness:old.unlit?old.roughness:Number(ui.roughness.value)});
-  setFields(idx);applyLive(idx);
+  setFields(idx);applyLive(idx);meshApi?.requestAutosave();
  }catch(e){notify(e.message,true);}
 }
 function clearModel(){
@@ -155,6 +156,7 @@ async function openModel(bytes,name){
  const draft=structuredClone(parsed.json);
  active={parsed,draft,gltf,bindings:bindMaterials(gltf)};
  lastFile=name;scene.add(gltf.scene);ui.empty.hidden=true;ui.name.textContent=name;
+ meshApi?.onModel(bytes,gltf);
  const count=draft.materials?.length||0;ui.count.textContent=String(count);ui.select.replaceChildren();
  for(let i=0;i<count;i++){
   const option=document.createElement('option');option.value=String(i);
@@ -178,12 +180,13 @@ function reset(){
  if(!active)return;
  active.draft=structuredClone(active.parsed.json);
  for(let i=0;i<(active.draft.materials?.length||0);i++)applyLive(i);
- setFields(Number(ui.select.value));notify('Изменения сброшены.');
+ if((active.draft.materials?.length||0)>0)setFields(Number(ui.select.value));
+ meshApi?.requestAutosave();notify('Материалы сброшены. Для геометрии используйте Undo.');
 }
 function save(){
  if(!active)return;
  try{
-  const bytes=writeGlb(active.parsed,active.draft);
+  const bytes=meshApi?.exportGlb(active.draft)??writeGlb(active.parsed,active.draft);
   const blob=new Blob([bytes],{type:'model/gltf-binary'}),url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=lastFile.replace(/\.glb$/i,'')+'-edited.glb';
   document.body.append(a);a.click();a.remove();

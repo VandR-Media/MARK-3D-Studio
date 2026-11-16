@@ -5,6 +5,11 @@ on:
     branches: ['develop/mesh-editor-v0.2']
     paths:
       - 'scripts/capture-preview.mjs'
+      - 'src/app.js'
+      - 'src/mesh-ui.js'
+      - 'src/mesh-core.js'
+      - 'src/head-fixture.js'
+      - 'index.html'
       - '.github/workflows/browser-preview.yml'
 permissions:
   contents: read
