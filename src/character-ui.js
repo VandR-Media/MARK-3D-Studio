@@ -158,7 +158,7 @@ export function initCharacterUi(api,meshUi){
  $('charDuplicate').addEventListener('click',()=>{
   const d=meshUi.getDescriptor();if(!d){status('Выберите объект для копирования.',true);return;}
   transaction(bytes=>editScene(bytes,{operation:'duplicate',nodeIndex:d.nodeIndex,
-   primitiveIndex:d.primitiveIndex,name:$('charName').value||'Деталь персонажа'}),'Создан независимый объект');
+   primitiveIndex:d.primitiveIndex,name:$('charName').value||'Деталь персонажа',offset:[1.8,0,0]}),'Создан независимый объект');
  });
  $('charHide').addEventListener('click',()=>transaction(bytes=>editScene(bytes,{operation:'hide',nodeIndex:selected()}),'Видимость обновлена'));
  $('charRename').addEventListener('click',()=>transaction(bytes=>editScene(bytes,{operation:'rename',nodeIndex:selected(),name:$('charName').value}),'Название сохранено'));
