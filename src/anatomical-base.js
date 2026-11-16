@@ -126,7 +126,7 @@ export function makeAnatomicalChildHead({rings=106,columns=192,includeEyeGlobes=
  mesh._rebuild();
  const boundaries=loopEdges(mesh),landmarks={},regions={};
  if(boundaries.length!==HOLES.length)
-  throw Error('Expected 5 separate orbital/nostril/oral cavities, found '+boundaries.length);
+  throw Error('Expected seven orbital/nostril/oral/ear cavities, found '+boundaries.length);
  for(const boundary of boundaries){
   const center=centroid(mesh,boundary),label=labelLoop(center);
   if(landmarks[label])throw Error('Duplicate anatomical cavity '+label);
