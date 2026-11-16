@@ -1,0 +1,44 @@
+name: Publish Huawei offline preview
+on:
+  push:
+    branches: ['develop/mvp-v0.1.0']
+    paths: ['.github/workflows/publish-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run GLB tests and build fully offline HTML
+        run: |
+          npm test
+          npm run build:standalone
+          npm run test:standalone
+      - name: Create simple download files
+        run: |
+          mkdir -p release
+          cp dist/MARK-3D-Studio-standalone.html release/MARK-3D-Studio-Huawei-v0.1.2.html
+          cd release
+          zip -q -9 MARK-3D-Studio-Huawei-v0.1.2.zip MARK-3D-Studio-Huawei-v0.1.2.html
+      - name: Publish prerelease on development commit, not main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG=mark-3d-studio-v0.1.2-huawei-preview
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/MARK-3D-Studio-Huawei-v0.1.2.zip release/MARK-3D-Studio-Huawei-v0.1.2.html --clobber
+          else
+            gh release create "$TAG" release/MARK-3D-Studio-Huawei-v0.1.2.zip release/MARK-3D-Studio-Huawei-v0.1.2.html \
+              --target "$GITHUB_SHA" \
+              --title "MARK 3D Studio v0.1.2 — Huawei preview" \
+              --notes "Offline WebGL2 preview for Huawei. This is a test build from develop/mvp-v0.1.0; the main branch is not changed. Extract HTML from ZIP and open in a browser. On-device compatibility remains unverified." \
+              --prerelease
+          fi

@@ -1,0 +1,12 @@
+import {writeFileSync,mkdirSync} from 'node:fs';
+import {parseGlb,writeGlb} from '../src/glb.js';
+import {setMaterialValues} from '../src/materials.js';
+import {createSampleGlb} from '../src/sample.js';
+const folder=new URL('../samples/',import.meta.url);
+mkdirSync(folder,{recursive:true});
+const bytes=createSampleGlb();
+writeFileSync(new URL('../samples/cosmic-test.glb',import.meta.url),bytes);
+const parsed=parseGlb(bytes),doc=structuredClone(parsed.json);
+setMaterialValues(doc,0,{hex:'#56b8fa',metallic:.8,roughness:.27});
+writeFileSync(new URL('../samples/cosmic-test-edited.glb',import.meta.url),writeGlb(parsed,doc));
+console.log('Generated and edited polygonal GLB (12480 triangles).');

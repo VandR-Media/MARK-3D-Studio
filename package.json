@@ -1,0 +1,24 @@
+{
+  "name": "mark-3d-studio",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "description": "Mobile-first browser editor of real GLB PBR materials",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/glb.test.mjs",
+    "smoke:glb": "node scripts/export-sample.mjs",
+    "serve": "python3 -m http.server 8080",
+    "build:standalone": "node scripts/build-standalone.mjs",
+    "test:standalone": "node --test tests/standalone.test.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
