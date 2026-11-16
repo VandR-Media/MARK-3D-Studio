@@ -1,0 +1,78 @@
+name: Publish experimental v0.3 Huawei preview
+on:
+  push:
+    branches: ['develop/character-modeling-v0.3']
+    paths:
+      - '.github/workflows/publish-v03.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify 0.1 / 0.2 / 0.3 binary GLB operations
+        run: |
+          npm test
+          npm run test:mesh
+          npm run test:topology
+          npm run test:scene
+          npm run test:face
+          npm run character:fixtures
+          npm run build:standalone
+          npm run test:standalone
+      - name: Assemble direct-download HTML and real GLBs
+        run: |
+          mkdir -p release
+          cp dist/MARK-3D-Studio-standalone.html release/MARK-3D-Studio-Huawei-v0.3.html
+          cp samples/character-v03-head-original.glb release/
+          cp samples/character-v03-head-edited.glb release/
+          cd release
+          zip -q -9 MARK-3D-Studio-Huawei-v0.3.zip MARK-3D-Studio-Huawei-v0.3.html
+      - name: Collect Chromium screenshots from most recent successful WebGL2 acceptance run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          RUN_ID="$(gh run list --workflow 'Character v0.3 real WebGL2 acceptance' --branch develop/character-modeling-v0.3 --status success --limit 1 --json databaseId --jq '.[0].databaseId' || true)"
+          if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+            mkdir -p release/screenshots
+            gh run download "$RUN_ID" -n mark-3d-studio-v0.3-real-webgl-browser-evidence -D release/screenshots || true
+            if [ -n "$(ls -A release/screenshots 2>/dev/null)" ]; then
+              (cd release/screenshots && zip -q -9 -r ../MARK-3D-Studio-v0.3-real-Chromium-screenshots.zip .)
+            fi
+          fi
+      - name: Publish prerelease from development commit, not main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG=mark-3d-studio-v0.3-character-preview
+          NOTES="Experimental v0.3 Character Modeling and Face Studio, NOT a stable release and NOT an approved MARK Cosmic. Topology edits, Face Studio, multiple independent objects and PBR verified in real Chromium WebGL2; Huawei compatibility unverified. Browser screenshots and generated GLBs provided. Missing: true quad Loop Cut, face-by-face materials, new detailed character anatomy, production-quality human likeness, skinning/animation. Draft PR #3; main remains unchanged."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              release/MARK-3D-Studio-Huawei-v0.3.html \
+              release/MARK-3D-Studio-Huawei-v0.3.zip \
+              release/character-v03-head-original.glb \
+              release/character-v03-head-edited.glb --clobber
+          else
+            gh release create "$TAG" \
+              release/MARK-3D-Studio-Huawei-v0.3.html \
+              release/MARK-3D-Studio-Huawei-v0.3.zip \
+              release/character-v03-head-original.glb \
+              release/character-v03-head-edited.glb \
+              --target "$GITHUB_SHA" \
+              --title 'MARK 3D Studio v0.3 DEV — Character and Face Studio' \
+              --notes "$NOTES" --prerelease
+          fi
+          if [ -f release/MARK-3D-Studio-v0.3-real-Chromium-screenshots.zip ]; then
+            gh release upload "$TAG" release/MARK-3D-Studio-v0.3-real-Chromium-screenshots.zip --clobber
+          fi
