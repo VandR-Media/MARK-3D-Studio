@@ -1,0 +1,60 @@
+name: MARK Professional Stage 2 — Compact binary & anatomical checks
+on:
+  push:
+    branches: ['develop/compact-anatomical-core-v0.6']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mark-pro-v06
+  cancel-in-progress: true
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned MIT dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify JavaScript
+        run: |
+          node --check src/compact-project.js
+          node --check src/professional-geometry.js
+          node --check src/professional-api.js
+          node --check scripts/professional-build.mjs
+      - name: Binary container and legacy native core tests
+        run: |
+          npm run test:compact
+          npm run test:professional
+      - name: Source GLB and previous format regressions
+        run: |
+          npm test
+          npm run test:mesh
+          npm run test:topology
+      - name: 25k 50k 100k triangle measured benchmark
+        run: node --expose-gc scripts/benchmark-compact.mjs
+      - name: Generate editable binary mark3d and real before/after GLB
+        run: npm run professional:build -- --recipe recipes/professional-face-sculpt.json
+      - name: Verify offline browser bundle
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+      - name: Publish binary projects, models and timing diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-stage2-compact-core-models-and-reports
+          path: |
+            dist/compact/
+            dist/professional/
+          if-no-files-found: error
+      - name: Offline Huawei preview (existing viewer, pending native edit integration)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-stage2-Huawei-preview
+          path: |
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json
+          if-no-files-found: error
