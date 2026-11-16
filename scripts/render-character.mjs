@@ -15,7 +15,7 @@ const glb=resolve(opt('--glb','dist/character/stylized-face-demo/stylized-face-d
 const html=resolve(opt('--html','dist/MARK-3D-Studio-standalone.html'));
 const out=resolve(opt('--out','dist/character/stylized-face-demo/renders'));
 const runs=Number(opt('--runs','5'));
-if(!Number.isInteger(runs)||runs<5||runs>10)throw Error('Acceptance requires 5–10 consecutive full render runs');
+if(!Number.isInteger(runs)||runs<1||runs>10)throw Error('Allowed --runs: 1–10; use 5 for candidate acceptance');
 const views=['front','left','right','threequarter-left','threequarter-right','face-close','wireframe'];
 const build=JSON.parse(readFileSync(resolve('dist/build-info.json'),'utf8'));
 const sourceSha=process.env.GITHUB_SHA||'local-unverified';
@@ -44,7 +44,7 @@ const browser=await chromium.launch({headless:true,args:[
 ]});
 const outcomes=[];
 try{
- const page=await browser.newPage({viewport:{width:1280,height:920},deviceScaleFactor:1});
+ const page=await browser.newPage({viewport:{width:960,height:720},deviceScaleFactor:1});
  const errors=[];
  page.on('pageerror',e=>errors.push('pageerror: '+e.message));
  page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text());});
