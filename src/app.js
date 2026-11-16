@@ -198,6 +198,37 @@ function save(){
   notify('Экспортировано: '+(blob.size/1048576).toFixed(2)+' МБ');
  }catch(e){notify('Ошибка экспорта: '+e.message,true);}
 }
+
+/**
+ * CI capture API: deterministic fixed orthographic framing of exported GLB.
+ * Renders actual Three.js WebGL2 scene (not an illustrated mockup).
+ * Frames are calibrated to the original practice-head world coordinates,
+ * so edited variants use identical camera/lighting/reference scale.
+ */
+window.__MARK_CAPTURE_VIEW__=function(view){
+ if(!active?.gltf?.scene||!renderer||!controls)throw Error('No loaded 3D GLB scene');
+ const dirs={
+  front:[0,0,1],left:[-1,0,0],right:[1,0,0],
+  'threequarter-left':[-.72,.10,1],'threequarter-right':[.72,.10,1],
+  'face-close':[0,0,1],wireframe:[0,0,1]
+ };
+ const direction=dirs[view];if(!direction)throw Error('Unknown camera view '+view);
+ const aspect=Math.max(.2,renderer.domElement.clientWidth/Math.max(1,renderer.domElement.clientHeight));
+ const half=view==='face-close'?.78:1.42;
+ const next=new THREE.OrthographicCamera(-half*aspect,half*aspect,half,-half,.01,40);
+ const aim=view==='face-close'?new THREE.Vector3(0,.27,.20):new THREE.Vector3(0,0,0);
+ const dir=new THREE.Vector3(...direction).normalize();
+ next.position.copy(aim).addScaledVector(dir,7);
+ next.up.set(0,1,0);next.lookAt(aim);next.updateProjectionMatrix();
+ camera=next;controls.object=camera;controls.target.copy(aim);controls.enableDamping=false;controls.update();
+ scene.background=new THREE.Color('#22283a');grid.visible=false;
+ const wire=$('meshWire');if(wire){
+  const want=view==='wireframe';if(wire.checked!==want){wire.checked=want;wire.dispatchEvent(new Event('change'));}
+ }
+ renderer.render(scene,camera);
+ return {view,position:camera.position.toArray(),target:aim.toArray(),orthographicHalfHeight:half,loaded:active.gltf.scene.children.length};
+};
+
 ui.file.addEventListener('change',async()=>{const file=ui.file.files?.[0];ui.file.value='';await loadFile(file);});
 ui.sample.addEventListener('click',async()=>{
  try{await openModel(createTestHeadGlb(),'organic-head-before.glb');}
