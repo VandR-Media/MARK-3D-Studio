@@ -158,7 +158,9 @@ const material=(input={})=>{
  check(Array.isArray(color)&&color.length===4&&color.every(v=>finite(v)&&v>=0&&v<=1),'цвет RGBA должен быть [0..1] x4');
  const metallic=input.metallic??0,roughness=input.roughness??.8;
  check(finite(metallic)&&metallic>=0&&metallic<=1&&finite(roughness)&&roughness>=0&&roughness<=1,'PBR параметры вне диапазона');
+ if(input.emissive)check(Array.isArray(input.emissive)&&input.emissive.length===3&&input.emissive.every(v=>finite(v)&&v>=0&&v<=1),'неверный emissive');
  return {name:String(input.name||'Material').slice(0,100),doubleSided:true,
+  ...(input.emissive?{emissiveFactor:input.emissive}:{}),
   pbrMetallicRoughness:{baseColorFactor:color,metallicFactor:metallic,roughnessFactor:roughness}};
 };
 /** Append independent named mesh nodes. glTF source bytes left intact. */
@@ -211,3 +213,54 @@ export function appendMeshes(bytes,specs){
  return {bytes:writeGlb({...parsed,chunks},doc),added};
 }
 function sampleBounds(p,k){const a=[];for(let i=k;i<p.length;i+=3)a.push(p[i]);return a;}
+
+/** Wearable cap geometry defined by authored sectional profiles, not spheres. */
+export function capCrown(){
+ const n=64,levels=[[.69,1],[.79,.99],[.91,.92],[1.04,.78],[1.14,.48],[1.20,.09]];
+ const rings=levels.map(([y,r])=>Array.from({length:n},(_,j)=>{
+  const a=j*2*Math.PI/n;return [.785*r*Math.sin(a),y,.755*r*Math.cos(a)-.035];
+ }));
+ return loft(rings);
+}
+export function capVisor(){
+ const n=28,loop=[];
+ for(let i=0;i<=n;i++){
+  const x=-.67+1.34*i/n,z=.75+.37*Math.pow(Math.max(0,1-(x/.68)**2),.7);
+  loop.push([x,.692-.035*Math.abs(x),z]);
+ }
+ for(let i=n;i>=0;i--){
+  const x=-.67+1.34*i/n;loop.push([x,.692-.035*Math.abs(x),.535]);
+ }
+ return loft([loop.map(p=>[p[0],p[1],p[2]]),loop.map(p=>[p[0],p[1]-.026,p[2]])]);
+}
+export function capEmblem(){
+ const path=[[-.13,.98,.72],[-.12,1.09,.69],[-.025,1.013,.73],
+  [.025,1.013,.73],[.12,1.09,.69],[.13,.98,.72]];
+ return sweep(path,{radius:.014,depth:.015});
+}
+export function headphoneBand(){
+ const path=[];
+ for(let i=0;i<=48;i++){
+  const t=Math.PI*i/48;
+  path.push([1.055*Math.cos(t),.17+1.28*Math.sin(t),-.09]);
+ }
+ return sweep(path,{radius:.047,depth:.063});
+}
+export function headphoneCup(side){
+ check(side===-1||side===1,'сторона чашки наушника');
+ const n=48,levels=[[.88,.23],[.97,.30],[1.055,.275],[1.11,.235]];
+ const rings=levels.map(([x,r])=>Array.from({length:n},(_,j)=>{
+  const a=j*2*Math.PI/n;
+  return [x*side,.075+r*Math.cos(a),.035+r*.87*Math.sin(a)];
+ }));
+ return loft(rings);
+}
+export function headphoneNeonRim(side){
+ check(side===-1||side===1,'сторона кольца подсветки');
+ const n=48,r=.256;
+ const rings=[1.062,1.084].map(x=>Array.from({length:n},(_,j)=>{
+  const a=2*Math.PI*j/n;
+  return [x*side,.075+r*Math.cos(a),.035+r*.87*Math.sin(a)];
+ }));
+ return loft(rings,{capStart:false,capEnd:false});
+}
