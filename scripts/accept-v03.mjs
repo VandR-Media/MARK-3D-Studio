@@ -33,13 +33,13 @@ try {
  await page.waitForTimeout(300);
  await page.locator('#canvasHolder').screenshot({path:resolve(folder,'02-after-real-extrude.png')});
  await page.locator('#faceParam').selectOption('noseLength');
- await page.locator('#faceAmount').fill('0.60');
+ await page.locator('#faceAmount').evaluate(el=>{el.value='0.60';el.dispatchEvent(new Event('input',{bubbles:true}));});
  await page.locator('#faceApply').click();
  await page.waitForFunction(()=>document.getElementById('charStatus').textContent.includes('Вершины лица изменены'));
  await page.locator('#faceParam').selectOption('cheeks');
  await page.locator('#faceApply').click();
  await page.locator('#faceParam').selectOption('chin');
- await page.locator('#faceAmount').fill('-0.35');
+ await page.locator('#faceAmount').evaluate(el=>{el.value='-0.35';el.dispatchEvent(new Event('input',{bubbles:true}));});
  await page.locator('#faceApply').click();
  await page.locator('#canvasHolder').screenshot({path:resolve(folder,'03-face-studio-nose-cheeks-chin.png')});
  // Test IndexedDB autosave after idle, without relying on beforeunload.
@@ -62,7 +62,9 @@ try {
  await page.locator('#charPreset').selectOption('plastic');
  await page.locator('#charAssignMaterial').click();
  await page.waitForFunction(()=>document.getElementById('charStatus').textContent.includes('PBR-материал'));
- await page.locator('#charDiagnose').locator('xpath=ancestor::details/summary').click().catch(()=>{});
+ const auditPanel=page.locator('.character-sub').filter({has:page.locator('#charDiagnose')});
+ await auditPanel.locator('summary').click();
+ await page.locator('#charDiagnose').click();
  const downloadEvent=page.waitForEvent('download');
  await page.locator('#exportButton').click();
  const download=await downloadEvent;
