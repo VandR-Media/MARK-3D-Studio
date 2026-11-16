@@ -68,13 +68,13 @@ test('migration of mark3d/0.1 JSON with history, masks and IDs is lossless for s
 test('checksum and section validation reject tampered files',()=>{
  const m=EditableMesh.fromGeometry(tetra);
  const bytes=encodeMark3d(m),broken=bytes.slice();
- broken[broken.length-4]^=0x78;
+ broken[20]^=0x78; // corrupt authenticated payload CRC32 in header
  assert.throws(()=>decodeMark3d(broken));
  assert.throws(()=>decodeMark3d(new Uint8Array([1,2,3])));
 });
 test('approx 50k triangles + ten local edits fit <= 15MB binary without losing undo',()=>{
  const t0=performance.now(),m=meshGrid(158),loadMs=performance.now()-t0;
- const original=sha(m.toGlb());
+ const original=sha(m.toGlb()),originalPositions=new Map([...m.vertices].map(([id,v])=>[id,[...v.position]]));
  const editStart=performance.now();
  for(let i=0;i<10;i++)m.brush({center:[.15,.2,0],radius:.09,strength:.35,mode:'grab',delta:[0,0,.0005]});
  const editMs=performance.now()-editStart;
@@ -84,7 +84,11 @@ test('approx 50k triangles + ten local edits fit <= 15MB binary without losing u
  assert.ok(bytes.byteLength<=15*1024*1024,'Binary project above 15 MiB: '+bytes.length);
  assert.equal(copy.history.length,10);
  const changed=sha(copy.toGlb());assert.notEqual(original,changed);
+ assert.equal(sha(copy.toGlb()),sha(m.toGlb()),'Binary changed edited GLB unexpectedly');
  for(let i=0;i<10;i++)copy.undo();
+ const drift=[...copy.vertices].filter(([id,v])=>v.position.some((n,i)=>!Object.is(n,originalPositions.get(id)[i])));
+ if(drift.length)console.log('UNDO POSITION DRIFT count '+drift.length+' first '+JSON.stringify(drift.slice(0,2).map(([id,v])=>({id,expected:originalPositions.get(id),actual:v.position}))));
+ assert.equal(drift.length,0,'Decoded history failed to exactly revert positions');
  assert.equal(sha(copy.toGlb()),original);
  console.log('BENCH 50k '+JSON.stringify({triangles:158*158*2,bytes:bytes.length,
   loadMs,editMsPerStroke:editMs/10,saveMs,readMs}));
