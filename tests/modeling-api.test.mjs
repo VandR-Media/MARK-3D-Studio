@@ -11,7 +11,7 @@ const recipe=load('recipes/stylized-face-demo.json'),variant=load('recipes/styli
 const sha=data=>createHash('sha256').update(data).digest('hex');
 test('schema validates commands but rejects arbitrary or malformed recipe',()=>{
  assert.equal(validateRecipe(recipe),true);
- assert.throws(()=>validateRecipe({...recipe,schema:'unknown'}),/версии/);
+ assert.throws(()=>validateRecipe({...recipe,schema:'unknown'}),/версия/);
  assert.throws(()=>validateRecipe({...recipe,project:{id:'..',base:'practice-head'}}),/project.id/);
 });
 test('identical JSON recipes create bitwise-identical binary GLB geometry',()=>{
