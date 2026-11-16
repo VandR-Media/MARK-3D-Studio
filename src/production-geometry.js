@@ -72,10 +72,10 @@ export function shell(center,rx,ry,rz,{rings=16,segments=32}={}){
  }
  return loft(sections);
 }
-export function earShell(side,{height=.45,width=.28,depth=.18}={}){
+export function earShell(side,{height=.45,width=.28,depth=.18,headWidth=.5}={}){
  check(side===1||side===-1,'сторона уха должна быть +1 или -1');
  check([height,width,depth].every(v=>finite(v)&&v>.05&&v<1),'размер уха вне диапазона');
- const sections=[],cx=side*.815,cy=-.04,cz=.05;
+ const sections=[],cx=side*(.815+.20*(headWidth-.5)),cy=-.04,cz=.05;
  const rings=[[.08,.07],[.45,.08],[.70,.135],[.92,.14],[1,.025],[.94,-.10],[.12,-.12]];
  const n=48;
  for(const [r,z] of rings)sections.push(Array.from({length:n},(_,j)=>{
@@ -96,21 +96,21 @@ export function irisDisk(side,{spacing=.43,radius=.077,forward=.906}={}){
 export function pupilDisk(side,{spacing=.43,radius=.036,forward=.918}={}){
  return shell([side*spacing,.34,forward],radius,radius,.012,{rings:10,segments:32});
 }
-export function eyelid(side,upper=true,{spacing=.43,width=.215,height=.145,forward=.86,thickness=.028}={}){
+export function eyelid(side,upper=true,{spacing=.43,width=.215,height=.145,forward=.86,thickness=.028,lidShape=.5}={}){
  const points=[];
  for(let i=0;i<=32;i++){
   const u=-.98+1.96*i/32,v=Math.sqrt(Math.max(0,1-u*u));
   const x=side*spacing+width*u;
-  const y=.34+(upper?1:-1)*height*v*(upper?.95:.78);
+  const y=.34+(upper?1:-1)*height*v*((upper?.95:.78)+.30*(lidShape-.5));
   const z=forward+.06*(1-u*u);
   points.push([x,y,z]);
  }
  return sweep(points,{radius:thickness,depth:thickness*.7});
 }
-export function eyebrow(side,{spacing=.43,width=.24,height=.11,forward=.84}={}){
+export function eyebrow(side,{spacing=.43,width=.24,height=.11,forward=.84,browRaise=.5}={}){
  const path=[];
  for(let i=0;i<=28;i++){const u=-1+2*i/28;
-  path.push([side*spacing+width*u,.57+height*.35*Math.cos(u*Math.PI/2)+.018*u,forward-.06*Math.abs(u)]);
+  path.push([side*spacing+width*u,.57+height*.35*Math.cos(u*Math.PI/2)+.018*u+.17*(browRaise-.5),forward-.06*Math.abs(u)]);
  }
  return sweep(path,{radius:.023,depth:.026});
 }
@@ -125,7 +125,7 @@ export function lip(upper=true,{width=.34,smile=.015,fullness=.068,forward=.81}=
  }
  return sweep(path,{radius:fullness*(upper?.54:.67),depth:fullness*.6});
 }
-export function hairCap({length=.45,volume=1}={}){
+export function hairCap({length=.45,volume=1,headWidth=.5}={}){
  check(finite(length)&&length>=.15&&length<=.9&&finite(volume)&&volume>=.6&&volume<=1.8,'форма волос вне диапазона');
  const sections=[],rings=26,n=80;
  for(let i=0;i<=rings;i++){
@@ -134,16 +134,16 @@ export function hairCap({length=.45,volume=1}={}){
   const r=Math.max(.012,Math.sqrt(Math.max(0,1-((y-.08)/1.15)**2)));
   sections.push(Array.from({length:n},(_,j)=>{
    const a=j*2*Math.PI/n;
-   const x=.815*r*Math.sin(a)*volume,z=.795*r*Math.cos(a)*volume;
+   const x=.815*r*Math.sin(a)*volume*(1+.24*(headWidth-.5)),z=.795*r*Math.cos(a)*volume;
    const front=Math.max(0,Math.cos(a));
    return [x,y-(1-t)*length*.18*front,z];
   }));
  }
  return loft(sections);
 }
-export function hairStrand(index,{count=9,length=.35,volume=1}={}){
+export function hairStrand(index,{count=9,length=.35,volume=1,headWidth=.5}={}){
  check(Number.isInteger(index)&&index>=0&&index<count&&count<=40,'номер пряди');
- const x=-.56+1.12*(index+.5)/count,rootZ=.58;
+ const x=(-.56+1.12*(index+.5)/count)*(1+.24*(headWidth-.5)),rootZ=.58;
  const tipX=x+Math.sin(index*2.2)*.055;
  const path=[];
  for(let j=0;j<=20;j++){
