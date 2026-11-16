@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MARK Modeling API v0.4 Recipe",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "project",
+    "commands"
+  ],
+  "properties": {
+    "schema": {
+      "const": "mark-modeling/0.4"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "base"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{3,60}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "base": {
+          "enum": [
+            "practice-head",
+            "provided-glb"
+          ]
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "references": {
+          "type": "object"
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation"
+      ],
+      "properties": {
+        "operation": {
+          "enum": [
+            "face.modify",
+            "feature.build",
+            "geometry.loft",
+            "geometry.sweep",
+            "mesh.topology",
+            "mesh.sculpt",
+            "object.transform",
+            "mesh.inspect",
+            "checkpoint.save"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "onError": {
+          "enum": [
+            "skip",
+            "abort"
+          ]
+        }
+      }
+    }
+  }
+}
