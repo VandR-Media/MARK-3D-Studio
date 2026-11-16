@@ -23,7 +23,7 @@ const unit=a=>mul(a,1/(norm(a)||1));
 const edgeKey=(a,b)=>a<b?a+'|'+b:b+'|'+a;
 const clamp=x=>Math.max(0,Math.min(1,x));
 function insist(ok,message){if(!ok)throw Error('MARK Geometry Core: '+message);}
-function clone(x){return JSON.parse(JSON.stringify(x));}
+function clone(x){return structuredClone(x);} // preserves signed zero and exact FLOAT64 on binary re-import
 function triangulatePolygon(ids,lookup){
  if(ids.length===3)return [[0,1,2]];
  // Ear clipping for simple planar concave polygons; fails closed if not triangulable.
