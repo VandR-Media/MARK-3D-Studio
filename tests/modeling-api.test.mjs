@@ -123,7 +123,9 @@ test('eyes high-level ChatGPT command changes actual socket/lid vertices, not ig
  const x=runRecipe(p),original=runRecipe({schema:p.schema,project:p.project,
   commands:[{operation:'mesh.inspect'}]});
  assert.equal(x.report[0].details.changes.length,4);
- assert.ok(new MeshEditor(x.bytes).positions.some((v,i)=>v!==new MeshEditor(original.bytes).positions[i]));
+ const changedPositions=new MeshEditor(x.bytes).positions;
+ const baselinePositions=new MeshEditor(original.bytes).positions;
+ assert.ok(changedPositions.some((v,i)=>v!==baselinePositions[i]));
  assert.throws(()=>runRecipe({...p,commands:[{operation:'face.modify',target:'eyes',parameters:{unsupported:.8}}]}),/неизвестный параметр/);
 });
 
