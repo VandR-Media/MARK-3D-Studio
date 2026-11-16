@@ -1,4 +1,4 @@
-name: Publish verified v0.4 Modeling API preview (not stable)
+name: Package verified v0.4 Modeling API preview (not stable)
 on:
   push:
     branches: ['develop/character-production-v0.4']
@@ -8,7 +8,7 @@ concurrency:
   group: mark-release-v04
   cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
 jobs:
   prerelease:
     runs-on: ubuntu-latest
@@ -57,20 +57,12 @@ jobs:
           cp dist/character/stylized-face-nose-variant/stylized-face-nose-variant.glb release/
           (cd release && zip -q -9 MARK-3D-Studio-v0.4-Huawei.zip MARK-3D-Studio-v0.4-Huawei.html)
           (cd dist/character && zip -q -9 -r ../../release/MARK-3D-Studio-v0.4-GLB-renders-reports.zip .)
-      - name: Publish GitHub prerelease (draft status / not production-ready)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+      - name: Explain export and GitHub Release permission status
         run: |
-          TAG=mark-3d-studio-v0.4-modeling-preview-${GITHUB_SHA:0:8}
-          NOTES="EXPERIMENTAL, NOT AN APPROVED MARK COSMIC. Headless JSON Modeling API, real GLB with eyes/eyelids/lips/ears/hair/cap/headphones, deterministic nose variant and seven real WebGL2 screenshots. This visual style is a rough technical prototype and NOT high-quality likeness. No approved images published. Source commit $GITHUB_SHA. Compare embedded HTML meta mark-source-commit with build-info.json. Huawei performance unverified. PR #4 stays draft; main unchanged."
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/* --clobber
-          else
-            gh release create "$TAG" release/* --target "$GITHUB_SHA" \
-              --title 'MARK 3D Studio v0.4 DEV — Modeling API technical preview' \
-              --notes "$NOTES" --prerelease
-          fi
+          echo "Build artifacts are available from this workflow run."
+          echo "GitHub Releases publishing with github.token returned HTTP 403 (Resource not accessible by integration)."
+          echo "This workflow publishes verified files through upload-artifact, without falsely claiming a GitHub Release."
+          printf 'MARK v0.4 TECHNICAL PREVIEW — NOT STABLE\\nGitHub source SHA: %s\\nDownload from the Actions artifact of this exact run.\\n' "$GITHUB_SHA" > release/README-SOURCE-COMMIT.txt
       - name: Preserve final release assets also as CI artifacts
         if: always()
         uses: actions/upload-artifact@v4
