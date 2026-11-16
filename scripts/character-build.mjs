@@ -17,6 +17,7 @@ writeFileSync(join(outputDir,glbName),result.bytes);
 for(const [name,bytes] of result.snapshots)writeFileSync(join(outputDir,'checkpoint-'+name+'.glb'),bytes);
 const manifest={
  apiVersion:result.recipeVersion,project:recipe.project.id,sourceRecipe:recipePath,
+ sourceCommit:/^[0-9a-f]{40}$/.test(process.env.GITHUB_SHA||'')?process.env.GITHUB_SHA:'local-unverified',
  recipeSha256:hash(readFileSync(resolve(recipePath))),
  glbSha256:hash(result.bytes),files:{glb:glbName,checkpoints:[...result.snapshots.keys()].map(n=>'checkpoint-'+n+'.glb')},
  summary:result.summary,audit:result.audit,meshDiagnostics:result.meshDiagnostics,warnings:result.warnings,commands:result.report,
