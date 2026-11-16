@@ -59,7 +59,7 @@ export function createContourHeadGlb(opts={}){
  const src=writeGlb({chunks:[{type:0x4e4f534a,data:new Uint8Array(0)},
    {type:0x004e4942,data:new Uint8Array(0)}]},empty);
  return appendMeshes(src,[{
-  name:'Cosmic candidate continuous face — not approved',
+  name:'Cosmic candidate continuous face - not approved',
   geometry:makeContourHead(opts),
   material:{name:'Candidate skin PBR',color:[.77,.52,.40,1],roughness:.78,metallic:0}
  }]).bytes;
