@@ -64,7 +64,7 @@ export function shell(center,rx,ry,rz,{rings=16,segments=32}={}){
  check(Number.isInteger(rings)&&rings>=8&&rings<=128&&Number.isInteger(segments)&&segments>=12&&segments<=128,'неверное разрешение');
  const sections=[];
  for(let i=0;i<=rings;i++){
-  const theta=Math.PI*(i+.0001)/(rings+.0002),height=Math.cos(theta),r=Math.sin(theta);
+  const theta=Math.PI*(i+.35)/(rings+.7),height=Math.cos(theta),r=Math.sin(theta);
   sections.push(Array.from({length:segments},(_,j)=>{
    const a=2*Math.PI*j/segments;
    return [center[0]+rx*r*Math.cos(a),center[1]+ry*r*Math.sin(a),center[2]+rz*height];
@@ -118,7 +118,7 @@ export function lip(upper=true,{width=.34,smile=.015,fullness=.068,forward=.81}=
  const path=[];
  for(let i=0;i<=48;i++){
   const u=-1+2*i/48,c=Math.max(0,1-u*u);
-  const cupid=Math.exp(-((Math.abs(u)-.21)/.17)**2);
+  const cupid=Math.exp(-(((Math.abs(u)-.21)/.17)**2));
   const y=upper?-.455+fullness*.25*cupid*c+smile*u*u:
    -.525-fullness*.3*c+smile*u*u;
   path.push([width*u,y,forward+.07*c]);
@@ -191,8 +191,8 @@ export function appendMeshes(bytes,specs){
    const kind=j===2?'VEC2':j===3?'SCALAR':'VEC3',den=kind==='VEC2'?2:kind==='VEC3'?3:1;
    const accessor={bufferView:v,componentType:j===3?(a instanceof Uint16Array?5123:5125):5126,
     type:kind,count:a.length/den};
-   if(j===0){accessor.min=[0,1,2].map(k=>Math.min(...sampleBounds(g.positions,k,false)));
-    accessor.max=[0,1,2].map(k=>Math.max(...sampleBounds(g.positions,k,true)));}
+   if(j===0){accessor.min=[0,1,2].map(k=>Math.min(...sampleBounds(g.positions,k)));
+    accessor.max=[0,1,2].map(k=>Math.max(...sampleBounds(g.positions,k)));}
    attr.push(doc.accessors.push(accessor)-1);
   }
   const materialIndex=(doc.materials??=[]).push(material(spec.material))-1;
