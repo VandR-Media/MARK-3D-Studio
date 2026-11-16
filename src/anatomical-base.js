@@ -91,7 +91,7 @@ function labelLoop(center){
 export function makeAnatomicalChildHead({rings=106,columns=192}={}){
  if(!Number.isInteger(rings)||rings<80||rings>200||!Number.isInteger(columns)||columns<128||columns>320)
   throw Error('Anatomical mesh rings 80..200; columns 128..320 required');
- const mesh=new EditableMesh({name:'Experimental anatomical child head with socket/mouth loops',
+ const mesh=new EditableMesh({name:'Anatomical child head socket and mouth loops',
   material:{name:'Anatomical clay',color:[.72,.50,.42,1],metallic:0,roughness:.82}});
  const ids=[],from=-1.32,to=1.23,uv=[];
  const at=(i,j)=>ids[i*columns+(j+columns)%columns];
