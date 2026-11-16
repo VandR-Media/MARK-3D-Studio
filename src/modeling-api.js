@@ -172,19 +172,37 @@ export function describeGlb(bytes){
 
 /** Per-mesh topology and normal diagnostics for the exported binary GLB. */
 export function auditAllMeshes(bytes){
- const doc=parseGlb(bytes).json;
- const results=[];
+ const parsed=parseGlb(bytes),doc=parsed.json;
+ const bin=parsed.chunks.find(c=>c.type===0x004e4942)?.data;
+ if(!bin)throw Error('No BIN chunk in GLB audit');
+ const view=new DataView(bin.buffer,bin.byteOffset,bin.byteLength),results=[];
+ function read(index){
+  const a=doc.accessors?.[index],v=doc.bufferViews?.[a?.bufferView];
+  if(!a||!v||v.buffer!==0||a.sparse||a.normalized)throw Error('Audit: unsupported accessor '+index);
+  const width=a.type==='VEC3'?3:a.type==='VEC2'?2:1;
+  const size=a.componentType===5126||a.componentType===5125?4:a.componentType===5123?2:0;
+  if(!size)throw Error('Audit: unsupported componentType');
+  const stride=v.byteStride??size*width,offset=(v.byteOffset||0)+(a.byteOffset||0);
+  if(offset<0||offset+(a.count-1)*stride+width*size>bin.length)throw Error('Audit: out-of-range accessor');
+  const array=a.componentType===5126?new Float32Array(a.count*width):new Uint32Array(a.count*width);
+  for(let i=0;i<a.count;i++)for(let j=0;j<width;j++){
+   const at=offset+i*stride+j*size;
+   array[i*width+j]=a.componentType===5126?view.getFloat32(at,true):
+     a.componentType===5125?view.getUint32(at,true):view.getUint16(at,true);
+  }
+  return array;
+ }
  for(let nodeIndex=0;nodeIndex<(doc.nodes||[]).length;nodeIndex++){
   const node=doc.nodes[nodeIndex];
   if(!Number.isInteger(node.mesh)||node.extras?.markDeleted)continue;
   const prim=doc.meshes[node.mesh]?.primitives||[];
-  // v0.4 emitted nodes each contain exactly one primitive.
   if(prim.length!==1)throw Error('Unsupported multi-primitive audit at node '+nodeIndex);
-  const e=new MeshEditor(bytes,nodeIndex);
-  const audit=inspectMesh(e.positions,e.indices);
+  const p=prim[0],pos=read(p.attributes.POSITION),indices=read(p.indices),normals=read(p.attributes.NORMAL);
+  if(normals.length!==pos.length)throw Error('Normal/position count mismatch at '+nodeIndex);
+  const audit=inspectMesh(pos,indices);
   let invalidNormals=0,maxUnitError=0;
-  for(let i=0;i<e.normals.length;i+=3){
-   const d=Math.hypot(e.normals[i],e.normals[i+1],e.normals[i+2]);
+  for(let i=0;i<normals.length;i+=3){
+   const d=Math.hypot(normals[i],normals[i+1],normals[i+2]);
    if(!Number.isFinite(d)||d<.001)invalidNormals++;
    else maxUnitError=Math.max(maxUnitError,Math.abs(d-1));
   }
