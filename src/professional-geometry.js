@@ -110,8 +110,8 @@ export class EditableMesh {
   this.faces.set(fid,{id:fid,vertices:[...ids],uv:uv.map(a=>[...a]),material:0});return fid;
  }
  _rebuild(){
-  this.edges=new Map();this.halfEdges=new Map();this.adj=new Map();
-  for(const id of this.vertices.keys())this.adj.set(id,new Set());
+  this.edges=new Map();this.halfEdges=new Map();this.adj=new Map();this.incidentFaces=new Map();
+  for(const id of this.vertices.keys()){this.adj.set(id,new Set());this.incidentFaces.set(id,new Set());}
   const twins=new Map();
   for(const face of this.faces.values()){
    const n=face.vertices.length,halfIds=[];
@@ -127,7 +127,7 @@ export class EditableMesh {
     const hid='h:'+face.id+':'+i;
     const he={id:hid,edgeId:edge.id,face:face.id,from,to,next:null,prev:null,twin:null};
     this.halfEdges.set(hid,he);halfIds.push(hid);edge.halfEdges.push(hid);
-    this.adj.get(from).add(to);this.adj.get(to).add(from);
+    this.adj.get(from).add(to);this.adj.get(to).add(from);this.incidentFaces.get(from).add(face.id);
     const opposite=twins.get(to+'>'+from);
     if(opposite){he.twin=opposite;this.halfEdges.get(opposite).twin=hid;}
     twins.set(from+'>'+to,hid);
@@ -295,11 +295,20 @@ export class EditableMesh {
    return near;
   };
   const groups=[{point:center,reflect:false},...(symmetry&&Math.abs(center[0])>1e-7?[{point:[-center[0],center[1],center[2]],reflect:true}]:[])];
+  // Area-weighted face normals: no approximate Laplacian "curvature normal".
+  // Collect only faces incident to an affected vertex, then sum oriented area.
   const normalAt=id=>{
-   const p=orig.get(id),adj=this.adj.get(id);
-   if(!adj?.size)return [0,0,1];
-   let avg=[0,0,0];for(const n of adj)avg=add(avg,sub(orig.get(n),p));
-   return unit(mul(avg,-1)); // coarse curvature normal; explicit approximation
+   const incident=this.incidentFaces.get(id);
+   if(!incident?.size)return [0,0,1];
+   let sum=[0,0,0];
+   for(const fid of incident){
+    const f=this.faces.get(fid);
+    for(const [a,b,c] of triangulatePolygon(f.vertices,this.vertices)){
+     const p=orig.get(f.vertices[a]),q=orig.get(f.vertices[b]),r=orig.get(f.vertices[c]);
+     sum=add(sum,cross(sub(q,p),sub(r,p)));
+    }
+   }
+   return norm(sum)>EPS?unit(sum):[0,0,1];
   };
   const affected=new Map();
   for(const g of groups)for(const [id,w] of brushAt(g.point)){
