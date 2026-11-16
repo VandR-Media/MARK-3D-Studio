@@ -1,0 +1,37 @@
+name: MARK Stage 2.1 — facial topology and memory
+on:
+  push:
+    branches: ['develop/anatomical-face-refinement-v0.6.1']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mark-face-061
+  cancel-in-progress: true
+jobs:
+  topology:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Real facial polygon topology and binary round-trip
+        run: |
+          node --test tests/anatomical-stage2.test.mjs
+          npm run test:compact
+          npm run test:professional
+      - name: Previous mesh and GLB regressions
+        run: |
+          npm run test:mesh
+          npm test
+      - name: Export original and edited anatomy from JSON into real GLB
+        run: npm run professional:build -- --recipe recipes/anatomical-head-stage2-demo.json
+      - name: Preserve independent GLB and binary output
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-face-061-interim-models
+          path: dist/professional/anatomical-head-stage2-demo/
+          if-no-files-found: error
