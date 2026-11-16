@@ -9,7 +9,9 @@ export const FACE_PARAMETERS=[
  ['jawWidth','Ширина челюсти'],['chin','Подбородок'],
  ['noseWidth','Ширина носа'],['noseLength','Длина носа'],['noseBridge','Переносица'],
  ['eyesHeight','Положение глаз'],['eyeSockets','Глазницы'],
- ['mouthWidth','Ширина рта'],['lips','Объём губ'],['ears','Уши'],['nostrils','Ноздри']
+ ['mouthWidth','Ширина рта'],['lips','Объём губ'],['ears','Уши'],['nostrils','Ноздри'],
+ ['eyesSpacing','Расстояние глазниц'],['eyeSize','Размер глазниц'],
+ ['upperEyelid','Контур верхнего века'],['lowerEyelid','Контур нижнего века']
 ];
 const valid=new Set(FACE_PARAMETERS.map(p=>p[0]));
 const gauss=(x,c,r)=>Math.exp(-2*(((x-c)/r)**2));
@@ -48,6 +50,16 @@ export function deformFace(editor,param,amount){
     case 'noseLength':dz=amount*.24*gauss(absx,0,.18)*gauss(y,-.13,.22)*front;break;
     case 'noseBridge':dz=amount*.15*gauss(absx,0,.14)*gauss(y,.17,.27)*front;break;
     case 'eyesHeight':dy=amount*.11*gauss(absx,.40,.21)*gauss(y,.36,.16)*front;break;
+    case 'eyesSpacing':dx=amount*.10*side*gauss(absx,.40,.23)*gauss(y,.36,.21)*front;break;
+    case 'eyeSize':
+     dx=amount*.075*(x-side*.40)*gauss(absx,.40,.25)*gauss(y,.36,.22)*front;
+     dy=amount*.065*(y-.36)*gauss(absx,.40,.25)*gauss(y,.36,.22)*front;break;
+    case 'upperEyelid':
+     dy=amount*.055*gauss(absx,.40,.22)*gauss(y,.49,.12)*front;
+     dz=amount*.03*gauss(absx,.40,.22)*gauss(y,.49,.12)*front;break;
+    case 'lowerEyelid':
+     dy=-amount*.055*gauss(absx,.40,.22)*gauss(y,.26,.12)*front;
+     dz=amount*.025*gauss(absx,.40,.22)*gauss(y,.26,.12)*front;break;
     case 'eyeSockets':dz=-amount*.10*gauss(absx,.4,.2)*gauss(y,.37,.17)*front;break;
     case 'mouthWidth':dx=amount*.09*side*gauss(absx,.22,.27)*gauss(y,-.43,.13)*front;break;
     case 'lips':dz=amount*.085*gauss(absx,.14,.29)*gauss(y,-.44,.10)*front;break;
