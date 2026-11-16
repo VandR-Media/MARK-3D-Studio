@@ -4,11 +4,12 @@
  * No claim of automatic resemblance to the approved MARK Cosmic references.
  */
 import {createTestHeadGlb} from './head-fixture.js';
+import {createContourHeadGlb} from './cosmic-head.js';
 import {MeshEditor} from './mesh-core.js';
 import {deformFace} from './face-studio.js';
 import {topologyEdit,inspectMesh,readPrimitive} from './topology.js';
 import {editScene} from './scene-objects.js';
-import {parseGlb} from './glb.js';
+import {parseGlb,writeGlb} from './glb.js';
 import {appendMeshes,loft,sweep,earShell,eyeLens,irisDisk,pupilDisk,eyelid,eyebrow,lip,hairCap,hairStrand,shell,capCrown,capVisor,capEmblem,headphoneBand,headphoneCup,headphoneNeonRim} from './production-geometry.js';
 const VERSION='mark-modeling/0.4';
 const bounded=(v,name,min,max)=>{if(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max)throw Error(name+' должен быть числом '+min+'…'+max);return v;};
@@ -41,7 +42,19 @@ export function validateRecipe(recipe){
  if(recipe.schema!==VERSION)throw Error('Неизвестная версия схемы: '+recipe.schema);
  assertPlain(recipe.project,'project');
  if(!/^[a-z0-9-]{3,60}$/.test(recipe.project.id||''))throw Error('project.id: только a-z, 0-9, дефисы');
- if(!['practice-head','provided-glb'].includes(recipe.project.base))throw Error('project.base: practice-head или provided-glb');
+ if(!['practice-head','provided-glb','contour-head-v1'].includes(recipe.project.base))
+  throw Error('project.base: practice-head, contour-head-v1 или provided-glb');
+ if(recipe.project.controls!==undefined){
+  assertPlain(recipe.project.controls,'project.controls');
+  for(const [area,opts] of Object.entries(recipe.project.controls)){
+   if(!['head','eyes','eyelids','eyebrows','nose','cheeks','chin','mouth','lips','ears','hair','skin'].includes(area))
+    throw Error('Unknown character controls area '+area);
+   assertPlain(opts,'project.controls.'+area);
+   for(const [key,value] of Object.entries(opts))
+    if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>1)
+     throw Error('Control '+area+'.'+key+' must be 0..1');
+  }
+ }
  if(!Array.isArray(recipe.commands)||recipe.commands.length<1||recipe.commands.length>200)
   throw Error('Нужно 1–200 команд');
  recipe.commands.forEach((cmd,i)=>{
@@ -217,8 +230,22 @@ function mainAudit(bytes){
   throw Error('Head geometry invalid: '+JSON.stringify(audit));
  return audit;
 }
-function command(bytes,cmd){
- const p=cmd.parameters||{};
+function mergedParameters(project,cmd){
+ const controls=project.controls||{},target=cmd.target||'';
+ if(cmd.operation==='face.modify')return {...(controls[target]||{}),...(cmd.parameters||{})};
+ if(cmd.operation==='feature.build'){
+  const related={
+   eyes:['eyes'],eyelids:['eyes','eyelids'],eyebrows:['eyes','eyebrows'],
+   lips:['mouth','lips'],ears:['ears'],hair:['hair'],nostrils:['nose']
+  }[target]||[target];
+  const params=Object.assign({},...related.map(k=>controls[k]||{}),cmd.parameters||{});
+  if(['ears','hair'].includes(target)&&controls.head)params.headWidth=controls.head.width??.5;
+  return params;
+ }
+ return cmd.parameters||{};
+}
+function command(bytes,cmd,project){
+ const p=mergedParameters(project,cmd);
  switch(cmd.operation){
   case 'face.modify':return faceModify(bytes,cmd.target,p);
   case 'feature.build':{
@@ -270,14 +297,16 @@ function command(bytes,cmd){
 export function runRecipe(recipe,{sourceBytes=null}={}){
  validateRecipe(recipe);
  if(recipe.project.base==='provided-glb'&&!sourceBytes)throw Error('provided-glb requires sourceBytes');
- let bytes=recipe.project.base==='provided-glb'?new Uint8Array(sourceBytes):createTestHeadGlb();
+ let bytes=recipe.project.base==='provided-glb'?new Uint8Array(sourceBytes):
+  recipe.project.base==='contour-head-v1'?
+    createContourHeadGlb(recipe.project.controls?.head||{}):createTestHeadGlb();
  let report=[],snapshots=new Map(),warnings=[];
  if(!recipe.project.references)warnings.push('Утверждённые референсы MARK Cosmic недоступны движку: сравнение сходства НЕ выполнялось.');
  else warnings.push('Конфигурация референсов хранится отдельно от GLB. Автоматической оценки сходства пока нет.');
  for(let i=0;i<recipe.commands.length;i++){
   const cmd=recipe.commands[i],before=bytes;
   try{
-   const result=command(before,cmd);
+   const result=command(before,cmd,recipe.project);
    if(!(result.bytes instanceof Uint8Array))throw Error('Команда не вернула GLB');
    parseGlb(result.bytes); // minimal binary format guarantee before commit
    bytes=result.bytes;
