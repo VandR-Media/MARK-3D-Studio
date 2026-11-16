@@ -21,6 +21,7 @@ jobs:
       - name: Real facial polygon topology and binary round-trip
         run: |
           node --test tests/anatomical-stage2.test.mjs
+          node --test tests/facial-precision.test.mjs
           npm run test:compact
           npm run test:professional
       - name: Previous mesh and GLB regressions
