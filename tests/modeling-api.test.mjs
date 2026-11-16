@@ -126,3 +126,41 @@ test('eyes high-level ChatGPT command changes actual socket/lid vertices, not ig
  assert.ok(new MeshEditor(x.bytes).positions.some((v,i)=>v!==new MeshEditor(original.bytes).positions[i]));
  assert.throws(()=>runRecipe({...p,commands:[{operation:'face.modify',target:'eyes',parameters:{unsupported:.8}}]}),/неизвестный параметр/);
 });
+
+test('v0.4.1 candidate is a new continuous contour-based head and full JSON pipeline',()=>{
+ const candidate=load('recipes/mark-cosmic-face-candidate-v1.json');
+ const result=runRecipe(candidate);
+ const original=new MeshEditor(result.snapshots.get('continuous-contour-head'),0);
+ assert.notEqual(original.count,18882,'Candidate must not be a renamed v0.3 practice head');
+ assert.ok(original.count>20000,'Contour base must be a dense continuous polygon mesh');
+ assert.ok(result.summary.meshes>20,'Candidate must contain genuine independent facial components');
+ assert.ok(result.summary.triangles>45000);
+ assert.equal(result.audit.boundaryEdges,0);
+ assert.ok(result.meshDiagnostics.every(m=>m.audit.invalidTriangles===0&&m.audit.nonManifoldEdges===0));
+ assert.deepEqual(parseGlb(result.bytes).json.materials[0].pbrMetallicRoughness.baseColorFactor,[.76,.51,.40,1]);
+ assert.ok(result.warnings.some(w=>w.includes('референс')),'Do not silently claim approved likeness');
+});
+test('one project eye-control change consistently moves eyeballs, lids and brows, not ears or lips',()=>{
+ const candidate=load('recipes/mark-cosmic-face-candidate-v1.json');
+ const base=runRecipe(candidate);
+ candidate.project.controls.eyes.spacing=.67;
+ const changed=runRecipe(candidate);
+ const before=parseGlb(base.bytes).json,after=parseGlb(changed.bytes).json;
+ const bin1=parseGlb(base.bytes).chunks.find(c=>c.type===0x004e4942).data;
+ const bin2=parseGlb(changed.bytes).chunks.find(c=>c.type===0x004e4942).data;
+ function vertexBlob(doc,bin,node){
+  const p=doc.meshes[node.mesh].primitives[0];
+  const view=doc.bufferViews[doc.accessors[p.attributes.POSITION].bufferView];
+  return bin.slice(view.byteOffset||0,(view.byteOffset||0)+view.byteLength);
+ }
+ const modified=[],preserved=[];
+ for(let i=0;i<before.nodes.length;i++){
+  const a=before.nodes[i],b=after.nodes[i];
+  assert.equal(a.name,b.name);
+  const equal=Buffer.from(vertexBlob(before,bin1,a)).equals(Buffer.from(vertexBlob(after,bin2,b)));
+  const facePart=/eye|eyelid|eyebrow|pupil|iris|upper lid|lower lid/i.test(a.name);
+  if(facePart){assert.equal(equal,false,'Eye component must move: '+a.name);modified.push(a.name);}
+  else if(/auricle|lip|scalp|strand/i.test(a.name)){assert.equal(equal,true,'Unrelated feature must remain: '+a.name);preserved.push(a.name);}
+ }
+ assert.ok(modified.length>=8&&preserved.length>=4);
+});
