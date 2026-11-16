@@ -29,6 +29,7 @@ export function initMeshUi(api){
  '  <select id="transformAxis" aria-label="Ось"><option value="x">X</option><option value="y">Y</option><option value="z" selected>Z</option></select>',
  '  <input type="number" id="transformValue" aria-label="Величина" value="0.05" step="0.01"></div>',
  '  <button id="applyTransform" class="mesh-btn primary full-width">Применить к вершинам</button>',
+ '  <div class="mesh-buttons"><button id="transformMinus" class="mesh-btn">− шаг</button><button id="transformPlus" class="mesh-btn">+ шаг</button></div>',
  ' </div>',
  ' <div id="meshBrushControls" hidden>',
  '  <div class="mesh-buttons wrap">',
@@ -117,17 +118,33 @@ export function initMeshUi(api){
  }
  function updateOverlays(){stopOverlay();addWire();addNormals();}
  function updateSelected(){
-  $('selectedInfo').textContent='Выбрано вершин: '+ctx.selected.size;
+  const count=ctx.selected.size;
+  $('selectedInfo').textContent=(ctx.component==='vertex'?'Вершины':ctx.component==='edge'?'Рёбра':'Полигоны')+
+    ': выделено '+count+' вершин';
   if(!ctx.current?.object||!ctx.current?.session)return;
   let overlay=ctx.current.overlay;
   if(!overlay){
-   const g=new THREE.BufferGeometry();const m=new THREE.PointsMaterial({color:0xffd767,size:9,sizeAttenuation:false,depthTest:false,depthWrite:false});
-   overlay=new THREE.Points(g,m);overlay.renderOrder=15;ctx.current.object.add(overlay);ctx.current.overlay=overlay;
+   overlay=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({
+    color:0xffd767,size:10,sizeAttenuation:false,depthTest:false,depthWrite:false}));
+   overlay.renderOrder=15;ctx.current.object.add(overlay);ctx.current.overlay=overlay;
   }
-  const out=[],s=ctx.current.session;
-  for(const i of ctx.selected){out.push(s.positions[i*3],s.positions[i*3+1],s.positions[i*3+2]);}
+  const out=[],s=ctx.current.session,ids=[...ctx.selected];
+  for(const i of ids)out.push(s.positions[i*3],s.positions[i*3+1],s.positions[i*3+2]);
   overlay.geometry.dispose();overlay.geometry=new THREE.BufferGeometry();
   overlay.geometry.setAttribute('position',new THREE.Float32BufferAttribute(out,3));
+  // Draw the actual picked edge or triangle outline, not only vertex dots.
+  if(!ctx.current.lineOverlay){
+   const mat=new THREE.LineBasicMaterial({color:0xffd767,depthTest:false,depthWrite:false});
+   ctx.current.lineOverlay=new THREE.LineSegments(new THREE.BufferGeometry(),mat);
+   ctx.current.lineOverlay.renderOrder=16;ctx.current.object.add(ctx.current.lineOverlay);
+  }
+  const line=[],v=i=>[s.positions[i*3],s.positions[i*3+1],s.positions[i*3+2]];
+  if(ctx.component==='edge'&&ids.length===2)line.push(...v(ids[0]),...v(ids[1]));
+  if(ctx.component==='face'&&ids.length===3)
+   for(let i=0;i<3;i++)line.push(...v(ids[i]),...v(ids[(i+1)%3]));
+  ctx.current.lineOverlay.geometry.dispose();
+  ctx.current.lineOverlay.geometry=new THREE.BufferGeometry();
+  ctx.current.lineOverlay.geometry.setAttribute('position',new THREE.Float32BufferAttribute(line,3));
  }
  function applyLive(withNormals=true){
   const current=ctx.current;if(!current?.object||!current.session)return;
@@ -147,6 +164,8 @@ export function initMeshUi(api){
   ctx.selected.clear();stopOverlay();if(ctx.current?.overlay){
    ctx.current.overlay.parent?.remove(ctx.current.overlay);ctx.current.overlay.geometry.dispose();
    ctx.current.overlay.material.dispose();ctx.current.overlay=null;}
+  if(ctx.current?.lineOverlay){ctx.current.lineOverlay.parent?.remove(ctx.current.lineOverlay);
+   ctx.current.lineOverlay.geometry.dispose();ctx.current.lineOverlay.material.dispose();ctx.current.lineOverlay=null;}
   ctx.current=null;ctx.currentIndex=index;
   const descriptor=ctx.choices[index];
   if(!descriptor){setStatus('Объект не выбран');updateButtons();return;}
@@ -156,7 +175,7 @@ export function initMeshUi(api){
    const object=getMeshObject(descriptor);
    if(!object||object.geometry?.getAttribute('position')?.count!==session.count)
     throw Error('Структура сетки Three.js не совпадает с GLB accessor. Экспорт заблокирован.');
-   ctx.current={descriptor,session,object,overlay:null};
+   ctx.current={descriptor,session,object,overlay:null,lineOverlay:null};
    setStatus('Реальная геометрия: '+session.count.toLocaleString('ru-RU')+
      ' вершин, '+session.triangleCount.toLocaleString('ru-RU')+' треугольников.');
    if($('meshWire').checked||$('meshNormals').checked)updateOverlays();
@@ -181,7 +200,7 @@ export function initMeshUi(api){
   $('meshRedo').disabled=!ctx.current?.session?.redoStack?.length;
   $('applyTransform').disabled=!enabled||ctx.selected.size===0;
  }
- function saveLater(){
+ function saveLater(delay=2200){
   clearTimeout(ctx.saveTimeout);
   ctx.saveTimeout=setTimeout(async()=>{
    try{
@@ -196,7 +215,7 @@ export function initMeshUi(api){
     });
     db.close();$('meshAutosaveStatus').textContent='Автосейв сохранён локально.';
    }catch(e){$('meshAutosaveStatus').textContent='Автосейв недоступен: '+e.message;}
-  },2200);
+  },delay);
  }
  function openDb(){
   return new Promise((resolve,reject)=>{
@@ -230,9 +249,9 @@ export function initMeshUi(api){
   if(ctx.stroke)finishStroke();
   ctx.tool=tool;updateButtons();
  }
- function transform(){
+ function transform(override=null){
   if(!ctx.current?.session||!ctx.selected.size)return;
-  const value=Number($('transformValue').value);
+  const value=override===null?Number($('transformValue').value):override;
   if(!Number.isFinite(value)){api.notify('Укажите число для преобразования.',true);return;}
   const s=ctx.current.session;
   try{
@@ -348,7 +367,14 @@ export function initMeshUi(api){
   $(id).addEventListener('click',()=>setTool(tool));
  root.querySelectorAll('[data-select]').forEach(b=>b.addEventListener('click',()=>{ctx.component=b.dataset.select;updateButtons();}));
  root.querySelectorAll('[data-brush]').forEach(b=>b.addEventListener('click',()=>{ctx.brush=b.dataset.brush;updateButtons();}));
- $('applyTransform').addEventListener('click',transform);
+ $('applyTransform').addEventListener('click',()=>transform());
+ $('transformMode').addEventListener('change',()=>{$('transformValue').value=
+  $('transformMode').value==='scale'?'1.05':$('transformMode').value==='rotate'?'5':'0.05';});
+ const transformStep=sign=>{const amount=Math.abs(Number($('transformValue').value));
+  if($('transformMode').value==='scale')transform(Math.max(.01,1+sign*Math.abs(amount-1)));
+  else transform(sign*amount);};
+ $('transformMinus').addEventListener('click',()=>transformStep(-1));
+ $('transformPlus').addEventListener('click',()=>transformStep(1));
  $('meshUndo').addEventListener('click',()=>{const s=ctx.current?.session;if(s?.undo()){applyLive();changed();}});
  $('meshRedo').addEventListener('click',()=>{const s=ctx.current?.session;if(s?.redo()){applyLive();changed();}});
  for(const id of ['brushRadius','brushStrength'])$(id).addEventListener('input',()=>$(id+'Label').textContent=Number($(id).value).toFixed(2));
@@ -456,6 +482,8 @@ export function initMeshUi(api){
   else setStatus('В этом GLB нет безопасных для Mesh Edit примитивов.');
   updateButtons();
  }
+ document.addEventListener('visibilitychange',()=>{if(document.hidden&&ctx.sessions.size)saveLater(0);});
+ window.addEventListener('pagehide',()=>{if(ctx.sessions.size)saveLater(0);});
  updateButtons();refSettings('front');
  return {onModel,clear,exportGlb,requestAutosave:saveLater,getEditor:()=>ctx.current?.session||null};
 }
