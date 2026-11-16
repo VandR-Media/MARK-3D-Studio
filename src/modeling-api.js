@@ -55,6 +55,9 @@ function faceModify(bytes,target,p){
  const e=new MeshEditor(bytes,0);
  const amount=v=>2*(v-.5);
  const changes=[];
+ const permitted={"nose":["width","length","bridgeHeight","nostrilDepth"],"cheeks":["volume","boneHeight"],"chin":["projection","jawWidth"],"head":["width","height","forehead"],"eyes":["socketDepth","height","spacing","size","upperEyelid","lowerEyelid"],"mouth":["width","volume"],"ears":["size"]}[target];
+ if(permitted)for(const k of Object.keys(p))if(!permitted.includes(k))
+  throw Error('face.modify '+target+': неизвестный параметр '+k);
  const send=(key,value)=>{if(Math.abs(value)>.000001){deformFace(e,key,value);changes.push({key,amount:value});}};
  switch(target){
   case 'nose':
@@ -79,6 +82,10 @@ function faceModify(bytes,target,p){
   case 'eyes':
    send('eyeSockets',amount(param(p,'socketDepth',.5)));
    send('eyesHeight',amount(param(p,'height',.5)));
+   send('eyesSpacing',amount(param(p,'spacing',.5)));
+   send('eyeSize',amount(param(p,'size',.5)));
+   send('upperEyelid',amount(param(p,'upperEyelid',.5)));
+   send('lowerEyelid',amount(param(p,'lowerEyelid',.5)));
    break;
   case 'mouth':
    send('mouthWidth',amount(param(p,'width',.5)));
