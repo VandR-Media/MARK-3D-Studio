@@ -46,7 +46,7 @@ jobs:
         run: |
           for recipe in recipes/*.json; do
             id="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).project.id)" "$recipe")"
-            node scripts/render-character.mjs --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
+            node scripts/render-character.mjs --runs 5 --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
           done
       - name: Package offline HTML, exact provenance and GLB screenshots
         run: |
