@@ -9,7 +9,7 @@ import {deformFace} from './face-studio.js';
 import {topologyEdit,inspectMesh,readPrimitive} from './topology.js';
 import {editScene} from './scene-objects.js';
 import {parseGlb} from './glb.js';
-import {appendMeshes,loft,sweep,earShell,eyeLens,irisDisk,pupilDisk,eyelid,eyebrow,lip,hairCap,hairStrand,shell} from './production-geometry.js';
+import {appendMeshes,loft,sweep,earShell,eyeLens,irisDisk,pupilDisk,eyelid,eyebrow,lip,hairCap,hairStrand,shell,capCrown,capVisor,capEmblem,headphoneBand,headphoneCup,headphoneNeonRim} from './production-geometry.js';
 const VERSION='mark-modeling/0.4';
 const bounded=(v,name,min,max)=>{if(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max)throw Error(name+' должен быть числом '+min+'…'+max);return v;};
 const param=(p,key,def,min=0,max=1)=>bounded(p?.[key]??def,key,min,max);
@@ -24,7 +24,13 @@ const PALETTE={
  lips:{name:'Lips',color:color(.59,.24,.23),roughness:.55},
  ear:{name:'Ear skin',color:color(.68,.43,.32),roughness:.8},
  hair:{name:'Brown hair',color:color(.085,.052,.048),roughness:.75},
- nostril:{name:'Nostril dark relief',color:color(.15,.075,.065),roughness:.9}
+ nostril:{name:'Nostril dark relief',color:color(.15,.075,.065),roughness:.9},
+ cap:{name:'Red cap fabric',color:color(.72,.035,.095),roughness:.78},
+ visor:{name:'Red cap visor',color:color(.68,.026,.078),roughness:.64},
+ emblem:{name:'White monogram',color:color(.96,.95,.98),roughness:.45},
+ headphones:{name:'Headphone midnight polymer',color:color(.055,.066,.12),metallic:.08,roughness:.36},
+ cyan:{name:'Electric cyan LED',color:color(.02,.77,.96),emissive:[.01,.62,.85],roughness:.24},
+ magenta:{name:'Cosmic magenta LED',color:color(.91,.035,.68),emissive:[.71,.03,.56],roughness:.24}
 };
 function assertPlain(o,where){
  if(!o||typeof o!=='object'||Array.isArray(o)||Object.getPrototypeOf(o)!==Object.prototype)
@@ -88,8 +94,8 @@ function faceModify(bytes,target,p){
 }
 function featureMeshes(target,p){
  const specs=[],add=(name,geometry,material)=>specs.push({name,geometry,material:PALETTE[material]});
- const eyeSpacing=param(p,'spacing',.46)*.44+.23; // 0.23..0.67, default ~0.43
- const eyeWidth=.16+param(p,'size',.55)*.10,eyeHeight=.105+param(p,'height',.55)*.065;
+ const eyeSpacing=param(p,'spacing',.46)*.44+.23; // 0.23..0.67
+ const eyeWidth=.151+param(p,'size',.55)*.064,eyeHeight=.090+param(p,'height',.55)*.044;
  if(target==='eyes'){
   const width=eyeWidth,height=eyeHeight;
   for(const side of [-1,1]){
@@ -99,7 +105,7 @@ function featureMeshes(target,p){
    add(label+' pupil',pupilDisk(side,{spacing:eyeSpacing,radius:height*.245,forward:.919}),'pupil');
   }
  }else if(target==='eyelids'){
-  const thickness=.019+param(p,'thickness',.5)*.028;
+  const thickness=.012+param(p,'thickness',.5)*.020;
   for(const side of [-1,1]){
    const label=side<0?'Left':'Right',options={spacing:eyeSpacing,width:eyeWidth,height:eyeHeight,thickness};
    add(label+' upper eyelid',eyelid(side,true,options),'lid');
@@ -109,12 +115,12 @@ function featureMeshes(target,p){
   for(const side of [-1,1])add((side<0?'Left':'Right')+' eyebrow',
    eyebrow(side,{spacing:eyeSpacing,width:eyeWidth*1.14,height:.08+param(p,'arch',.5)*.08}),'brows');
  }else if(target==='lips'){
-  const width=.24+param(p,'width',.5)*.18,fullness=.039+param(p,'fullness',.5)*.065;
+  const width=.24+param(p,'width',.5)*.15,fullness=.025+param(p,'fullness',.5)*.050;
   const params={width,fullness,smile:(param(p,'smile',.5)-.5)*.07};
   add('Upper lip volume',lip(true,params),'lips');
   add('Lower lip volume',lip(false,params),'lips');
  }else if(target==='ears'){
-  const h=.32+param(p,'height',.5)*.24,w=.20+param(p,'width',.5)*.18;
+  const h=.29+param(p,'height',.5)*.16,w=.155+param(p,'width',.5)*.13;
   for(const side of [-1,1])add((side<0?'Left':'Right')+' auricle',earShell(side,{height:h,width:w}),'ear');
  }else if(target==='hair'){
   const count=Math.round(6+param(p,'strands',.55)*12);
@@ -122,6 +128,16 @@ function featureMeshes(target,p){
   add('Scalp fitted hair mass',hairCap({length,volume}),'hair');
   for(let i=0;i<count;i++)add('Swept hair strand '+String(i+1).padStart(2,'0'),
    hairStrand(i,{count,length,volume}),'hair');
+ }else if(target==='cap'){
+  add('Red baseball cap crown',capCrown(),'cap');
+  add('Baseball visor curved shell',capVisor(),'visor');
+  add('White front cap monogram',capEmblem(),'emblem');
+ }else if(target==='headphones'){
+  add('Arched headphone band',headphoneBand(),'headphones');
+  for(const side of [-1,1]){
+   add((side<0?'Left':'Right')+' earcup body',headphoneCup(side),'headphones');
+   add((side<0?'Left':'Right')+' neon earcup ring',headphoneNeonRim(side),side<0?'cyan':'magenta');
+  }
  }else if(target==='nostrils'){
   const spread=.11+param(p,'spread',.5)*.08,r=.020+param(p,'radius',.5)*.020;
   for(const side of [-1,1])add((side<0?'Left':'Right')+' nostril inset relief',
