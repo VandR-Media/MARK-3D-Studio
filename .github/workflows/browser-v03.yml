@@ -1,0 +1,42 @@
+name: Character v0.3 real WebGL2 acceptance
+on:
+  push:
+    branches: ['develop/character-modeling-v0.3']
+    paths:
+      - 'scripts/accept-v03.mjs'
+      - '.github/workflows/browser-v03.yml'
+      - 'src/character-ui.js'
+      - 'src/app.js'
+      - 'src/mesh-ui.js'
+      - 'src/topology.js'
+      - 'src/scene-objects.js'
+      - 'src/face-studio.js'
+      - 'index.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-character-edit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install editor and WebGL test dependencies
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Build standalone HTML with embedded Three.js
+        run: npm run build:standalone
+      - name: Real browser edit -> topology -> Face Studio -> second object -> GLB export and reimport
+        run: node scripts/accept-v03.mjs
+      - name: Publish genuine Chromium screenshots and edited GLB
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-3d-studio-v0.3-real-webgl-browser-evidence
+          path: evidence/v0.3/*
+          if-no-files-found: warn

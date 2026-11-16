@@ -1,4 +1,4 @@
-name: MARK 3D Studio MVP
+name: MARK 3D Studio CI
 on:
   push:
     branches: ["**"]
@@ -20,6 +20,10 @@ jobs:
           node --check src/materials.js
           node --check src/sample.js
           node --check src/app.js
+          node --check src/character-ui.js
+          node --check src/topology.js
+          node --check src/scene-objects.js
+          node --check src/face-studio.js
           node --check src/mesh-core.js
           node --check src/mesh-ui.js
           node --check src/head-fixture.js
@@ -28,6 +32,19 @@ jobs:
         run: npm test
       - name: Mesh editing and GLB persistence tests
         run: npm run test:mesh
+      - name: Binary topology GLB tests
+        run: npm run test:topology
+      - name: Multiple scene objects and independent GLB buffers
+        run: npm run test:scene
+      - name: Sculpt and Face Studio regression tests
+        run: npm run test:face
+      - name: Build v0.3 edited head, topology and second mesh GLB
+        run: npm run character:fixtures
+      - name: Archive v0.3 real GLB before/after
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-3d-studio-v0.3-character-glb-before-after
+          path: samples/character-v03-*.glb
       - name: Build practice head before and after editing
         run: npm run mesh:fixtures
       - name: Upload head GLB examples

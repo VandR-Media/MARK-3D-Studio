@@ -32,3 +32,20 @@
 
 @media(min-width:901px){.inspector{overflow-y:auto;max-height:calc(100dvh - 112px);overscroll-behavior:contain}}
 @media(max-width:900px){.inspector{overflow:visible;max-height:none}}
+
+/* v0.3 Character Studio: collapsible touchscreen-friendly inspector */
+.character-ui{background:#151f33;border-bottom:1px solid #40526b}
+.character-panel>summary{cursor:pointer;padding:17px;font-size:16px;font-weight:800;color:#f1f4ff;user-select:none}
+.character-panel>summary small{font-size:10px;letter-spacing:.8px;color:#b7a2ff;margin-left:8px}
+.character-inner{padding:0 15px 16px;display:flex;flex-direction:column;gap:13px}
+.character-sub{border:1px solid #42516a;border-radius:12px;padding:10px;background:#1b2a42}
+.character-sub>summary{padding:9px 4px;cursor:pointer;font-size:14px;font-weight:750}
+.character-sub[open]{display:flex;flex-direction:column;gap:11px}
+.character-sub .mesh-buttons{margin:4px 0}
+.character-input{color:#fff;border-radius:10px;border:1px solid #4a5b7a;background:#223047;padding:12px;min-height:45px;width:100%}
+.character-ui .mesh-btn{min-height:46px}
+.character-ui .mesh-note{line-height:1.5}
+.character-ui select{min-height:46px;width:100%;background:#24344c}
+.character-ui [hidden]{display:none!important}
+#charAudit{display:block;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:520px){.character-panel>summary{padding:15px 12px}.character-inner{padding:0 12px 14px}}
