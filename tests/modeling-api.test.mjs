@@ -33,12 +33,24 @@ test('changed nose only deforms head and leaves independently controlled compone
  assert.notEqual(sha(first.bytes),sha(second.bytes));
  const h1=new MeshEditor(first.bytes,0),h2=new MeshEditor(second.bytes,0);
  assert.ok(h1.positions.some((v,i)=>v!==h2.positions[i]));
- const j1=parseGlb(first.bytes).json,j2=parseGlb(second.bytes).json;
+ const parsed1=parseGlb(first.bytes),parsed2=parseGlb(second.bytes);
+ const j1=parsed1.json,j2=parsed2.json;
  assert.equal(j1.nodes.length,j2.nodes.length);
  assert.deepEqual(j1.nodes.map(n=>n.name),j2.nodes.map(n=>n.name));
+ const bin1=parsed1.chunks.find(c=>c.type===0x004e4942).data;
+ const bin2=parsed2.chunks.find(c=>c.type===0x004e4942).data;
+ const attrBytes=(doc,bin,id)=>{
+  const a=doc.accessors[id],v=doc.bufferViews[a.bufferView];
+  return bin.slice(v.byteOffset||0,(v.byteOffset||0)+v.byteLength);
+ };
  for(let i=1;i<j1.nodes.length;i++){
-  const a=new MeshEditor(first.bytes,i),b=new MeshEditor(second.bytes,i);
-  assert.deepEqual(a.positions,b.positions,'Unmodified component '+i+' changed');
+  const a=j1.meshes[j1.nodes[i].mesh].primitives[0],b=j2.meshes[j2.nodes[i].mesh].primitives[0];
+  for(const key of ['POSITION','NORMAL','TEXCOORD_0']){
+   assert.deepEqual(attrBytes(j1,bin1,a.attributes[key]),attrBytes(j2,bin2,b.attributes[key]),
+    'Unmodified component '+i+' accessor '+key+' changed');
+  }
+  assert.deepEqual(attrBytes(j1,bin1,a.indices),attrBytes(j2,bin2,b.indices),
+   'Unmodified component '+i+' triangle indices changed');
  }
  assert.deepEqual(j1.materials,j2.materials);
 });
