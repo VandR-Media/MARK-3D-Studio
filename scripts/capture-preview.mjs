@@ -22,6 +22,8 @@ try{
  await page.waitForTimeout(700);
  await page.screenshot({path:resolve(folder,'mesh-editor-head-before.png'),fullPage:false});
  await page.locator('[data-view="front"]').click();
+ await page.waitForTimeout(250);
+ await page.screenshot({path:resolve(folder,'mesh-editor-head-before-front.png'),fullPage:false});
  await page.locator('#modeEdit').click();
  await page.locator('#meshSculpt').click();
  const canvas=await page.locator('#canvasHolder canvas').boundingBox();
@@ -40,6 +42,15 @@ try{
  let changed=0;for(let i=0;i<before.positions.length;i++)if(before.positions[i]!==after.positions[i])changed++;
  if(changed===0)throw Error('Browser sculpt did not change exported BIN vertex coordinates.');
  console.log('Browser WebGL2 screenshot and exported GLB validated. Changed scalar coordinates:',changed);
+ await page.locator('#modelFile').setInputFiles(dest);
+ await page.waitForFunction(()=>document.getElementById('modelName')?.textContent?.includes('head-after-browser-edit'));
+ await page.locator('[data-view="front"]').click();
+ await page.waitForTimeout(300);
+ await page.screenshot({path:resolve(folder,'mesh-editor-head-reopened.png'),fullPage:false});
+ await page.setViewportSize({width:430,height:930});
+ await page.waitForTimeout(300);
+ await page.screenshot({path:resolve(folder,'mesh-editor-mobile-portrait.png'),fullPage:false});
+ console.log('Browser edited GLB reimported and mobile portrait viewport captured.');
  console.log('Editor status:',await page.locator('#meshSafety').textContent());
  if(errors.length)console.log('Browser console errors:',errors.slice(0,8));
 }finally{await browser.close();}
