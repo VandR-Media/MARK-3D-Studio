@@ -1,46 +1,45 @@
-# MARK 3D Studio — MVP v0.1.2
+# MARK 3D Studio — v0.2 Mesh Editor (experimental)
 
-Mobile-first **browser 3D GLB editor** for the future MARK Cosmic character in MARK Audio.
+**Статус: WIP, не готово к слиянию с main и не является MARK Cosmic.**
 
-**Implemented:** import a self-contained glTF 2.0 `.glb`, display and orbit a real polygonal mesh with Three.js/WebGL2, edit existing metallic-roughness PBR materials, reset changes, export a modified GLB. The original binary geometry, UVs, textures, skins and animation data are retained byte-for-byte by rewriting **only the JSON chunk**. No server upload of personal model data.
+Рабочая ветка: `develop/mesh-editor-v0.2`. PR к ветке v0.1.2. Сохранены функции просмотра GLB, редактирования PBR и экспорта из v0.1.2.
 
-The built-in demo is an original **organic polygonal test mesh (6,240 vertices, 12,480 triangles)**, not a recognizable MARK Cosmic character. Created locally from `src/sample.js`, not from circles/spheres.
+## Реализовано в v0.2
 
-## Start
+- Реальный BIN-редактор glTF 2.0/GLB: чтение координат `POSITION`, нормалей `NORMAL` и индексов; запись Float32 обратно в GLB BIN и пересчёт нормалей/границ accessor; экспорт и повторное открытие.
+- Выбор объектов из сцены; Object / Mesh Edit / Camera; выбор вершин, рёбер и треугольных полигонов; числовое перемещение, масштабирование, вращение.
+- Grab / Smooth / Inflate / Pinch, радиус, сила, плавное затухание; spatial hash для ускорения радиусного поиска, обновляемый после движения; локальная симметрия X=0; Undo/Redo до 20 операций.
+- Фронтальная, боковая, верхняя и 3/4 камеры; перспектива/ортография; Wireframe и выборочное отображение нормалей.
+- Локальные референсные изображения (фронт, бок, 3/4), перемещение, масштаб, прозрачность. Не входят в GLB и не отправляются на сервер.
+- Автосейв изменённого GLB в IndexedDB, если браузер разрешает, и кнопка восстановления.
+- Генератор **собственной замкнутой тестовой органической полигональной головы** с UV, носом, щеками, губами и подбородком. Это тренировочная геометрия, не готовый MARK Cosmic.
+- Однофайловый автономный HTML c Three.js, JS и CSS внутри, без CDN. Потребуются WebGL2 и браузер с разрешённым локальным JS.
 
-Serve this directory over HTTP(S) (do not use file://):
-```sh
-python3 -m http.server 8080
-```
-Visit http://localhost:8080 on a WebGL2-capable browser; for a Huawei phone use a genuine HTTPS deployment.
+## Как проверить на Huawei
 
-The development HTML loads Three.js from jsDelivr, but the bundled offline HTML contains Three.js and can work without internet. Rendering requires **WebGL2**. WebGPU is not assumed. No GMS or paid cloud services.
+1. Скачать из GitHub Actions или экспериментального GitHub Release `MARK-3D-Studio-Huawei-v0.2.html` (ZIP предпочтительнее, если браузер блокирует HTML скачивание).
+2. Распаковать ZIP и открыть HTML **в браузере**, а не во встроенном просмотрщике документов.
+3. Выбрать «Открыть тестовую голову (GLB)». При недоступном WebGL2 будет сообщение об ошибке.
+4. В панели «Геометрия» выбрать Mesh Edit → Скульпт → Grab или Inflate; отключится жест вращения, чтобы пальцем изменять поверхность. Для вращения снова выбрать «Камера».
+5. Для точечной правки выбрать «Выделить» → «Вершина/Ребро/Полигон», нажать на геометрию, выбрать операцию и ось, затем «Применить к вершинам».
+6. Нажать «Экспорт GLB», затем вновь открыть полученный GLB и убедиться, что форма изменилась.
 
-## Tests
+## Проверки
 
-```sh
-npm test
-npm run smoke:glb
-```
+`npm install && npm test && npm run test:mesh && npm run mesh:fixtures && npm run build:standalone && npm run test:standalone`.
 
-The smoke command creates `samples/cosmic-test.glb` and an edited file in the same folder. GitHub Actions tests GLB parsing, PBR edits, binary-preserving export and uploads both GLB artifacts. Static GitHub Pages is **not enabled** here: private repository/Pages configuration must be verified.
+`npm run mesh:fixtures` создаёт `samples/organic-head-before.glb` и `samples/organic-head-edited.glb`. GitHub Actions публикует их как артефакт. В CI предусмотрена отдельная попытка автоматического браузерного теста WebGL с экспортом и скриншотами.
 
-## Scope / honesty
+## Ограничения и политика сохранения данных
 
-This prototype does **not** provide mesh sculpting, UV painting, a humanoid reference mesh, hair/clothes editing, rigging, skinning, animation editing, reference images or NPC choreography. It does not automatically generate MARK Cosmic from two-dimensional artwork. Browser rendering and touch control **still require verification on Huawei Pura 80 Ultra**.
+**Редактирование заблокировано с объяснением**, если выделенный примитив использует: `skin`/JOINTS/WEIGHTS, morph targets, общие INSTANCE-меши, общий POSITION/NORMAL accessor, Draco или Meshopt сжатие, не треугольную геометрию, sparse/не-Float32 POSITION или NORMAL, внешние бинарные ресурсы. Это безопасная граница текущей поддержки, а не потеря функционала просмотра.
 
-Limitation: self-contained GLB only, max local import 80 MB. Draco, KTX2, Meshopt and advanced extensions may fail in Three.js preview; JSON factors can still be preserved in the binary export. Existing material factors are updated; no mesh topology changes. Edits to one shared material affect every mesh using it. Binary/geometry preservation is specific to JSON-only material edits and cannot be generalized to geometry editing.
+GLB других сцен и собственные материалы, UV, треугольные индексы, иерархия, скины и анимации, не затронутые поддерживаемым примитивом, сохраняются в исходных chunk данных; изменяются только необходимые FLOAT32 POSITION/NORMAL и JSON min/max. Если несколько отдельных редактируемых примитивов, результат экспортируется последовательным применением их изменений.
 
-## Branch policy
+Не реализованы создание новой топологии, полноценный скульптинг производственного уровня, retopology, риггинг, skin weights, редактирование морф-таргетов, автоматическое превращение концепт-арта в узнаваемую модель или оптимизация 60 FPS на Huawei. На Huawei Pura 80 Ultra необходимо отдельно измерить FPS, нагрев, расход энергии и ограничения памяти. GitHub Actions/Chromium не являются проверкой на реальном устройстве. Работы следует экспортировать в GLB, так как браузер может очистить IndexedDB.
 
-Work occurs in `develop/mvp-v0.1.0` and draft PRs. **Do not merge into main** until the user approves a ready MARK Cosmic model. The branch is not a release.
+Референсы утверждённого MARK Cosmic не включены: изображения должны быть предоставлены автором. Тренировочная голова **не является** MARK Cosmic.
 
-## Licenses
+## Лицензии
 
-Code is MIT. Three.js is MIT (linked externally via jsDelivr, not redistributed). The generated polygonal GLB is original test geometry. No third-party humanoid models are bundled.
-
-## Автономный HTML для Huawei (v0.1.2)
-
-GitHub Actions uses esbuild and pinned Three.js 0.187.0 to create a **single HTML with all JavaScript embedded**, including Three.js, GLTFLoader and OrbitControls, as a classic script (not an ES module). Download artifact `mark-3d-studio-OFFLINE-Huawei-v0.1.2`, unzip, open `MARK-3D-Studio-standalone.html` from a browser. No internet or CDN is required for the app itself. If JavaScript startup fails, the page displays an error.
-
-Local build: `npm install && npm run build:standalone && npm run test:standalone`. **Huawei file-manager / local HTML WebGL support has not been confirmed on-device yet.** Some file viewers can prohibit local JavaScript or WebGL; if so open this same HTML via HTTPS.
+Код MIT. Three.js MIT, esbuild MIT. Тестовая модель создана кодом проекта без сторонних 3D-ассетов. Браузерный тест использует Playwright (Apache-2.0) в CI.
