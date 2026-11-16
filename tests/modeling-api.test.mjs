@@ -89,3 +89,16 @@ test('invalid parameters fail without generating a bogus GLB',()=>{
  assert.throws(()=>runRecipe({schema:'mark-modeling/0.4',project:{id:'invalid-params',base:'provided-glb'},
   commands:[{operation:'mesh.inspect'}]}),/sourceBytes/);
 });
+
+test('eyes high-level ChatGPT command changes actual socket/lid vertices, not ignored keys',()=>{
+ const p={schema:'mark-modeling/0.4',project:{id:'eyes-api-test',base:'practice-head'},commands:[
+  {operation:'face.modify',target:'eyes',parameters:{
+   spacing:.48,size:.66,upperEyelid:.72,lowerEyelid:.35
+  }}
+ ]};
+ const x=runRecipe(p),original=runRecipe({schema:p.schema,project:p.project,
+  commands:[{operation:'mesh.inspect'}]});
+ assert.equal(x.report[0].details.changes.length,4);
+ assert.ok(new MeshEditor(x.bytes).positions.some((v,i)=>v!==new MeshEditor(original.bytes).positions[i]));
+ assert.throws(()=>runRecipe({...p,commands:[{operation:'face.modify',target:'eyes',parameters:{unsupported:.8}}]}),/неизвестный параметр/);
+});
