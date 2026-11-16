@@ -1,0 +1,58 @@
+{
+  "schema": "mark-geometry/0.1",
+  "project": {
+    "id": "stage21-face-pose-studies",
+    "base": "anatomical-child-head-v1"
+  },
+  "commands": [
+    {
+      "operation": "project.checkpoint",
+      "target": "neutral"
+    },
+    {
+      "operation": "face.previewPose",
+      "parameters": {
+        "pose": "blink",
+        "amount": 0.6
+      }
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "partial-blink"
+    },
+    {
+      "operation": "project.undo"
+    },
+    {
+      "operation": "face.previewPose",
+      "parameters": {
+        "pose": "smile",
+        "amount": 0.65
+      }
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "smile"
+    },
+    {
+      "operation": "project.undo"
+    },
+    {
+      "operation": "face.previewPose",
+      "parameters": {
+        "pose": "mouth-open",
+        "amount": 0.65
+      }
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "mouth-open"
+    },
+    {
+      "operation": "mesh.inspect"
+    },
+    {
+      "operation": "project.export"
+    }
+  ]
+}
