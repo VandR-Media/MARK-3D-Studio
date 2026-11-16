@@ -1,0 +1,71 @@
+name: MARK Modeling API v0.4.1 — deterministic GLB and 5x WebGL rendering
+on:
+  push:
+    branches: ['develop/character-production-v0.4']
+  workflow_dispatch:
+concurrency:
+  group: mark-modeling-v041
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install packages (free, MIT)
+        run: npm install --no-audit --no-fund
+      - name: Check modeling engine syntax
+        run: |
+          node --check src/production-geometry.js
+          node --check src/modeling-api.js
+          node --check scripts/character-build.mjs
+          node --check scripts/render-character.mjs
+      - name: Test deterministic JSON modeling and real GLB
+        run: npm run test:modeling
+      - name: Original v0.3 binary geometry compatibility
+        run: |
+          npm test
+          npm run test:mesh
+          npm run test:topology
+          npm run test:scene
+          npm run test:face
+      - name: Compile EVERY JSON recipe committed to recipes/ (independent ChatGPT workflow)
+        run: |
+          for recipe in recipes/*.json; do
+            echo "Modeling $recipe"
+            npm run character:build -- --recipe "$recipe"
+          done
+      - name: Build offline Huawei HTML, validate no CDN
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+      - name: Install Chromium for real GLB screenshots
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Render six facial viewpoints and wireframe from exported GLB
+        run: |
+          for recipe in recipes/*.json; do
+            id="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).project.id)" "$recipe")"
+            runs=1
+            if [ "$id" = "mark-cosmic-face-candidate-v1" ]; then runs=5; fi
+            node scripts/render-character.mjs --runs "$runs" --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
+          done
+          node -e "const p=require('./dist/character/mark-cosmic-face-candidate-v1/renders/camera-report.json');if(p.requiredRuns!==5||p.successfulRuns!==5||!p.allPassed)throw Error('Candidate 5/5 render reliability not met');"
+      - name: Model GLBs, JSON command log and diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-3d-studio-v0.4-modeling-api-glb-reports
+          path: dist/character/
+      - name: Autonomous Huawei viewer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-3d-studio-v0.4-Huawei-html
+          path: |
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json

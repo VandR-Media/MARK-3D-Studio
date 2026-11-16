@@ -1,0 +1,74 @@
+name: Package verified v0.4 Modeling API preview (not stable)
+on:
+  push:
+    branches: ['develop/character-production-v0.4']
+    paths: ['.github/workflows/publish-v04.yml']
+  workflow_dispatch:
+concurrency:
+  group: mark-release-v04
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned editor dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run Modeling API and original GLB regression suites
+        run: |
+          npm test
+          npm run test:mesh
+          npm run test:topology
+          npm run test:scene
+          npm run test:face
+          npm run test:modeling
+      - name: Deterministic original and nose-variant GLB
+        run: |
+          for recipe in recipes/*.json; do
+            npm run character:build -- --recipe "$recipe"
+          done
+      - name: Build Huawei HTML from exactly this GitHub SHA
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+          node -e "const m=require('./dist/build-info.json');if(m.sourceCommit!==process.env.GITHUB_SHA)throw Error('HTML/source commit mismatch');"
+      - name: Install real Chromium/WebGL2 renderer
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Generate reproducible seven-angle GLB renders
+        run: |
+          for recipe in recipes/*.json; do
+            id="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).project.id)" "$recipe")"
+            runs=1
+            if [ "$id" = "mark-cosmic-face-candidate-v1" ]; then runs=5; fi
+            node scripts/render-character.mjs --runs "$runs" --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
+          done
+      - name: Package offline HTML, exact provenance and GLB screenshots
+        run: |
+          mkdir -p release
+          cp dist/MARK-3D-Studio-standalone.html release/MARK-3D-Studio-v0.4-Huawei.html
+          cp dist/build-info.json release/MARK-3D-Studio-v0.4-build-info.json
+          cp dist/character/stylized-face-demo/stylized-face-demo.glb release/
+          cp dist/character/stylized-face-nose-variant/stylized-face-nose-variant.glb release/
+          (cd release && zip -q -9 MARK-3D-Studio-v0.4-Huawei.zip MARK-3D-Studio-v0.4-Huawei.html)
+          (cd dist/character && zip -q -9 -r ../../release/MARK-3D-Studio-v0.4-GLB-renders-reports.zip .)
+      - name: Explain export and GitHub Release permission status
+        run: |
+          echo "Build artifacts are available from this workflow run."
+          echo "GitHub Releases publishing with github.token returned HTTP 403 (Resource not accessible by integration)."
+          echo "This workflow publishes verified files through upload-artifact, without falsely claiming a GitHub Release."
+          printf 'MARK v0.4 TECHNICAL PREVIEW — NOT STABLE\\nGitHub source SHA: %s\\nDownload from the Actions artifact of this exact run.\\n' "$GITHUB_SHA" > release/README-SOURCE-COMMIT.txt
+      - name: Preserve final release assets also as CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-3d-studio-v0.4-verified-preview-files
+          path: release/
+          if-no-files-found: warn

@@ -1,0 +1,153 @@
+{
+  "schema": "mark-modeling/0.4",
+  "project": {
+    "id": "mark-cosmic-face-study-v2",
+    "name": "MARK Cosmic face study v2 — moderated eyes, lips, ears, hair; likeness not verified",
+    "base": "contour-head-v1",
+    "controls": {
+      "head": {
+        "width": 0.53,
+        "height": 0.54,
+        "forehead": 0.55,
+        "cheeks": 0.55,
+        "jaw": 0.51,
+        "chin": 0.53,
+        "nose": 0.51,
+        "sockets": 0.57,
+        "mouth": 0.5
+      },
+      "eyes": {
+        "spacing": 0.455,
+        "size": 0.49,
+        "height": 0.51,
+        "socketDepth": 0.6,
+        "upperEyelid": 0.63,
+        "lowerEyelid": 0.54
+      },
+      "eyelids": {
+        "thickness": 0.28
+      },
+      "eyebrows": {
+        "arch": 0.54,
+        "browRaise": 0.48
+      },
+      "nose": {
+        "width": 0.49,
+        "length": 0.5,
+        "bridgeHeight": 0.54,
+        "nostrilDepth": 0.52
+      },
+      "cheeks": {
+        "volume": 0.57,
+        "boneHeight": 0.57
+      },
+      "chin": {
+        "projection": 0.54,
+        "jawWidth": 0.5
+      },
+      "mouth": {
+        "width": 0.51,
+        "volume": 0.47
+      },
+      "lips": {
+        "fullness": 0.31,
+        "smile": 0.51
+      },
+      "ears": {
+        "width": 0.39,
+        "height": 0.43,
+        "size": 0.45
+      },
+      "hair": {
+        "strands": 0.26,
+        "length": 0.41,
+        "volume": 0.51
+      },
+      "skin": {
+        "roughness": 0.82
+      }
+    }
+  },
+  "commands": [
+    {
+      "operation": "checkpoint.save",
+      "target": "continuous-contour-head"
+    },
+    {
+      "operation": "face.modify",
+      "target": "eyes"
+    },
+    {
+      "operation": "face.modify",
+      "target": "nose"
+    },
+    {
+      "operation": "face.modify",
+      "target": "cheeks"
+    },
+    {
+      "operation": "face.modify",
+      "target": "chin"
+    },
+    {
+      "operation": "face.modify",
+      "target": "mouth"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "connected-face-shaped"
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyes"
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyelids"
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyebrows"
+    },
+    {
+      "operation": "feature.build",
+      "target": "lips"
+    },
+    {
+      "operation": "feature.build",
+      "target": "ears"
+    },
+    {
+      "operation": "feature.build",
+      "target": "hair"
+    },
+    {
+      "operation": "feature.build",
+      "target": "nostrils"
+    },
+    {
+      "operation": "material.set",
+      "target": "Candidate skin PBR",
+      "parameters": {
+        "color": [
+          0.74,
+          0.49,
+          0.39,
+          1
+        ],
+        "roughness": 0.81
+      }
+    },
+    {
+      "operation": "mesh.inspect"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "first-candidate"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "portrait-study-v2"
+    }
+  ]
+}

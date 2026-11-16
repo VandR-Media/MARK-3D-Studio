@@ -1,0 +1,149 @@
+{
+  "schema": "mark-modeling/0.4",
+  "project": {
+    "id": "stylized-face-demo",
+    "name": "Stylized human face modeling demo — NOT MARK Cosmic",
+    "base": "practice-head",
+    "seed": 0
+  },
+  "commands": [
+    {
+      "operation": "checkpoint.save",
+      "target": "original"
+    },
+    {
+      "operation": "face.modify",
+      "target": "head",
+      "parameters": {
+        "width": 0.54,
+        "height": 0.56,
+        "forehead": 0.58
+      }
+    },
+    {
+      "operation": "face.modify",
+      "target": "nose",
+      "parameters": {
+        "width": 0.52,
+        "length": 0.53,
+        "bridgeHeight": 0.58,
+        "nostrilDepth": 0.58
+      }
+    },
+    {
+      "operation": "face.modify",
+      "target": "cheeks",
+      "parameters": {
+        "volume": 0.62,
+        "boneHeight": 0.59
+      }
+    },
+    {
+      "operation": "face.modify",
+      "target": "chin",
+      "parameters": {
+        "projection": 0.6,
+        "jawWidth": 0.47
+      }
+    },
+    {
+      "operation": "face.modify",
+      "target": "eyes",
+      "parameters": {
+        "socketDepth": 0.62,
+        "height": 0.52
+      }
+    },
+    {
+      "operation": "face.modify",
+      "target": "mouth",
+      "parameters": {
+        "width": 0.52,
+        "volume": 0.65
+      }
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "head-shaped"
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyes",
+      "parameters": {
+        "spacing": 0.46,
+        "size": 0.6,
+        "height": 0.56
+      }
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyelids",
+      "parameters": {
+        "spacing": 0.46,
+        "size": 0.6,
+        "height": 0.56,
+        "thickness": 0.56
+      }
+    },
+    {
+      "operation": "feature.build",
+      "target": "eyebrows",
+      "parameters": {
+        "spacing": 0.46,
+        "size": 0.6,
+        "arch": 0.66
+      }
+    },
+    {
+      "operation": "feature.build",
+      "target": "lips",
+      "parameters": {
+        "width": 0.57,
+        "fullness": 0.6,
+        "smile": 0.65
+      }
+    },
+    {
+      "operation": "feature.build",
+      "target": "ears",
+      "parameters": {
+        "width": 0.5,
+        "height": 0.55
+      }
+    },
+    {
+      "operation": "feature.build",
+      "target": "hair",
+      "parameters": {
+        "strands": 0.55,
+        "length": 0.65,
+        "volume": 0.54
+      }
+    },
+    {
+      "operation": "feature.build",
+      "target": "cap",
+      "parameters": {}
+    },
+    {
+      "operation": "feature.build",
+      "target": "headphones",
+      "parameters": {}
+    },
+    {
+      "operation": "feature.build",
+      "target": "nostrils",
+      "parameters": {
+        "radius": 0.5,
+        "spread": 0.47
+      }
+    },
+    {
+      "operation": "mesh.inspect"
+    },
+    {
+      "operation": "checkpoint.save",
+      "target": "with-components"
+    }
+  ]
+}

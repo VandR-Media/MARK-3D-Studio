@@ -17,6 +17,31 @@ const ui={holder:$('canvasHolder'),file:$('modelFile'),name:$('modelName'),
  reset:$('resetButton'),export:$('exportButton'),cameraReset:$('resetCamera'),
  count:$('materialCount'),renderMode:$('renderMode'),hint:$('materialHint')};
 let scene,camera,renderer,controls,grid,active=null,meshApi=null,characterApi=null,lastFile='mark-model.glb',timer=0,raf=0;
+let requestSerial=0;
+const phaseOrder=['idle','loading','parsed','geometry_created','scene_added','camera_configured','first_frame','ready'];
+const sceneState={phase:'idle',request:0,file:null,meshes:0,triangles:0,error:null,events:[],renderedTriangles:0};
+window.__MARK_SCENE_STATE__=sceneState;
+function phase(next,details={}){
+ if(next!=='error'&&!phaseOrder.includes(next))throw Error('Unknown scene phase '+next);
+ Object.assign(sceneState,{phase:next,...details});
+ sceneState.events.push({phase:next,request:sceneState.request});
+ if(sceneState.events.length>30)sceneState.events.shift();
+}
+function sceneFailure(err,request=sceneState.request){
+ if(request!==sceneState.request)return;
+ phase('error',{error:err?.message||String(err)});
+ notify('Ошибка GLB: '+sceneState.error,true);
+}
+function geometryStats(root){
+ let meshes=0,triangles=0,vertices=0;
+ root.traverse(o=>{
+  if(!o.isMesh||!o.geometry)return;
+  const g=o.geometry,n=g.attributes?.position?.count||0;
+  if(n===0)return;
+  meshes++;vertices+=n;triangles+=Math.floor((g.index?.count||n)/3);
+ });
+ return {meshes,triangles,vertices};
+}
 
 function notify(text,bad=false) {
  ui.status.textContent=text;ui.status.classList.toggle('error',bad);ui.status.classList.add('show');
@@ -150,13 +175,24 @@ function clearModel(){
  active=null;
 }
 async function openModel(bytes,name){
- const parsed=parseGlb(bytes);assertSelfContainedGlb(parsed.json);
- const gltf=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
- if(!gltf.scene)throw new Error('В GLB нет 3D-сцены.');
+ const request=++requestSerial;
+ phase('loading',{request,file:name,error:null,meshes:0,triangles:0,renderedTriangles:0});
+ let parsed,gltf;
+ try{
+  parsed=parseGlb(bytes);assertSelfContainedGlb(parsed.json);
+  phase('parsed');
+  gltf=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
+  if(request!==requestSerial)throw Error('Загрузка отменена более новым файлом');
+  if(!gltf.scene)throw Error('В GLB нет 3D-сцены.');
+  const stats=geometryStats(gltf.scene);
+  if(stats.meshes<1||stats.triangles<1||stats.vertices<3)throw Error('GLB не содержит видимой полигональной геометрии');
+  phase('geometry_created',stats);
+ }catch(e){sceneFailure(e,request);throw e;}
  clearModel();
  const draft=structuredClone(parsed.json);
  active={parsed,draft,gltf,bindings:bindMaterials(gltf)};
  lastFile=name;scene.add(gltf.scene);ui.empty.hidden=true;ui.name.textContent=name;
+ phase('scene_added');
  meshApi?.onModel(bytes,gltf);
  characterApi?.onModel(bytes,gltf);
  const count=draft.materials?.length||0;ui.count.textContent=String(count);ui.select.replaceChildren();
@@ -168,7 +204,18 @@ async function openModel(bytes,name){
  if(count){ui.select.value='0';setFields(0);}
  else{[ui.color,ui.metallic,ui.roughness].forEach(c=>c.disabled=true);
   ui.hint.textContent='В этом GLB нет явных материалов. Их создание появится позже.';}
- updateStats(gltf.scene,gltf.animations||[]);reframe();notify('GLB открыт: '+name+'. Данные остаются на устройстве.');
+ updateStats(gltf.scene,gltf.animations||[]);reframe();
+ phase('camera_configured');
+ try{
+  renderer.render(scene,camera);
+  const drawn=renderer.info.render.triangles;
+  if(!(drawn>0))throw Error('Первый рендер не создал треугольники; сцена может быть пустой');
+  phase('first_frame',{renderedTriangles:drawn});
+  // Readiness is set only after parse, GPU mesh creation, scene attachment,
+  // camera setup and one successful actual Three.js renderer.render call.
+  phase('ready');
+  notify('GLB открыт: '+name+'. Данные остаются на устройстве.');
+ }catch(e){sceneFailure(e,request);throw e;}
 }
 async function loadFile(file){
  if(!file)return;
@@ -176,7 +223,7 @@ async function loadFile(file){
  if(file.size>80*1024*1024){notify('Для MVP установлен предел 80 МБ.',true);return;}
  ui.name.textContent='Чтение: '+file.name;
  try{await openModel(new Uint8Array(await file.arrayBuffer()),file.name);}
- catch(e){ui.name.textContent=active?lastFile:'Ошибка открытия';notify('Ошибка GLB: '+e.message,true);}
+ catch(e){ui.name.textContent=active?lastFile:'Ошибка открытия';sceneFailure(e);}
 }
 function reset(){
  if(!active)return;
@@ -198,6 +245,41 @@ function save(){
   notify('Экспортировано: '+(blob.size/1048576).toFixed(2)+' МБ');
  }catch(e){notify('Ошибка экспорта: '+e.message,true);}
 }
+
+/**
+ * CI capture API: deterministic fixed orthographic framing of exported GLB.
+ * Renders actual Three.js WebGL2 scene (not an illustrated mockup).
+ * Frames are calibrated to the original practice-head world coordinates,
+ * so edited variants use identical camera/lighting/reference scale.
+ */
+window.__MARK_CAPTURE_VIEW__=function(view){
+ if(sceneState.phase!=='ready'||!active?.gltf?.scene||!renderer||!controls)
+  throw Error('3D scene not ready: '+JSON.stringify({phase:sceneState.phase,file:sceneState.file,error:sceneState.error,meshes:sceneState.meshes,triangles:sceneState.triangles}));
+ const dirs={
+  front:[0,0,1],left:[-1,0,0],right:[1,0,0],
+  'threequarter-left':[-.72,.10,1],'threequarter-right':[.72,.10,1],
+  'face-close':[0,0,1],wireframe:[0,0,1]
+ };
+ const direction=dirs[view];if(!direction)throw Error('Unknown camera view '+view);
+ const aspect=Math.max(.2,renderer.domElement.clientWidth/Math.max(1,renderer.domElement.clientHeight));
+ const half=view==='face-close'?.78:1.42;
+ const next=new THREE.OrthographicCamera(-half*aspect,half*aspect,half,-half,.01,40);
+ const aim=view==='face-close'?new THREE.Vector3(0,.27,.20):new THREE.Vector3(0,0,0);
+ const dir=new THREE.Vector3(...direction).normalize();
+ next.position.copy(aim).addScaledVector(dir,7);
+ next.up.set(0,1,0);next.lookAt(aim);next.updateProjectionMatrix();
+ camera=next;controls.object=camera;controls.target.copy(aim);controls.enableDamping=false;controls.update();
+ scene.background=new THREE.Color('#22283a');grid.visible=false;
+ const wire=$('meshWire');if(wire){
+  const want=view==='wireframe';if(wire.checked!==want){wire.checked=want;wire.dispatchEvent(new Event('change'));}
+ }
+ renderer.render(scene,camera);
+ const renderedTriangles=renderer.info.render.triangles;
+ if(!(renderedTriangles>0))throw Error('No geometry drawn for view '+view);
+ return {view,position:camera.position.toArray(),target:aim.toArray(),orthographicHalfHeight:half,
+  loaded:active.gltf.scene.children.length,renderedTriangles};
+};
+
 ui.file.addEventListener('change',async()=>{const file=ui.file.files?.[0];ui.file.value='';await loadFile(file);});
 ui.sample.addEventListener('click',async()=>{
  try{await openModel(createTestHeadGlb(),'organic-head-before.glb');}
