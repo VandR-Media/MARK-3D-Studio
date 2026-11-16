@@ -64,7 +64,7 @@ export function sceneMeshList(doc){
  for(const n of doc.nodes||[])if(Number.isInteger(n.mesh))usages.set(n.mesh,(usages.get(n.mesh)||0)+1);
  const out=[];
  (doc.nodes||[]).forEach((node,nodeIndex)=>{
-  if(!Number.isInteger(node.mesh))return;
+  if(node.extras?.markDeleted||!Number.isInteger(node.mesh))return;
   const mesh=doc.meshes?.[node.mesh];
   (mesh?.primitives||[]).forEach((p,primitiveIndex)=>{
    const reasons=[];
