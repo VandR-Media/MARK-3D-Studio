@@ -7,6 +7,7 @@ import {encodeMark3d} from './compact-project.js';
 import {makeAnatomicalChildHead} from './anatomical-base.js';
 import {configureLandmarks,compareReference,adjustReferencePoint} from './reference-modeling.js';
 import {adjustFaceContour,applySculptStroke} from './face-precision.js';
+import {previewFacialPose} from './face-pose-preview.js';
 export const CORE_RECIPE_VERSION='mark-geometry/0.1';
 function requireObject(x,label){if(!x||typeof x!=='object'||Array.isArray(x))throw Error(label+' must be an object');}
 function requireId(x,label){if(typeof x!=='string'||!/^[a-z0-9_-]{3,60}$/.test(x))throw Error('Invalid '+label);}
@@ -43,6 +44,7 @@ function execute(mesh,cmd){
    if(typeof region!=='string'||!mesh.regions?.[region])throw Error('Unknown topology region '+region);
    return {selected:mesh.select(mesh.regions[region]),region};
   }
+  case 'face.previewPose':return previewFacialPose(mesh,p);
   case 'face.adjustContour':return adjustFaceContour(mesh,p);
   case 'sculpt.stroke':return applySculptStroke(mesh,p);
   case 'sculpt.contour':{
