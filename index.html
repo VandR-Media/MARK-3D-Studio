@@ -14,12 +14,27 @@
     }}
   </script>
   <script type="module" src="./src/app.js"></script>
+  <script>
+    window.__MARK_STUDIO_READY__ = false;
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        if (window.__MARK_STUDIO_READY__) return;
+        const el = document.getElementById('startupError');
+        if (el) { el.hidden = false; el.textContent = 'Ошибка запуска JavaScript. Откройте HTML v0.1.2 в другом браузере или через HTTPS.'; }
+      }, 4000);
+    });
+    window.addEventListener('error', (event) => {
+      if (window.__MARK_STUDIO_READY__) return;
+      const el = document.getElementById('startupError');
+      if (el) { el.hidden = false; el.textContent = 'Ошибка запуска: ' + (event.message || 'скрипт не загрузился'); }
+    });
+  </script>
 </head>
 <body>
 <div class="shell">
  <header class="topbar">
   <div class="brand"><div class="mark-icon">M<span>3</span></div>
-    <div><strong>MARK <em>3D</em> Studio</strong><small>GLB MATERIAL EDITOR · MVP 0.1</small></div>
+    <div><strong>MARK <em>3D</em> Studio</strong><small>GLB MATERIAL EDITOR · MVP 0.1.2</small></div>
   </div>
   <div class="header-actions">
    <label class="button primary" for="modelFile">Загрузить GLB</label>
@@ -70,6 +85,7 @@
   </aside>
  </main>
  <div id="status" class="status" role="status" aria-live="polite"></div>
+ <div id="startupError" hidden role="alert" style="position:fixed;z-index:50;bottom:12px;left:12px;right:12px;padding:14px;border-radius:12px;background:#5c2b35;color:#fff;border:2px solid #f8acb0;font-size:13px;line-height:1.5"></div>
 </div>
 </body>
 </html>

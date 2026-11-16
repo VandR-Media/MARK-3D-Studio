@@ -1,4 +1,4 @@
-# MARK 3D Studio — MVP v0.1.0
+# MARK 3D Studio — MVP v0.1.2
 
 Mobile-first **browser 3D GLB editor** for the future MARK Cosmic character in MARK Audio.
 
@@ -14,7 +14,7 @@ python3 -m http.server 8080
 ```
 Visit http://localhost:8080 on a WebGL2-capable browser; for a Huawei phone use a genuine HTTPS deployment.
 
-The first load of `three@0.187.0` uses jsDelivr CDN and **needs network**. Rendering requires **WebGL2**. WebGPU is not assumed. No GMS or paid cloud services.
+The development HTML loads Three.js from jsDelivr, but the bundled offline HTML contains Three.js and can work without internet. Rendering requires **WebGL2**. WebGPU is not assumed. No GMS or paid cloud services.
 
 ## Tests
 
@@ -39,6 +39,8 @@ Work occurs in `develop/mvp-v0.1.0` and draft PRs. **Do not merge into main** un
 
 Code is MIT. Three.js is MIT (linked externally via jsDelivr, not redistributed). The generated polygonal GLB is original test geometry. No third-party humanoid models are bundled.
 
-## Переносимый HTML-файл для Huawei
+## Автономный HTML для Huawei (v0.1.2)
 
-GitHub Actions также собирает `MARK-3D-Studio-standalone.html` и публикует его в артефакте `mark-3d-studio-standalone-preview`. HTML, CSS и собственный JavaScript редактора включены в один файл; **Three.js всё ещё требует подключения к jsDelivr**. Локальное открытие HTML из «Загрузок» зависит от браузера и пока не подтверждено на Pura 80 Ultra. Надёжный вариант — размещение на HTTPS-хостинге. Для локальной сборки выполните `npm run build:standalone`.
+GitHub Actions uses esbuild and pinned Three.js 0.187.0 to create a **single HTML with all JavaScript embedded**, including Three.js, GLTFLoader and OrbitControls, as a classic script (not an ES module). Download artifact `mark-3d-studio-OFFLINE-Huawei-v0.1.2`, unzip, open `MARK-3D-Studio-standalone.html` from a browser. No internet or CDN is required for the app itself. If JavaScript startup fails, the page displays an error.
+
+Local build: `npm install && npm run build:standalone && npm run test:standalone`. **Huawei file-manager / local HTML WebGL support has not been confirmed on-device yet.** Some file viewers can prohibit local JavaScript or WebGL; if so open this same HTML via HTTPS.

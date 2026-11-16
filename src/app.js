@@ -195,4 +195,11 @@ ui.select.addEventListener('change',()=>setFields(Number(ui.select.value)));
 [ui.color,ui.metallic,ui.roughness].forEach(c=>c.addEventListener('input',edit));
 ui.reset.addEventListener('click',reset);ui.export.addEventListener('click',save);
 ui.cameraReset.addEventListener('click',reframe);
-createViewer();
+try {
+  createViewer();
+  window.__MARK_STUDIO_READY__ = true;
+} catch (error) {
+  const el = document.getElementById('startupError');
+  if (el) { el.hidden = false; el.textContent = 'Ошибка инициализации 3D: ' + error.message; }
+  console.error('MARK 3D Studio initialization failed:', error);
+}

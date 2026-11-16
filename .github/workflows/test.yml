@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Install pinned Three.js and esbuild
+        run: npm install --no-audit --no-fund
       - name: JavaScript syntax
         run: |
           node --check src/glb.js
@@ -29,8 +31,10 @@ jobs:
           path: samples/*.glb
       - name: Build portable HTML preview
         run: npm run build:standalone
+      - name: Verify offline HTML (no CDN)
+        run: npm run test:standalone
       - name: Upload portable HTML preview
         uses: actions/upload-artifact@v4
         with:
-          name: mark-3d-studio-standalone-preview
+          name: mark-3d-studio-OFFLINE-Huawei-v0.1.2
           path: dist/MARK-3D-Studio-standalone.html
