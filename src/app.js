@@ -258,15 +258,19 @@ window.__MARK_CAPTURE_VIEW__=function(view){
  if(sceneState.phase!=='ready'||!active?.gltf?.scene||!renderer||!controls)
   throw Error('3D scene not ready: '+JSON.stringify({phase:sceneState.phase,file:sceneState.file,error:sceneState.error,meshes:sceneState.meshes,triangles:sceneState.triangles}));
  const dirs={
-  front:[0,0,1],left:[-1,0,0],right:[1,0,0],
+  front:[0,0,1],back:[0,0,-1],left:[-1,0,0],right:[1,0,0],
   'threequarter-left':[-.72,.10,1],'threequarter-right':[.72,.10,1],
-  'face-close':[0,0,1],wireframe:[0,0,1]
+  'face-close':[0,0,1],'eyes-close':[0,0,1],'nose-close':[0,0,1],'mouth-close':[0,0,1],wireframe:[0,0,1]
  };
  const direction=dirs[view];if(!direction)throw Error('Unknown camera view '+view);
  const aspect=Math.max(.2,renderer.domElement.clientWidth/Math.max(1,renderer.domElement.clientHeight));
- const half=view==='face-close'?.78:1.42;
+ const close={ 'face-close':{half:.78,aim:[0,.27,.20]},
+  'eyes-close':{half:.32,aim:[0,.36,.63]},
+  'nose-close':{half:.27,aim:[0,-.17,.70]},
+  'mouth-close':{half:.28,aim:[0,-.52,.65]}};
+ const half=close[view]?.half??1.42;
  const next=new THREE.OrthographicCamera(-half*aspect,half*aspect,half,-half,.01,40);
- const aim=view==='face-close'?new THREE.Vector3(0,.27,.20):new THREE.Vector3(0,0,0);
+ const aim=new THREE.Vector3(...(close[view]?.aim??[0,0,0]));
  const dir=new THREE.Vector3(...direction).normalize();
  next.position.copy(aim).addScaledVector(dir,7);
  next.up.set(0,1,0);next.lookAt(aim);next.updateProjectionMatrix();
