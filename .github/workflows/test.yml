@@ -22,6 +22,7 @@ jobs:
           node --check src/app.js
           node --check src/topology.js
           node --check src/scene-objects.js
+          node --check src/face-studio.js
           node --check src/mesh-core.js
           node --check src/mesh-ui.js
           node --check src/head-fixture.js
@@ -34,6 +35,8 @@ jobs:
         run: npm run test:topology
       - name: Multiple scene objects and independent GLB buffers
         run: npm run test:scene
+      - name: Sculpt and Face Studio regression tests
+        run: npm run test:face
       - name: Build practice head before and after editing
         run: npm run mesh:fixtures
       - name: Upload head GLB examples
