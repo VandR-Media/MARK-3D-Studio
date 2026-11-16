@@ -1,0 +1,50 @@
+name: MARK Modeling API v0.4 — deterministic GLB build
+on:
+  push:
+    branches: ['develop/character-production-v0.4']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install packages (free, MIT)
+        run: npm install --no-audit --no-fund
+      - name: Check modeling engine syntax
+        run: |
+          node --check src/production-geometry.js
+          node --check src/modeling-api.js
+          node --check scripts/character-build.mjs
+      - name: Test deterministic JSON modeling and real GLB
+        run: npm run test:modeling
+      - name: Original v0.3 binary geometry compatibility
+        run: |
+          npm test
+          npm run test:mesh
+          npm run test:topology
+          npm run test:scene
+          npm run test:face
+      - name: Generate complex styled face from JSON
+        run: npm run character:build -- --recipe recipes/stylized-face-demo.json
+      - name: Change nose through alternate JSON recipe
+        run: npm run character:build -- --recipe recipes/stylized-face-nose-variant.json
+      - name: Build offline Huawei HTML, validate no CDN
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+      - name: Model GLBs, JSON command log and diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-3d-studio-v0.4-modeling-api-glb-reports
+          path: dist/character/
+      - name: Autonomous Huawei viewer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-3d-studio-v0.4-Huawei-html
+          path: dist/MARK-3D-Studio-standalone.html
