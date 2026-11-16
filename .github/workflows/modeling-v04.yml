@@ -37,6 +37,10 @@ jobs:
             echo "Modeling $recipe"
             npm run character:build -- --recipe "$recipe"
           done
+      - name: Build offline Huawei HTML, validate no CDN
+        run: |
+          npm run build:standalone
+          npm run test:standalone
       - name: Install Chromium for real GLB screenshots
         run: |
           npm install --no-save playwright@1.56.0
@@ -47,10 +51,6 @@ jobs:
             id="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).project.id)" "$recipe")"
             node scripts/render-character.mjs --glb "dist/character/$id/$id.glb" --out "dist/character/$id/renders"
           done
-      - name: Build offline Huawei HTML, validate no CDN
-        run: |
-          npm run build:standalone
-          npm run test:standalone
       - name: Model GLBs, JSON command log and diagnostics
         uses: actions/upload-artifact@v4
         with:
