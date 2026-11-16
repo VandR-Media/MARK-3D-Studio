@@ -30,9 +30,37 @@ jobs:
           npm test
       - name: Export original and edited anatomy from JSON into real GLB
         run: npm run professional:build -- --recipe recipes/anatomical-head-stage2-demo.json
+      - name: Measure 25k / 50k / 100k heap and RSS across discrete phases
+        run: |
+          for n in 112 158 224; do node --expose-gc scripts/memory-profile.mjs --grid "$n"; done
+      - name: Offline HTML + browser prerequisites
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Real Chromium GLB views BEFORE quad refinement sculpt
+        run: |
+          node scripts/render-character.mjs --runs 1 --glb dist/professional/anatomical-head-stage2-demo/checkpoint-anatomical-before.glb --out dist/stage21/views-before --views "front,left,right,back,threequarter-left,threequarter-right,eyes-close,nose-close,mouth-close,wireframe"
+      - name: Real Chromium GLB views AFTER quad refinement sculpt
+        run: |
+          node scripts/render-character.mjs --runs 1 --glb dist/professional/anatomical-head-stage2-demo/anatomical-head-stage2-demo.glb --out dist/stage21/views-after --views "front,left,right,back,threequarter-left,threequarter-right,eyes-close,nose-close,mouth-close,wireframe"
+      - name: Existing Huawei touch UI native import/export regression
+        run: node scripts/accept-stage2.mjs
       - name: Preserve independent GLB and binary output
         uses: actions/upload-artifact@v4
         with:
           name: mark-face-061-interim-models
-          path: dist/professional/anatomical-head-stage2-demo/
+          path: |
+            dist/professional/anatomical-head-stage2-demo/
+            dist/stage21/
+            dist/stage2-browser/
+          if-no-files-found: error
+      - name: Publish Huawei standalone HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-face-061-Huawei-HTML
+          path: |
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json
           if-no-files-found: error
