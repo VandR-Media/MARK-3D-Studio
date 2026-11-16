@@ -60,4 +60,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mark-3d-studio-v0.4-Huawei-html
-          path: dist/MARK-3D-Studio-standalone.html
+          path: |
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json
