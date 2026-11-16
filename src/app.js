@@ -6,6 +6,7 @@ import {getMaterialValues,setMaterialValues} from './materials.js';
 import {createSampleGlb} from './sample.js';
 import {createTestHeadGlb} from './head-fixture.js';
 import {initMeshUi} from './mesh-ui.js';
+import {initCharacterUi} from './character-ui.js';
 
 const $=id=>document.getElementById(id);
 const ui={holder:$('canvasHolder'),file:$('modelFile'),name:$('modelName'),
@@ -15,7 +16,7 @@ const ui={holder:$('canvasHolder'),file:$('modelFile'),name:$('modelName'),
  roughness:$('roughnessInput'),roughnessValue:$('roughnessValue'),
  reset:$('resetButton'),export:$('exportButton'),cameraReset:$('resetCamera'),
  count:$('materialCount'),renderMode:$('renderMode'),hint:$('materialHint')};
-let scene,camera,renderer,controls,grid,active=null,meshApi=null,lastFile='mark-model.glb',timer=0,raf=0;
+let scene,camera,renderer,controls,grid,active=null,meshApi=null,characterApi=null,lastFile='mark-model.glb',timer=0,raf=0;
 
 function notify(text,bad=false) {
  ui.status.textContent=text;ui.status.classList.toggle('error',bad);ui.status.classList.add('show');
@@ -157,6 +158,7 @@ async function openModel(bytes,name){
  active={parsed,draft,gltf,bindings:bindMaterials(gltf)};
  lastFile=name;scene.add(gltf.scene);ui.empty.hidden=true;ui.name.textContent=name;
  meshApi?.onModel(bytes,gltf);
+ characterApi?.onModel(bytes,gltf);
  const count=draft.materials?.length||0;ui.count.textContent=String(count);ui.select.replaceChildren();
  for(let i=0;i<count;i++){
   const option=document.createElement('option');option.value=String(i);
@@ -187,6 +189,8 @@ function save(){
  if(!active)return;
  try{
   const bytes=meshApi?.exportGlb(active.draft)??writeGlb(active.parsed,active.draft);
+  const verified=parseGlb(bytes);
+  if(!verified.json.meshes||!verified.json.nodes)throw Error('Неверная структура экспортируемого GLB.');
   const blob=new Blob([bytes],{type:'model/gltf-binary'}),url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=lastFile.replace(/\.glb$/i,'')+'-edited.glb';
   document.body.append(a);a.click();a.remove();
@@ -211,6 +215,7 @@ try {
   if(createViewer())meshApi=initMeshUi({renderer,scene,controls,getCamera:()=>camera,
    setCamera:newCamera=>{camera=newCamera;controls.object=camera;controls.update();},
    getActive:()=>active?{...active,filename:lastFile}:null,openModel,notify});
+  if(meshApi)characterApi=initCharacterUi({getActive:()=>active?{...active,filename:lastFile}:null,openModel,notify},meshApi);
   window.__MARK_STUDIO_READY__ = true;
 } catch (error) {
   const el = document.getElementById('startupError');
