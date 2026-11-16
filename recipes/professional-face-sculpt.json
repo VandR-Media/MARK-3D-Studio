@@ -1,0 +1,155 @@
+{
+  "schema": "mark-geometry/0.1",
+  "project": {
+    "id": "professional-face-sculpt",
+    "base": "contour-head-v1",
+    "description": "Free-form 3D face edit demonstration; not an approved MARK Cosmic likeness"
+  },
+  "commands": [
+    {
+      "operation": "project.checkpoint",
+      "target": "initial"
+    },
+    {
+      "operation": "mesh.select",
+      "parameters": {
+        "box": {
+          "min": [
+            0.18,
+            0.39,
+            0.58
+          ],
+          "max": [
+            0.55,
+            0.6,
+            1.03
+          ]
+        }
+      }
+    },
+    {
+      "operation": "mesh.edit",
+      "parameters": {
+        "delta": [
+          0,
+          0.012,
+          0.012
+        ],
+        "weight": 0.8
+      }
+    },
+    {
+      "operation": "sculpt.brush",
+      "parameters": {
+        "center": [
+          0.38,
+          0.38,
+          0.72
+        ],
+        "radius": 0.23,
+        "strength": 0.55,
+        "mode": "grab",
+        "delta": [
+          0,
+          -0.01,
+          0.025
+        ],
+        "symmetry": true
+      }
+    },
+    {
+      "operation": "sculpt.brush",
+      "parameters": {
+        "center": [
+          0.37,
+          0.49,
+          0.72
+        ],
+        "radius": 0.16,
+        "strength": 0.42,
+        "mode": "grab",
+        "delta": [
+          0,
+          0.025,
+          0.01
+        ],
+        "symmetry": true
+      }
+    },
+    {
+      "operation": "sculpt.brush",
+      "parameters": {
+        "center": [
+          0,
+          -0.1,
+          0.95
+        ],
+        "radius": 0.19,
+        "strength": 0.65,
+        "mode": "pinch",
+        "symmetry": true
+      }
+    },
+    {
+      "operation": "sculpt.brush",
+      "parameters": {
+        "center": [
+          0,
+          -0.04,
+          0.93
+        ],
+        "radius": 0.16,
+        "strength": 0.55,
+        "mode": "grab",
+        "delta": [
+          0,
+          0,
+          -0.08
+        ]
+      }
+    },
+    {
+      "operation": "sculpt.brush",
+      "parameters": {
+        "center": [
+          0,
+          -0.49,
+          0.78
+        ],
+        "radius": 0.22,
+        "strength": 0.48,
+        "mode": "smooth"
+      }
+    },
+    {
+      "operation": "sculpt.brush",
+      "parameters": {
+        "center": [
+          0.46,
+          -0.03,
+          0.7
+        ],
+        "radius": 0.2,
+        "strength": 0.32,
+        "mode": "inflate",
+        "symmetry": true
+      }
+    },
+    {
+      "operation": "mesh.subdivide",
+      "parameters": {
+        "faceId": "f200"
+      }
+    },
+    {
+      "operation": "mesh.inspect"
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "edited-face"
+    },
+    {
+      "operation": "project.export"
+    }
+  ]
+}
