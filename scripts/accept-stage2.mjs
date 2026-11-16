@@ -41,8 +41,8 @@ try{
  await page.locator('#proDx').fill('0');
  await page.locator('#proDy').fill('0.01');
  await page.locator('#proDz').fill('0.035');
- await page.locator('#proRadius').fill('0.18');
- await page.locator('#proStrength').fill('0.6');
+ await page.locator('#proRadius').evaluate(el=>{el.value='0.18';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ await page.locator('#proStrength').evaluate(el=>{el.value='0.6';el.dispatchEvent(new Event('input',{bubbles:true}));});
  await page.locator('#proSculpt').click();
  await page.waitForFunction(()=>window.__MARK_SCENE_STATE__?.phase==='ready',null,{timeout:90000});
  const modified=await capture('eyes-close','edited-eyes.png');
