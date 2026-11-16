@@ -81,7 +81,6 @@ export function editScene(bytes,{operation,nodeIndex=0,primitiveIndex=0,name,off
   if(node.matrix)invalid('объект с матрицей требует предварительной конвертации transform');
   if(vector!==undefined){if(!isVec3(vector))invalid('неверное смещение');node.translation=[...vector];}
   if(rotation!==undefined){if(!isVec3(rotation))invalid('неверный угол');node.rotation=quaternion(...rotation);}
-  if(offset!==undefined&&arguments){} // offset reserved for duplication
  }else if(operation==='scale'){
   if(node.matrix)invalid('матрица объекта не поддерживается');
   if(!isVec3(vector)||vector.some(v=>v<=.001||v>50))invalid('масштаб: три положительных числа от 0.001 до 50');
