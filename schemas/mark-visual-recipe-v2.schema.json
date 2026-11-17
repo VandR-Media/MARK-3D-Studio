@@ -54,7 +54,8 @@
             "lighting.set",
             "overlay.add",
             "signal.bind",
-            "quality.set"
+            "quality.set",
+            "animation.set"
           ]
         },
         "args": {
