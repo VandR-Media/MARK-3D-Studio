@@ -357,8 +357,36 @@
           },
           "size": {
             "type": "number"
+          },
+          "anchor": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{1,79}$"
+          },
+          "offset": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": -200,
+              "maximum": 200
+            }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "anchor"
+              ]
+            },
+            "then": {
+              "required": [
+                "offset"
+              ]
+            }
+          }
+        ]
       }
     },
     "bindings": {
