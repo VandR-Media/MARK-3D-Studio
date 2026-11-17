@@ -1,0 +1,529 @@
+{
+  "schema": "mark-stereo-visual-collection/1",
+  "status": "DESIGN CONTRACT ONLY — NO RENDERER IMPLEMENTED",
+  "signalSource": "decoded-pcm-not-microphone",
+  "sampleBandsHz": {
+    "low": [
+      20,
+      200
+    ],
+    "mid": [
+      200,
+      2000
+    ],
+    "high": [
+      2000,
+      16000
+    ]
+  },
+  "channels": [
+    "left",
+    "right"
+  ],
+  "displayPolicy": "Use 2D for readable scale/text/trace and 3D for true physical depth; both layers share a frame timestamp.",
+  "palette": {
+    "cyan": "#27D8F6",
+    "pink": "#FF4FAA",
+    "amber": "#FFD08A",
+    "deep": "#08101E",
+    "steel": "#73869A"
+  },
+  "presets": [
+    {
+      "id": "analog-studio",
+      "name": "MARK Analog Studio",
+      "theme": "warm-amber",
+      "camera": "fixed",
+      "layers": [
+        {
+          "kind": "3d",
+          "elements": [
+            "two deep anodized-metal VU housings",
+            "two modeled weighted needles on pivots",
+            "convex safety glass and warm bulbs"
+          ]
+        },
+        {
+          "kind": "2d",
+          "elements": [
+            "vector tick marks and scales for L/R",
+            "six miniature frequency-band LED meters",
+            "peak hold and LEFT/RIGHT labels"
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "signal": "left.low",
+          "target": "meter.left.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.mid",
+          "target": "meter.left.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.high",
+          "target": "meter.left.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.low",
+          "target": "meter.right.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.mid",
+          "target": "meter.right.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.high",
+          "target": "meter.right.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.rms",
+          "target": "meter.left.main",
+          "response": "vu"
+        },
+        {
+          "signal": "right.rms",
+          "target": "meter.right.main",
+          "response": "vu"
+        },
+        {
+          "signal": "left.peak",
+          "target": "meter.left.peak",
+          "response": "peak-hold"
+        },
+        {
+          "signal": "right.peak",
+          "target": "meter.right.peak",
+          "response": "peak-hold"
+        }
+      ],
+      "qualityProfiles": [
+        "eco",
+        "normal",
+        "high"
+      ]
+    },
+    {
+      "id": "spectrum-matrix",
+      "name": "MARK Spectrum Matrix",
+      "theme": "classic-led",
+      "camera": "fixed",
+      "layers": [
+        {
+          "kind": "3d",
+          "elements": [
+            "extruded black aluminum frame",
+            "separate translucent segmented windows",
+            "subtle glass lip and diffuse light"
+          ]
+        },
+        {
+          "kind": "2d",
+          "elements": [
+            "six independent 3-color LED ladders",
+            "peak-hold caps and exact frequency labels",
+            "stereo channel dividers and dB reference"
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "signal": "left.low",
+          "target": "meter.left.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.mid",
+          "target": "meter.left.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.high",
+          "target": "meter.left.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.low",
+          "target": "meter.right.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.mid",
+          "target": "meter.right.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.high",
+          "target": "meter.right.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.rms",
+          "target": "meter.left.main",
+          "response": "vu"
+        },
+        {
+          "signal": "right.rms",
+          "target": "meter.right.main",
+          "response": "vu"
+        },
+        {
+          "signal": "left.peak",
+          "target": "meter.left.peak",
+          "response": "peak-hold"
+        },
+        {
+          "signal": "right.peak",
+          "target": "meter.right.peak",
+          "response": "peak-hold"
+        }
+      ],
+      "qualityProfiles": [
+        "eco",
+        "normal",
+        "high"
+      ]
+    },
+    {
+      "id": "neon-towers",
+      "name": "MARK Neon Towers",
+      "theme": "cyan-pink",
+      "camera": "orbit",
+      "layers": [
+        {
+          "kind": "3d",
+          "elements": [
+            "six physical translucent towers with depth",
+            "internal luminous fill columns",
+            "metallic base, reflections, contact shadows"
+          ]
+        },
+        {
+          "kind": "2d",
+          "elements": [
+            "six crisp channel/band labels",
+            "small numeric channel peaks",
+            "per-column scale guides"
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "signal": "left.low",
+          "target": "meter.left.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.mid",
+          "target": "meter.left.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.high",
+          "target": "meter.left.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.low",
+          "target": "meter.right.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.mid",
+          "target": "meter.right.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.high",
+          "target": "meter.right.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.rms",
+          "target": "meter.left.main",
+          "response": "vu"
+        },
+        {
+          "signal": "right.rms",
+          "target": "meter.right.main",
+          "response": "vu"
+        },
+        {
+          "signal": "left.peak",
+          "target": "meter.left.peak",
+          "response": "peak-hold"
+        },
+        {
+          "signal": "right.peak",
+          "target": "meter.right.peak",
+          "response": "peak-hold"
+        }
+      ],
+      "qualityProfiles": [
+        "eco",
+        "normal",
+        "high"
+      ]
+    },
+    {
+      "id": "hi-fi-deck",
+      "name": "MARK Hi-Fi Deck",
+      "theme": "vintage-cyan",
+      "camera": "fixed",
+      "layers": [
+        {
+          "kind": "3d",
+          "elements": [
+            "precision-machined aluminum deck case",
+            "two inset mechanical VU instruments",
+            "realistic fasteners, knobs, beveled glass"
+          ]
+        },
+        {
+          "kind": "2d",
+          "elements": [
+            "two L/R analog gauge faces",
+            "six mini-band meters in a lower display",
+            "labels and peak counters"
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "signal": "left.low",
+          "target": "meter.left.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.mid",
+          "target": "meter.left.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.high",
+          "target": "meter.left.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.low",
+          "target": "meter.right.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.mid",
+          "target": "meter.right.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.high",
+          "target": "meter.right.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.rms",
+          "target": "meter.left.main",
+          "response": "vu"
+        },
+        {
+          "signal": "right.rms",
+          "target": "meter.right.main",
+          "response": "vu"
+        },
+        {
+          "signal": "left.peak",
+          "target": "meter.left.peak",
+          "response": "peak-hold"
+        },
+        {
+          "signal": "right.peak",
+          "target": "meter.right.peak",
+          "response": "peak-hold"
+        }
+      ],
+      "qualityProfiles": [
+        "eco",
+        "normal",
+        "high"
+      ]
+    },
+    {
+      "id": "pulse-rings",
+      "name": "MARK Pulse Rings",
+      "theme": "cosmic-neon",
+      "camera": "orbit",
+      "layers": [
+        {
+          "kind": "3d",
+          "elements": [
+            "two independently animated 3D torus stacks",
+            "three emissive torus bands for each channel",
+            "deep pedestal with metallic concentric trim"
+          ]
+        },
+        {
+          "kind": "2d",
+          "elements": [
+            "unambiguous left/right captions",
+            "LOW MID HIGH annotations",
+            "peak history marks"
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "signal": "left.low",
+          "target": "meter.left.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.mid",
+          "target": "meter.left.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.high",
+          "target": "meter.left.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.low",
+          "target": "meter.right.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.mid",
+          "target": "meter.right.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.high",
+          "target": "meter.right.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.rms",
+          "target": "meter.left.main",
+          "response": "vu"
+        },
+        {
+          "signal": "right.rms",
+          "target": "meter.right.main",
+          "response": "vu"
+        },
+        {
+          "signal": "left.peak",
+          "target": "meter.left.peak",
+          "response": "peak-hold"
+        },
+        {
+          "signal": "right.peak",
+          "target": "meter.right.peak",
+          "response": "peak-hold"
+        }
+      ],
+      "qualityProfiles": [
+        "eco",
+        "normal",
+        "high"
+      ]
+    },
+    {
+      "id": "oscilloscope",
+      "name": "MARK Oscilloscope",
+      "theme": "phosphor-blue",
+      "camera": "fixed",
+      "layers": [
+        {
+          "kind": "3d",
+          "elements": [
+            "two deeply recessed CRT-glass displays",
+            "anodized steel chassis and backlit hardware controls",
+            "subtle phosphor/glass reflections"
+          ]
+        },
+        {
+          "kind": "2d",
+          "elements": [
+            "actual downsampled L/R PCM waveforms",
+            "thin calibrated graticule and timebase",
+            "six real frequency mini-meters"
+          ]
+        }
+      ],
+      "bindings": [
+        {
+          "signal": "left.low",
+          "target": "meter.left.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.mid",
+          "target": "meter.left.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.high",
+          "target": "meter.left.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.low",
+          "target": "meter.right.low",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.mid",
+          "target": "meter.right.mid",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "right.high",
+          "target": "meter.right.high",
+          "response": "band-amplitude"
+        },
+        {
+          "signal": "left.rms",
+          "target": "meter.left.main",
+          "response": "vu"
+        },
+        {
+          "signal": "right.rms",
+          "target": "meter.right.main",
+          "response": "vu"
+        },
+        {
+          "signal": "left.peak",
+          "target": "meter.left.peak",
+          "response": "peak-hold"
+        },
+        {
+          "signal": "right.peak",
+          "target": "meter.right.peak",
+          "response": "peak-hold"
+        },
+        {
+          "signal": "left.waveform",
+          "target": "screen.left.trace",
+          "response": "pcm-trace"
+        },
+        {
+          "signal": "right.waveform",
+          "target": "screen.right.trace",
+          "response": "pcm-trace"
+        }
+      ],
+      "qualityProfiles": [
+        "eco",
+        "normal",
+        "high"
+      ]
+    }
+  ]
+}
