@@ -33,7 +33,13 @@ function builder(){
   objects.push({id,name,geometry,material,position,rotation,scale:[1,1,1],parent,
    visible:true,meta});return id;
  };
- const label=(text,x,y,color='#bfe1f4',size=12)=>overlays.push({text,x,y,color,size});
+ // All device-face text is anchored to physical 3D scene nodes. x/y is only
+ // a viewport fallback for older viewers, NOT authoritative placement.
+ const label=(text,x,y,color='#bfe1f4',size=12,anchor=null,offset=null)=>{
+  const item={text,x,y,color,size};
+  if(anchor){item.anchor=anchor;item.offset=offset;}
+  overlays.push(item);
+ };
  add('instrument.root','Instrument root',{type:'group'},null,[0,0,0],null);
  return {objects,bindings,overlays,add,label};
 }
@@ -72,7 +78,7 @@ function analog(params){
  casework(add,{...p,depth:.8});
  add('analog.header','Header inlaid strip',{type:'bevel-box',width:7.7,height:.34,depth:.07,radius:.04,bevel:.012},
   'black',[0,2.05,.54]);
- label('MARK  •  ANALOG STUDIO',.5,.14,'#d7f4ff',14);
+ label('MARK  •  ANALOG STUDIO',.5,.14,'#d7f4ff',14,'analog.header',[0,0,.083]);
  for(const channel of ['left','right']){
   const x=channel==='left'?-2.13:2.13;
   const group='gauge.'+channel;
@@ -82,7 +88,7 @@ function analog(params){
   add(group+'.dial','Warm ivory physical dial face',{type:'bevel-box',width:3.30,height:2.38,depth:.025,radius:.06,bevel:.019},
    'dial',[0,0,.17],group);
   add(group+'.glass','Transmissive curved safety cover',{type:'bevel-box',width:3.43,height:2.46,depth:.065,radius:.055,bevel:.031},
-   'glass',[0,0,.27],group);
+   'glass',[0,0,.32],group);
   // Real 3D VU tick strokes in a physical arc; readable text is 2D.
   for(let i=0;i<=16;i++){
    const t=-1.06+i*(2.12/16),r=1.63;
@@ -91,12 +97,12 @@ function analog(params){
     [Math.sin(t)*r,-.82+Math.cos(t)*r,.199],group,[0,0,-t]);
   }
   add(group+'.pivot','Needle axis (mechanical)',{type:'cylinder',radiusTop:.12,radiusBottom:.13,height:.115,radialSegments:32},
-   'bezel',[0,-.82,.284],group,[Math.PI/2,0,0]);
+   'bezel',[0,-.82,.217],group,[Math.PI/2,0,0]);
   add('needle.'+channel,'3D tapered needle',{type:'needle',length:1.60,width:.055,depth:.028},
-   'needle',[0,-.82,.321],group,[0,0,-.97]);
+   'needle',[0,-.82,.239],group,[0,0,-.97]);
   g.bindings.push({target:'needle.'+channel,signal:channel+'.rms',response:'needle',gain:1.85,offset:-.97});
-  label(channel.toUpperCase(),channel==='left'?.275:.725,.365,'#243142',14);
-  label('VU',channel==='left'?.275:.725,.42,'#283747',17);
+  label(channel.toUpperCase(),channel==='left'?.275:.725,.365,'#243142',14,group,[0,.43,.238]);
+  label('VU',channel==='left'?.275:.725,.42,'#283747',17,group,[0,.17,.238]);
  }
  add('analog.bottom.bay','Six-band window',{type:'bevel-box',width:8.0,height:1.02,depth:.085,radius:.08,bevel:.04},
   'black',[0,-1.61,.52]);
@@ -105,7 +111,7 @@ function analog(params){
   const channel=c===0?'left':'right',x=(c===0?-2.2:2.2)+(b-1)*.92;
   cols.push({channel,band:bands[b],x});
   label((channel==='left'?'L ':'R ')+bands[b].toUpperCase(),.5+x/9.15,.82,
-   channel==='left'?'#a6ddff':'#ffc0e8',10);
+   channel==='left'?'#a6ddff':'#ffc0e8',10,'analog.bottom.bay',[x,.365,.12]);
  }
  addSegmentColumns(g,{columns:cols,originY:-1.99,step:.083,steps:8,width:.27,z:.65});
  return {...g,name:'MARK Analog Studio — physical 3D stereo VU',materials:structuredClone(materials)};
@@ -119,25 +125,26 @@ function matrix(params){
  casework(add,{...p,depth:.87});
  add('matrix.header','LED display upper bezel',{type:'bevel-box',width:8.0,height:.4,depth:.07,radius:.05,bevel:.02},
   'bezel',[0,2.07,.55]);
- label('MARK  •  SPECTRUM MATRIX',.5,.13,'#c6e8ff',14);
+ label('MARK  •  SPECTRUM MATRIX',.5,.13,'#c6e8ff',14,'matrix.header',[0,0,.082]);
  add('matrix.blackbed','Deep antiglare backplane',{type:'bevel-box',width:8.05,height:3.57,depth:.19,radius:.13,bevel:.045},
   'black',[0,-.18,.61]);
  add('matrix.glass','Light-transmitting protected LED glass',{type:'bevel-box',width:7.93,height:3.46,depth:.045,radius:.07,bevel:.025},
-  'glass',[0,-.18,.80]);
+  'glass',[0,-.18,.86]);
  const columns=[];
  for(let ci=0;ci<2;ci++)for(let bi=0;bi<3;bi++){
   const channel=ci===0?'left':'right',band=bands[bi],x=(ci===0?-2.05:2.05)+(bi-1)*.99;
   columns.push({channel,band,x});
-  label(band.toUpperCase(),.5+x/9.15,.26,'#d9e5ee',11);
+  label(band.toUpperCase(),.5+x/9.15,.26,'#d9e5ee',11,'matrix.blackbed',[x,1.95,.30]);
  }
  add('matrix.separator','Physical center divider',{type:'box',width:.022,height:3.26,depth:.075},
   'bezel',[0,-.19,.75]);
  // Eighteen independent *physical meshes* per channel/band.
- addSegmentColumns(g,{columns,originY:-1.68,step:2.95/(p.segments-1),steps:p.segments,width:.60});
- label('LEFT',.30,.87,'#5bdbff',13);label('RIGHT',.70,.87,'#f2a0df',13);
- label('20–200',.27,.92,'#9eb9c5',9);
- label('200–2k',.5,.92,'#9eb9c5',9);
- label('2k–16k',.73,.92,'#9eb9c5',9);
+ addSegmentColumns(g,{columns,originY:-1.68,step:2.95/(p.segments-1),steps:p.segments,width:.60,z:.74});
+ label('LEFT',.30,.87,'#5bdbff',13,'case.main',[-2.05,-2.20,.57]);
+ label('RIGHT',.70,.87,'#f2a0df',13,'case.main',[2.05,-2.20,.57]);
+ label('20–200',.27,.92,'#9eb9c5',9,'case.main',[-2.99,-2.42,.57]);
+ label('200–2k',.5,.92,'#9eb9c5',9,'case.main',[0,-2.42,.57]);
+ label('2k–16k',.73,.92,'#9eb9c5',9,'case.main',[2.99,-2.42,.57]);
  return {...g,name:'MARK Spectrum Matrix — 6 physical stereo LED columns',materials:structuredClone(materials)};
 }
 export function buildInstrument(kind,params={}){
