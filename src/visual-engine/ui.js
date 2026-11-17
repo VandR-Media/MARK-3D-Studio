@@ -5,6 +5,7 @@
 import {VisualRenderer} from './visual-renderer.js';
 import {runVisualRecipe,deserializeVisualScene,serializeVisualScene,validateVisualScene} from './scene-model.js';
 import {StereoPcmAnalyzer,zeroStereoFrame,validateStereoFrame,AUDIO_SCHEMA} from './audio-frame.js';
+import {inspectVisualImport} from './glb-guard.js';
 const $=id=>document.getElementById(id),bytesToBase64=bytes=>{
  let out='';for(let i=0;i<bytes.length;i+=32768)out+=String.fromCharCode(...bytes.subarray(i,i+32768));
  return btoa(out);
@@ -291,10 +292,11 @@ function installEvents(){
    const file=e.target.files?.[0];if(!file)return;
    const bytes=new Uint8Array(await file.arrayBuffer());
    if(bytes.length>15000000)throw Error('GLB >15 MB: для смартфона используйте облегчённый файл');
+   const safe=inspectVisualImport(bytes);
    const loaded=await viewer.importGlb(bytes);
    scene.attachments=scene.attachments||[];
    scene.attachments.push({name:file.name,data:'data:model/gltf-binary;base64,'+bytesToBase64(bytes)});
-   status('Импортировано реальных мешей: '+loaded.meshes+'. GLB включён в .markscene.');
+   status('Импортировано '+loaded.meshes+' реальных мешей; текстур: '+safe.textures+'. Исходный GLB сохранён в .markscene.');
   }catch(err){status('GLB: '+err.message,true);}
   e.target.value='';
  });
