@@ -109,7 +109,7 @@ Bands: LOW 20–200 Hz, MID 200–2000 Hz, HIGH 2000–16000 Hz clipped to Nyqui
 
 Manual GitHub Actions workflow: \`.github/workflows/visual-engine-v2.yml\`.
 
-The workflow is **MANUAL-ONLY** (\`workflow_dispatch\`) to respect the previous instruction disabling automatic builds. To run, open **Actions → MARK Visual Engine v2 → Run workflow → develop/visual-engine-v2**. It produces real mobile/desktop front/three-quarter screenshots, GLB node/material structure, PCM band independence, pause behavior and ECO/NORMAL/HIGH first-render timings. The source SHA and all evidence must match the same workflow run.
+The workflow is **MANUAL-ONLY** (`workflow_dispatch`) to respect the request to disable automatic builds. **Important GitHub limitation:** the repository `main` branch currently has **no** `.github/workflows` files. GitHub requires a manual workflow to be registered on the default branch to expose its Run workflow button. Therefore this dev-only new workflow is not yet directly launchable from the GitHub Actions UI. We do NOT re-enable push/PR automation and do NOT modify `main` without approval. Once a minimal manual-only entry is separately approved on `main`, or another permitted execution environment is available, run acceptance on `develop/visual-engine-v2`. This would generate actual GLB/PNG/audio and ECO/NORMAL/HIGH reports. No successful browser CI results are claimed yet.
 
 Still **not implemented or not verified**:
 
