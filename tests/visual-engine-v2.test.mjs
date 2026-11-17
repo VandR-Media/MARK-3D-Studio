@@ -181,3 +181,56 @@ test('machine-readable Visual Scene and Audio PCM contract schemas validate prod
  assert.ok(validateAudio(a.measure()),ajv.errorsText(validateAudio.errors));
  assert.ok(validateAudio(zeroStereoFrame()),ajv.errorsText(validateAudio.errors));
 });
+
+function worldZ(scene,id){
+ const nodes=new Map(scene.objects.map(o=>[o.id,o]));
+ let z=0,node=nodes.get(id),guard=0;
+ while(node){z+=node.position[2];node=node.parent?nodes.get(node.parent):null;
+  assert.ok(++guard<100,'cycle in depth test');}
+ return z;
+}
+test('P0 depth regression: physical Analog needle/pivot are behind transmissive cover, in front of dial',()=>{
+ const {scene}=runVisualRecipe(recipes[0]);
+ const objects=new Map(scene.objects.map(o=>[o.id,o]));
+ for(const channel of ['left','right']){
+  const base='gauge.'+channel;
+  const glass=objects.get(base+'.glass'),dial=objects.get(base+'.dial');
+  const needle=objects.get('needle.'+channel),pivot=objects.get(base+'.pivot');
+  const glassBack=worldZ(scene,glass.id)-glass.geometry.depth/2;
+  const needleFront=worldZ(scene,needle.id)+needle.geometry.depth/2;
+  const pivotFront=worldZ(scene,pivot.id)+pivot.geometry.height/2;
+  const dialFront=worldZ(scene,dial.id)+dial.geometry.depth/2;
+  assert.ok(dialFront<needleFront,'needle must lie ahead of dial');
+  assert.ok(glassBack>needleFront+0.025,'needle must remain BEHIND cover with clearance');
+  assert.ok(glassBack>pivotFront+0.005,'pivot must remain BEHIND cover with clearance');
+ }
+ assert.equal(scene.materials.glass.type,'physical');
+ assert.equal(scene.materials.glass.opacity,1);
+ assert.ok(scene.materials.glass.transmission>.5);
+});
+test('P0 depth regression: all 108 Matrix LEDs inside metal/glass cavity, not in front of glazing',()=>{
+ const {scene}=runVisualRecipe(recipes[1]);
+ const map=new Map(scene.objects.map(o=>[o.id,o]));
+ const glass=map.get('matrix.glass'),back=map.get('matrix.blackbed');
+ const coverBack=worldZ(scene,glass.id)-glass.geometry.depth/2;
+ const backFront=worldZ(scene,back.id)+back.geometry.depth/2;
+ let n=0;
+ for(const led of scene.objects.filter(o=>o.meta.role==='led')){
+  const center=worldZ(scene,led.id),half=led.geometry.depth/2;
+  assert.ok(center+half<coverBack-.02,led.id+' in front of cover');
+  assert.ok(center-half>backFront+.005,led.id+' buried in backplane');
+  n++;
+ }
+ assert.equal(n,108);
+});
+test('P0 physical instrument labels have parent local 3D anchors and survive save/reload',()=>{
+ for(const recipe of recipes){
+  const {scene}=runVisualRecipe(recipe),ids=new Set(scene.objects.map(o=>o.id));
+  assert.ok(scene.overlays.length>=10);
+  assert.ok(scene.overlays.every(o=>ids.has(o.anchor)&&Array.isArray(o.offset)&&o.offset.length===3));
+  const roundtrip=deserializeVisualScene(JSON.stringify(scene));
+  assert.deepEqual(roundtrip.overlays,scene.overlays);
+  const broken=structuredClone(scene);broken.overlays[0].anchor='missing.node';
+  assert.throws(()=>validateVisualScene(broken),/invalid anchor/);
+ }
+});
