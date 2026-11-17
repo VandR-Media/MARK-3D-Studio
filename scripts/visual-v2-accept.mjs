@@ -53,9 +53,8 @@ async function testPreset(preset,viewport){
  const error=await page.evaluate(()=>window.__MARK_VISUAL_ERROR__);
  if(error)throw Error('Visual renderer initialization: '+error);
  await page.locator('#mode').selectOption(preset);
- await page.waitForFunction(target=>window.MARK_VISUAL_API?.scene()?.id===target,null,{
-  timeout:40000,polling:200,timeoutMessage:'Changed visual device did not render'
- },preset==='analog-studio'?'analog-studio-v2':'spectrum-matrix-v2');
+ await page.waitForFunction(target=>window.MARK_VISUAL_API?.scene()?.id===target,
+  preset==='analog-studio'?'analog-studio-v2':'spectrum-matrix-v2',{timeout:40000,polling:200});
  const info=await page.evaluate(()=>window.MARK_VISUAL_API.renderStats());
  if(info.meshCount<(kind==='analog'?100:110)||info.ledCount!==(kind==='analog'?48:108))
   throw Error('Wrong real physical object count '+JSON.stringify(info));
