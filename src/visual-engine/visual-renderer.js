@@ -192,7 +192,8 @@ export class VisualRenderer{
    if(geo&&mat?.aoMap&&geo.attributes.uv&&!geo.attributes.uv2)
     geo.setAttribute('uv2',geo.attributes.uv.clone());
    const target=geo?new THREE.Mesh(geo,mat||new THREE.MeshBasicMaterial({color:'#ffffff'})):new THREE.Group();
-   target.name=object.name;target.userData.markId=object.id;target.userData.meta=structuredClone(object.meta||{});
+   target.name=object.id;target.userData.displayName=object.name;
+   target.userData.markId=object.id;target.userData.meta=structuredClone(object.meta||{});
    target.position.set(...object.position);target.rotation.set(...object.rotation);
    target.scale.set(...object.scale);target.visible=object.visible;
    if(target.isMesh){target.castShadow=true;target.receiveShadow=true;
@@ -245,6 +246,25 @@ export class VisualRenderer{
   this.camera.position.set(...views[view]);this.controls.target.set(0,0,0);
   this.controls.update();this.render();
  }
+ applyAnimation(clipId,time){
+  const clip=this.boundScene?.animation?.clips?.find(x=>x.id===clipId);
+  if(!clip)throw Error('Unknown animation clip '+clipId);
+  const t=clip.loop?((time%clip.duration)+clip.duration)%clip.duration:
+   Math.min(clip.duration,Math.max(0,time));
+  for(const track of clip.tracks){
+   const o=this.nodes.get(track.target);if(!o)continue;
+   const keys=track.keys;
+   let i=0;while(i<keys.length-2&&keys[i+1].time<t)i++;
+   const first=keys[i],last=keys[i+1];
+   const alpha=Math.max(0,Math.min(1,(t-first.time)/(last.time-first.time)));
+   const values=first.value.map((a,j)=>a+(last.value[j]-a)*alpha);
+   if(track.property==='position')o.position.set(...values);
+   else if(track.property==='scale')o.scale.set(...values);
+   else if(track.property==='rotation')o.rotation.set(...values);
+  }
+  this.render();
+  return {clip:clipId,time:t};
+ }
  async importGlb(input){
   const bytes=input instanceof ArrayBuffer?input:input.buffer.slice(input.byteOffset,input.byteOffset+input.byteLength);
   const gltf=await new GLTFLoader().parseAsync(bytes,'');
@@ -259,8 +279,24 @@ export class VisualRenderer{
   exportRoot.add(this.camera.clone());
   for(const object of this.world.children)
    if(object.userData.visualLight)exportRoot.add(object.clone());
+  const animations=[];
+  for(const clip of this.boundScene?.animation?.clips||[]){
+   const tracks=[];
+   for(const track of clip.tracks){
+    const times=track.keys.map(k=>k.time);
+    if(track.property==='rotation'){
+     const values=track.keys.flatMap(k=>new THREE.Quaternion()
+      .setFromEuler(new THREE.Euler(...k.value)).toArray());
+     tracks.push(new THREE.QuaternionKeyframeTrack(track.target+'.quaternion',times,values));
+    }else{
+     const values=track.keys.flatMap(k=>k.value);
+     tracks.push(new THREE.VectorKeyframeTrack(track.target+'.'+track.property,times,values));
+    }
+   }
+   animations.push(new THREE.AnimationClip(clip.id,clip.duration,tracks));
+  }
   const data=await exporter.parseAsync(exportRoot,{
-   binary:true,trs:true,onlyVisible:false,includeCustomExtensions:true});
+   binary:true,trs:true,onlyVisible:false,includeCustomExtensions:true,animations});
   return new Uint8Array(data);
  }
  dispose(){
