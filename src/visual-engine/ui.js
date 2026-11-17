@@ -132,10 +132,10 @@ function tick(){
  if(demo){
   const time=performance.now()/1000,copy=zeroStereoFrame({timestampMs:time*1000,source:'demo',playing:true});
   for(const [ch,phase] of [['left',0],['right',1.7]]){
-   copy[ch].low=.50+.43*Math.sin(time*2.8+phase);
-   copy[ch].mid=.43+.37*Math.sin(time*3.9+phase+1);
-   copy[ch].high=.31+.32*Math.sin(time*5.1+phase+2);
-   copy[ch].rms=.4+.30*Math.sin(time*2+phase);
+   copy[ch].low=Math.max(0,.50+.43*Math.sin(time*2.8+phase));
+   copy[ch].mid=Math.max(0,.43+.37*Math.sin(time*3.9+phase+1));
+   copy[ch].high=Math.max(0,.31+.32*Math.sin(time*5.1+phase+2));
+   copy[ch].rms=Math.max(0,.4+.30*Math.sin(time*2+phase));
    copy[ch].peak=Math.max(copy[ch].rms,.66);
   }
   copy.bass=(copy.left.low+copy.right.low)/2;renderFrame(copy);
@@ -165,7 +165,7 @@ function installEvents(){
  $('mode').addEventListener('change',async e=>{try{await changeMode(e.target.value);}catch(err){status(err.message,true);}});
  $('quality').addEventListener('change',async e=>{
   try{scene.quality=e.target.value;validateVisualScene(scene);
-   viewer.setProfile(scene.quality);await viewer.setScene(scene);renderFrame(lastFrame);
+   await setScene(scene);renderFrame(lastFrame);
   }catch(err){status(err.message,true);}
  });
  $('demo').addEventListener('change',e=>{
@@ -245,7 +245,12 @@ async function start(){
    image:()=>viewer.canvas.toDataURL('image/png'),
    exportGlb:async()=>bytesToBase64(await viewer.exportGlb()),
    renderStats:()=>({objectCount:scene.objects.length,meshCount:[...viewer.nodes.values()].filter(x=>x.isMesh).length,
-    ledCount:[...viewer.nodes.values()].filter(x=>x.userData.meta?.role==='led').length})
+    ledCount:[...viewer.nodes.values()].filter(x=>x.userData.meta?.role==='led').length}),
+   activeSegments:()=>Object.fromEntries(['left','right'].flatMap(ch=>['low','mid','high'].map(b=>{
+    const id='meter.'+ch+'.'+b,node=viewer.nodes.get(id);
+    return [ch+'.'+b,(node?.children||[]).filter(o=>o.isMesh&&o.material?.emissiveIntensity>.1).length];
+   }))),
+   audioState:()=>({playing,demo,source:lastFrame.source,left:lastFrame.left.low,right:lastFrame.right.high})
   };
  }catch(e){
   window.__MARK_VISUAL_ERROR__=e.message;status('Ошибка запуска 3D: '+e.message,true);console.error(e);
