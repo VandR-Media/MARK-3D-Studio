@@ -1,14 +1,5 @@
 name: MARK Stereo Visual — six hybrid preset contracts
 on:
-  push:
-    branches:
-      - feature/stereo-visual-preset-contract
-  pull_request:
-    paths:
-      - presets/mark-stereo-visual-collection-v1.json
-      - schemas/mark-stereo-visual-collection-v1.schema.json
-      - tests/stereo-visual-presets.test.mjs
-      - .github/workflows/stereo-visual-contract.yml
   workflow_dispatch:
 permissions:
   contents: read

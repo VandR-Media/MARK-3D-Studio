@@ -1,7 +1,5 @@
 name: MARK Stage 2.1 — facial topology and memory
 on:
-  push:
-    branches: ['develop/anatomical-face-refinement-v0.6.1']
   workflow_dispatch:
 permissions:
   contents: read

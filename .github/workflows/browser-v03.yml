@@ -1,17 +1,5 @@
 name: Character v0.3 real WebGL2 acceptance
 on:
-  push:
-    branches: ['develop/character-modeling-v0.3']
-    paths:
-      - 'scripts/accept-v03.mjs'
-      - '.github/workflows/browser-v03.yml'
-      - 'src/character-ui.js'
-      - 'src/app.js'
-      - 'src/mesh-ui.js'
-      - 'src/topology.js'
-      - 'src/scene-objects.js'
-      - 'src/face-studio.js'
-      - 'index.html'
   workflow_dispatch:
 permissions:
   contents: read

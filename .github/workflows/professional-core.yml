@@ -1,7 +1,5 @@
 name: MARK Professional Geometry Core — real mesh / GLB / Chromium
 on:
-  push:
-    branches: ['develop/professional-geometry-core']
   workflow_dispatch:
 permissions:
   contents: read

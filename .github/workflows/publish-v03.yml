@@ -1,9 +1,5 @@
 name: Publish experimental v0.3 Huawei preview
 on:
-  push:
-    branches: ['develop/character-modeling-v0.3']
-    paths:
-      - '.github/workflows/publish-v03.yml'
   workflow_dispatch:
 permissions:
   contents: write
