@@ -23,7 +23,7 @@ const serialized=serializeVisualScene(scene);
 const sceneName=scene.id+'.markscene',scenePath=join(out,sceneName);
 writeFileSync(scenePath,serialized);writeFileSync(join(out,scene.id+'-recipe.json'),input);
 const result={
- sourceCommit:process.env.GITHUB_SHA||'local-unverified',engine:'MARK Visual Engine v2',
+ sourceCommit:process.env.MARK_SOURCE_SHA||process.env.GITHUB_SHA||'local-unverified',engine:'MARK Visual Engine v2',
  recipe:basename(recipePath),recipeSha256:hash(input),sceneSha256:hash(serialized),
  editProject:sceneName,actualGlb:'generated in Chromium acceptance, not in CLI',
  objectCount:scene.objects.length,physicalMeshes:scene.objects.filter(o=>o.geometry.type!=='group').length,
