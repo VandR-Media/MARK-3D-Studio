@@ -134,3 +134,18 @@ test('GLB import accepts static self-contained textured multi-mesh scene, reject
  altered.extensionsUsed=[];altered.meshes[0].primitives[0].targets=[{POSITION:0}];
  assert.throws(()=>inspectVisualImport(writeGlb(parsed,altered)),/morph targets/);
 });
+
+test('safe JSON keyframe track targets a real GLB mesh, persists and rejects invalid ordering',()=>{
+ const recipe=readJson('recipes/visual-v2-keyframe-example.json');
+ assert.ok(validates(recipe),ajv.errorsText(validates.errors));
+ const {scene}=runVisualRecipe(recipe);
+ assert.equal(scene.animation.clips.length,1);
+ const clip=scene.animation.clips[0];
+ assert.equal(clip.id,'camera-tilt-study');
+ assert.equal(clip.tracks[0].target,'case.main');
+ assert.deepEqual(clip.tracks[0].keys.map(k=>k.time),[0,1,2]);
+ assert.deepEqual(deserializeVisualScene(JSON.stringify(scene)).animation,scene.animation);
+ const broken=structuredClone(recipe);
+ broken.commands[1].args.clip.tracks[0].keys[1].time=0;
+ assert.throws(()=>runVisualRecipe(broken),/invalid keyframe/);
+});
