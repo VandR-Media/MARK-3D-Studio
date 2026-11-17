@@ -31,7 +31,8 @@ export function validateVisualScene(s){
  const c=s.camera;
  check(c&&vec3(c.position)&&vec3(c.target)&&range(c.fov,12,100)&&
   range(c.near,.001,10)&&range(c.far,10,10000)&&c.far>c.near,'invalid camera');
- check(s.environment&&hex(s.environment.color)&&range(s.environment.intensity,0,5),'invalid environment');
+ check(s.environment&&hex(s.environment.color)&&range(s.environment.intensity,0,5)&&
+  range(s.environment.exposure??1.14,.25,2.5),'invalid environment/exposure');
  check(s.environment.hdri==null||(typeof s.environment.hdri==='string'&&
   s.environment.hdri.startsWith('data:')&&s.environment.hdri.length<20000000),'HDRI must be embedded');
  check(Array.isArray(s.lights)&&s.lights.length<=12,'too many lights');
@@ -69,6 +70,14 @@ export function validateVisualScene(s){
    check(!seen.has(cursor.parent),'cyclic hierarchy '+o.id);
    seen.add(cursor.parent);cursor=byId.get(cursor.parent);
   }
+ }
+ check(!s.attachments||Array.isArray(s.attachments),'attachments must be array');
+ if(s.attachments){
+  check(s.attachments.length<=12,'too many external GLB attachments');
+  for(const asset of s.attachments)
+   check(typeof asset.name==='string'&&asset.name.length<=160&&
+    typeof asset.data==='string'&&asset.data.startsWith('data:model/gltf-binary;base64,')&&
+    asset.data.length<23000000,'unsupported/non-embedded GLB attachment');
  }
  check(Array.isArray(s.bindings)&&s.bindings.length<=3600,'invalid binding count');
  for(const b of s.bindings)check(ids.has(b.target)&&SIGNALS.includes(b.signal)&&responses.has(b.response)&&
