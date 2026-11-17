@@ -85,8 +85,12 @@ export function validateVisualScene(s){
   !b.signal.endsWith('.waveform')&&responses.has(b.response)&&
   (b.gain===undefined||range(b.gain,0,10)),'invalid numeric binding '+JSON.stringify(b));
  check(Array.isArray(s.overlays)&&s.overlays.length<=120,'too many 2D labels');
- for(const o of s.overlays)check(typeof o.text==='string'&&o.text.length<=80&&
-  range(o.x,0,1)&&range(o.y,0,1)&&hex(o.color||'#ffffff'),'invalid overlay');
+ for(const o of s.overlays){
+  check(typeof o.text==='string'&&o.text.length<=80&&
+   range(o.x,0,1)&&range(o.y,0,1)&&hex(o.color||'#ffffff'),'invalid overlay');
+  if(o.anchor!==undefined)check(ids.has(o.anchor)&&vec3(o.offset)&&
+   o.offset.every(x=>Math.abs(x)<=200),'invalid anchor for 2D device label');
+ }
  check(s.animation&&Array.isArray(s.animation.clips)&&s.animation.clips.length<=50,'invalid animations');
  for(const clip of s.animation.clips){
   check(idPattern.test(clip.id)&&range(clip.duration,.01,300)&&
