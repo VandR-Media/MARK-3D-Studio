@@ -40,7 +40,6 @@ function overlays(){
 function inspector(){
  const select=$('objectSelect'),old=select.value;select.replaceChildren();
  for(const obj of scene.objects){
-  if(obj.geometry.type==='group'&&obj.id!=='instrument.root')continue;
   const opt=document.createElement('option');opt.value=obj.id;opt.textContent=obj.name+' ('+obj.id+')';
   select.append(opt);
  }
@@ -56,6 +55,18 @@ function fillObject(){
   $('materialSelect').append(option);
  }
  if(obj.material)$('materialSelect').value=obj.material;
+ const parent=$('parentSelect');parent.replaceChildren();
+ const blank=document.createElement('option');blank.value='';blank.textContent='Корень сцены';parent.append(blank);
+ for(const other of scene.objects){
+  if(other.geometry.type!=='group'||other.id===obj.id)continue;
+  const option=document.createElement('option');option.value=other.id;option.textContent=other.name;
+  parent.append(option);
+ }
+ parent.value=obj.parent||'';
+ const material=scene.materials[obj.material]||scene.materials.enclosure;
+ $('pbrMetal').value=String(material?.metalness??0);
+ $('pbrRough').value=String(material?.roughness??.5);
+ $('pbrTrans').value=String(material?.transmission??0);
  const props=[...obj.position,...obj.rotation,...obj.scale];
  ['px','py','pz','rx','ry','rz','sx','sy','sz'].forEach((key,i)=>$(key).value=String(props[i]));
 }
@@ -188,14 +199,84 @@ function installEvents(){
  $('objectSelect').addEventListener('change',fillObject);
  $('applyTransform').addEventListener('click',async()=>{
   try{
-   const obj=scene.objects.find(o=>o.id===$('objectSelect').value);
+   const next=structuredClone(scene),obj=next.objects.find(o=>o.id===$('objectSelect').value);
    if(!obj)throw Error('Не выбран объект');
-   const keys=['px','py','pz','rx','ry','rz','sx','sy','sz'],vals=keys.map(k=>Number($(k).value));
+   const vals=['px','py','pz','rx','ry','rz','sx','sy','sz'].map(k=>Number($(k).value));
    if(vals.some(v=>!Number.isFinite(v)))throw Error('Некорректные координаты');
    obj.position=vals.slice(0,3);obj.rotation=vals.slice(3,6);obj.scale=vals.slice(6,9);
-   obj.material=$('materialSelect').value;
-   await setScene(scene);status('Трансформация и материал сохранены в редактируемую 3D-сцену.');
+   obj.parent=$('parentSelect').value||null;obj.material=$('materialSelect').value||null;
+   if(obj.material&&next.materials[obj.material]){
+    const m=next.materials[obj.material];
+    m.metalness=Number($('pbrMetal').value);m.roughness=Number($('pbrRough').value);
+    m.transmission=Number($('pbrTrans').value);
+    if(m.transmission>0)m.type='physical';
+   }
+   await setScene(next);status('Геометрия и PBR-материал изменены.');
   }catch(err){status(err.message,true);}
+ });
+ const newid=prefix=>{let i=1;while(scene.objects.some(o=>o.id===prefix+i))i++;return prefix+i;};
+ $('uniqueMaterial').addEventListener('click',async()=>{
+  try{
+   const next=structuredClone(scene),obj=next.objects.find(o=>o.id===$('objectSelect').value);
+   if(!obj?.material)throw Error('Выбран объект без материала');
+   let i=1,key='material.custom'+i;while(next.materials[key])key='material.custom'+(++i);
+   next.materials[key]=structuredClone(next.materials[obj.material]);obj.material=key;
+   await setScene(next);$('objectSelect').value=obj.id;fillObject();
+  }catch(e){status(e.message,true);}
+ });
+ $('duplicateObject').addEventListener('click',async()=>{
+  try{
+   const next=structuredClone(scene),old=next.objects.find(o=>o.id===$('objectSelect').value);
+   if(!old)throw Error('Нет объекта');
+   const copy=structuredClone(old);
+   copy.id=newid('visual.copy');copy.name=old.name+' · копия';
+   copy.position=[old.position[0]+.18,old.position[1],old.position[2]+.04];
+   next.objects.push(copy);await setScene(next);
+   $('objectSelect').value=copy.id;fillObject();
+  }catch(e){status(e.message,true);}
+ });
+ $('newGroup').addEventListener('click',async()=>{
+  try{
+   const next=structuredClone(scene),id=newid('visual.group');
+   next.objects.push({id,name:'Новая группа',parent:'instrument.root',geometry:{type:'group'},material:null,
+    position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],visible:true,meta:{}});
+   await setScene(next);$('objectSelect').value=id;fillObject();
+  }catch(e){status(e.message,true);}
+ });
+ $('newObject').addEventListener('click',async()=>{
+  try{
+   const next=structuredClone(scene),id=newid('visual.part');
+   next.objects.push({id,name:'Новая объёмная деталь',parent:'instrument.root',
+    geometry:{type:'bevel-box',width:.48,height:.28,depth:.17,radius:.045,bevel:.018},
+    material:'bezel',position:[0,-.08,.88],rotation:[0,0,0],scale:[1,1,1],visible:true,meta:{}});
+   await setScene(next);$('objectSelect').value=id;fillObject();
+  }catch(e){status(e.message,true);}
+ });
+ $('deleteObject').addEventListener('click',async()=>{
+  const id=$('objectSelect').value;
+  if(!id||id==='instrument.root'){status('Нельзя удалить корень сцены.',true);return;}
+  if(!window.confirm('Удалить объект вместе со вложенными деталями?'))return;
+  try{
+   const next=structuredClone(scene),ids=new Set([id]);
+   for(let i=0;i<next.objects.length;i++)for(const o of next.objects)if(ids.has(o.parent))ids.add(o.id);
+   next.objects=next.objects.filter(o=>!ids.has(o.id));
+   next.bindings=next.bindings.filter(b=>!ids.has(b.target));
+   await setScene(next);status('Удалено объектов: '+ids.size);
+  }catch(e){status(e.message,true);}
+ });
+ $('exposure').addEventListener('input',e=>{
+  const value=Number(e.target.value);
+  if(scene){scene.environment.exposure=value;viewer.renderer.toneMappingExposure=value;viewer.render();}
+ });
+ $('hdriFile').addEventListener('change',async e=>{
+  const file=e.target.files?.[0];e.target.value='';if(!file)return;
+  try{
+   if(file.size>7*1024*1024)throw Error('HDRI больше 7 МБ: для Huawei нужна меньшая карта');
+   const bytes=new Uint8Array(await file.arrayBuffer());
+   const next=structuredClone(scene);
+   next.environment.hdri='data:application/octet-stream;base64,'+bytesToBase64(bytes);
+   await setScene(next);status('Локальное HDRI загружено: '+file.name);
+  }catch(error){status('HDRI: '+error.message,true);}
  });
  $('saveScene').addEventListener('click',()=>{
   download(serializeVisualScene(scene),scene.id+'.markscene','application/json');
