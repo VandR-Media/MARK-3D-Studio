@@ -192,7 +192,8 @@ export class VisualRenderer{
    if(geo&&mat?.aoMap&&geo.attributes.uv&&!geo.attributes.uv2)
     geo.setAttribute('uv2',geo.attributes.uv.clone());
    const target=geo?new THREE.Mesh(geo,mat||new THREE.MeshBasicMaterial({color:'#ffffff'})):new THREE.Group();
-   target.name=object.id;target.userData.displayName=object.name;
+   target.name='mark_'+Array.from(object.id,c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
+   target.userData.displayName=object.name;
    target.userData.markId=object.id;target.userData.meta=structuredClone(object.meta||{});
    target.position.set(...object.position);target.rotation.set(...object.rotation);
    target.scale.set(...object.scale);target.visible=object.visible;
@@ -287,10 +288,10 @@ export class VisualRenderer{
     if(track.property==='rotation'){
      const values=track.keys.flatMap(k=>new THREE.Quaternion()
       .setFromEuler(new THREE.Euler(...k.value)).toArray());
-     tracks.push(new THREE.QuaternionKeyframeTrack(track.target+'.quaternion',times,values));
+     tracks.push(new THREE.QuaternionKeyframeTrack(this.nodes.get(track.target).name+'.quaternion',times,values));
     }else{
      const values=track.keys.flatMap(k=>k.value);
-     tracks.push(new THREE.VectorKeyframeTrack(track.target+'.'+track.property,times,values));
+     tracks.push(new THREE.VectorKeyframeTrack(this.nodes.get(track.target).name+'.'+track.property,times,values));
     }
    }
    animations.push(new THREE.AnimationClip(clip.id,clip.duration,tracks));
