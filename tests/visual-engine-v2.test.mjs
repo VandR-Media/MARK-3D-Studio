@@ -166,3 +166,18 @@ test('recipe security rejects unsafe material keys, SVG maps and waveform-to-num
   target:'needle.left',signal:'left.waveform',response:'needle'}});
  assert.throws(()=>runVisualRecipe(frame),/invalid numeric binding/);
 });
+
+test('machine-readable Visual Scene and Audio PCM contract schemas validate produced real data',()=>{
+ const ajv=new Ajv2020({strict:false,allErrors:true});
+ const validateScene=ajv.compile(readJson('schemas/mark-visual-scene-v2.schema.json'));
+ for(const recipe of recipes){
+  const scene=runVisualRecipe(recipe).scene;
+  assert.ok(validateScene(scene),ajv.errorsText(validateScene.errors));
+ }
+ const validateAudio=ajv.compile(readJson('schemas/mark-audio-stereo-frame-v1.schema.json'));
+ const a=new StereoPcmAnalyzer({sampleRate:48000,fftSize:2048});
+ const pcm=Float32Array.from({length:2048},(_,i)=>.25*Math.sin(2*Math.PI*600*i/48000));
+ a.feed(pcm,pcm);
+ assert.ok(validateAudio(a.measure()),ajv.errorsText(validateAudio.errors));
+ assert.ok(validateAudio(zeroStereoFrame()),ajv.errorsText(validateAudio.errors));
+});
