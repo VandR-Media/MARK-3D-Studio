@@ -69,6 +69,7 @@ async function testPreset(preset,viewport){
   throw Error('3D export is not multi-mesh or lost materials');
  writeFileSync(join(output,kind+'-'+device+'.glb'),glb);
  const saved=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
+ writeFileSync(join(output,kind+'-'+device+'.markscene'),JSON.stringify(saved,null,2)+'\n');
  const reloaded=await page.evaluate(async s=>window.MARK_VISUAL_API.loadScene(s),saved);
  if(reloaded.objects!==saved.objects.length)throw Error('Editable .markscene reload lost objects');
  if(kind==='analog'&&device==='desktop'){
