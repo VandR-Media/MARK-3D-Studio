@@ -48,7 +48,7 @@ export function validateVisualScene(s){
    range(m.transmission??0,0,1),'invalid material '+id);
   for(const [slot,data] of Object.entries(m.maps||{}))
    check(['baseColor','normal','metallicRoughness','emissive','ao'].includes(slot)&&
-    typeof data==='string'&&data.startsWith('data:image/')&&data.length<=10000000,
+    typeof data==='string'&&/^data:image\/(?:png|jpeg|webp);base64,/i.test(data)&&data.length<=10000000,
     'external/invalid texture '+id+'.'+slot);
  }
  check(Array.isArray(s.objects)&&s.objects.length<=3500,'scene object count exceeded');
@@ -57,7 +57,8 @@ export function validateVisualScene(s){
   check(idPattern.test(o.id)&&!ids.has(o.id),'duplicate/invalid object ID '+o.id);
   ids.add(o.id);
   check(typeof o.name==='string'&&geometries.has(o.geometry?.type),'invalid geometry '+o.id);
-  check((o.material==null||s.materials[o.material])&&vec3(o.position)&&vec3(o.rotation)&&vec3(o.scale)&&
+  check((o.material==null||(idPattern.test(o.material)&&Object.hasOwn(s.materials,o.material)))&&
+   vec3(o.position)&&vec3(o.rotation)&&vec3(o.scale)&&
    o.scale.every(v=>v>0&&v<=100)&&typeof o.visible==='boolean','invalid object '+o.id);
   for(const [k,v] of Object.entries(o.geometry))
    if(k!=='type')check(range(v,0,200),'invalid geometry parameter '+o.id+'.'+k);
@@ -80,8 +81,9 @@ export function validateVisualScene(s){
     asset.data.length<23000000,'unsupported/non-embedded GLB attachment');
  }
  check(Array.isArray(s.bindings)&&s.bindings.length<=3600,'invalid binding count');
- for(const b of s.bindings)check(ids.has(b.target)&&SIGNALS.includes(b.signal)&&responses.has(b.response)&&
-  (b.gain===undefined||range(b.gain,0,10)),'invalid binding '+JSON.stringify(b));
+ for(const b of s.bindings)check(ids.has(b.target)&&SIGNALS.includes(b.signal)&&
+  !b.signal.endsWith('.waveform')&&responses.has(b.response)&&
+  (b.gain===undefined||range(b.gain,0,10)),'invalid numeric binding '+JSON.stringify(b));
  check(Array.isArray(s.overlays)&&s.overlays.length<=120,'too many 2D labels');
  for(const o of s.overlays)check(typeof o.text==='string'&&o.text.length<=80&&
   range(o.x,0,1)&&range(o.y,0,1)&&hex(o.color||'#ffffff'),'invalid overlay');
@@ -138,7 +140,11 @@ function exec(s,c){
    newObj.parent=a.parent??old.parent;newObj.position=a.position??old.position;
    s.objects.push(newObj);return {created:a.newId};
   }
-  case 'material.set':s.materials[a.id]=clone(a.material);return {material:a.id};
+  case 'material.set':{
+   check(typeof a.id==='string'&&idPattern.test(a.id)&&!['constructor','prototype','__proto__'].includes(a.id),
+    'invalid material id');
+   s.materials[a.id]=clone(a.material);return {material:a.id};
+  }
   case 'camera.set':s.camera={...s.camera,...clone(a)};return {camera:true};
   case 'environment.set':s.environment={...s.environment,...clone(a)};return {environment:true};
   case 'lighting.set':s.lights=clone(a.lights);return {lights:s.lights.length};
