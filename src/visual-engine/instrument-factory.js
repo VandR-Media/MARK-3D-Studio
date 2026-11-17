@@ -50,11 +50,11 @@ function casework(add,{width=9,height=5.2,depth=.72}={}){
    'black',[x,y,depth/2+.177],'instrument.root',[0,0,-.48]);
  }
 }
-function addSegmentColumns(g,{columns,originY,step=.19,width=.46,steps=11,parent='instrument.root',colorful=false}={}){
+function addSegmentColumns(g,{columns,originY,step=.19,width=.46,steps=11,parent='instrument.root',colorful=false,z=.85}={}){
  columns.forEach((col,i)=>{
   const group='meter.'+col.channel+'.'+col.band;
   g.add(group,'Real LED '+col.channel+' '+col.band,{type:'group'},null,
-   [col.x,originY,0],parent);
+   [col.x,originY,z],parent);
   for(let j=0;j<steps;j++){
    const shade=j>=Math.ceil(steps*.83)?'redLed':j>=Math.ceil(steps*.63)?'yellowLed':
     colorful?(col.channel==='left'?'cyanLed':'magentaLed'):'greenLed';
@@ -107,7 +107,7 @@ function analog(params){
   label((channel==='left'?'L ':'R ')+bands[b].toUpperCase(),.5+x/9.15,.82,
    channel==='left'?'#a6ddff':'#ffc0e8',10);
  }
- addSegmentColumns(g,{columns:cols,originY:-1.99,step:.083,steps:8,width:.27});
+ addSegmentColumns(g,{columns:cols,originY:-1.99,step:.083,steps:8,width:.27,z:.65});
  return {...g,name:'MARK Analog Studio — physical 3D stereo VU',materials:structuredClone(materials)};
 }
 function matrix(params){
