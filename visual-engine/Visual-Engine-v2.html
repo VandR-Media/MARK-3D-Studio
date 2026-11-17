@@ -19,6 +19,9 @@
  <label>Прибор <select id="mode"><option value="analog-studio">Analog Studio · 3D VU</option>
   <option value="spectrum-matrix">Spectrum Matrix · 6 LED</option></select></label>
  <label>Графика <select id="quality"><option value="eco">ECO</option><option value="normal" selected>NORMAL</option><option value="high">HIGH</option></select></label>
+ <label>Экспозиция <input id="exposure" type="range" min=".5" max="2.3" step=".05" value="1.15"></label>
+ <label class="buttonlike" for="hdriFile">Локальный HDRI</label>
+ <input type="file" id="hdriFile" accept=".hdr,image/vnd.radiance" hidden>
  <span id="signalState" class="signal-status">SILENCE</span>
 </section>
 <div class="canvas-frame" id="canvasFrame">
@@ -45,6 +48,12 @@
  <p>Выберите объект из графа, измените геометрию сцены через координаты и материал. После экспорта GLB останется многомешевым.</p>
  <label>Объект <select id="objectSelect"></select></label>
  <label>Материал <select id="materialSelect"></select></label>
+ <label>Родительская группа <select id="parentSelect"></select></label>
+ <div class="pbr-grid">
+  <label>Металл <input id="pbrMetal" type="range" min="0" max="1" step=".05"></label>
+  <label>Шероховатость <input id="pbrRough" type="range" min="0" max="1" step=".05"></label>
+  <label>Стекло / Transmission <input id="pbrTrans" type="range" min="0" max="1" step=".05"></label>
+ </div>
  <div class="xyz-grid">
   <label>X <input id="px" type="number" step=".05"></label>
   <label>Y <input id="py" type="number" step=".05"></label>
@@ -56,7 +65,12 @@
   <label>Scale Y <input id="sy" type="number" step=".05"></label>
   <label>Scale Z <input id="sz" type="number" step=".05"></label>
  </div>
- <div class="actions"><button id="applyTransform" class="primary">Применить к 3D-объекту</button></div>
+ <div class="actions"><button id="applyTransform" class="primary">Применить к 3D-объекту</button>
+ <button id="uniqueMaterial">Копировать материал</button>
+ <button id="duplicateObject">Дублировать объект</button>
+ <button id="newGroup">Добавить группу</button>
+ <button id="newObject">Добавить 3D-деталь</button>
+ <button id="deleteObject">Удалить объект</button></div>
 </details>
 <section class="panel">
  <h2>Проект и экспорт</h2>
