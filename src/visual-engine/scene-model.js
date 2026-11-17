@@ -86,6 +86,21 @@ export function validateVisualScene(s){
  for(const o of s.overlays)check(typeof o.text==='string'&&o.text.length<=80&&
   range(o.x,0,1)&&range(o.y,0,1)&&hex(o.color||'#ffffff'),'invalid overlay');
  check(s.animation&&Array.isArray(s.animation.clips)&&s.animation.clips.length<=50,'invalid animations');
+ for(const clip of s.animation.clips){
+  check(idPattern.test(clip.id)&&range(clip.duration,.01,300)&&
+   Array.isArray(clip.tracks)&&clip.tracks.length<=500,'invalid animation clip');
+  for(const track of clip.tracks){
+   check(ids.has(track.target)&&['position','rotation','scale'].includes(track.property)&&
+    Array.isArray(track.keys)&&track.keys.length>=2&&track.keys.length<=1000,
+    'unsupported keyframe track');
+   let last=-1;
+   for(const key of track.keys){
+    check(range(key.time,0,clip.duration)&&key.time>last&&vec3(key.value)&&
+     key.value.every(v=>Math.abs(v)<200),'invalid keyframe');
+    last=key.time;
+   }
+  }
+ }
  return s;
 }
 function object(s,id){const found=s.objects.find(o=>o.id===id);check(found,'unknown object '+id);return found;}
@@ -129,6 +144,11 @@ function exec(s,c){
   case 'lighting.set':s.lights=clone(a.lights);return {lights:s.lights.length};
   case 'overlay.add':s.overlays.push(clone(a));return {overlay:true};
   case 'signal.bind':s.bindings.push(clone(a));return {binding:a.target};
+  case 'animation.set':{
+   check(a.clip&&typeof a.clip.id==='string','animation.set needs clip');
+   s.animation.clips=s.animation.clips.filter(x=>x.id!==a.clip.id);
+   s.animation.clips.push(clone(a.clip));return {clip:a.clip.id};
+  }
   case 'quality.set':s.quality=a.profile;return {quality:a.profile};
   default:throw Error('Unsupported visual command: '+c.operation);
  }
