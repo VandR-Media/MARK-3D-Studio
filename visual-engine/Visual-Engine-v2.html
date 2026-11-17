@@ -72,6 +72,13 @@
  <button id="newObject">Добавить 3D-деталь</button>
  <button id="deleteObject">Удалить объект</button></div>
 </details>
+<details class="panel">
+ <summary>Анимация · реальные ключевые кадры</summary>
+ <p>Создание отдельного клипа для выбранного 3D-объекта. JSON-рецепты поддерживают собственные ключевые кадры.</p>
+ <label>Клип <select id="clipSelect"></select></label>
+ <label>Временная позиция <input id="clipTime" type="range" min="0" max="1000" step="1" value="0"></label>
+ <div class="actions"><button id="addClip">Добавить пробный клип</button><button id="resetClip">Сбросить время</button></div>
+</details>
 <section class="panel">
  <h2>Проект и экспорт</h2>
  <div class="actions">
