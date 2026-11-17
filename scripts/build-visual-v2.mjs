@@ -13,7 +13,8 @@ const result=await build({entryPoints:[new URL('src/visual-engine/ui.js',root).p
  write:false,logLevel:'warning',legalComments:'none'});
 const javascript=new TextDecoder().decode(result.outputFiles[0].contents);
 if(javascript.includes('</script>'))throw Error('Bundled JS contains unsafe HTML script closer');
-const sha=/^[0-9a-f]{40}$/.test(process.env.GITHUB_SHA||'')?process.env.GITHUB_SHA:'local-unverified';
+const checkedOutSha=process.env.MARK_SOURCE_SHA||process.env.GITHUB_SHA||'';
+const sha=/^[0-9a-f]{40}$/.test(checkedOutSha)?checkedOutSha:'local-unverified';
 const html=source
  .replace('<link rel="stylesheet" href="./visual-v2.css">','<style>\n'+css+'\n</style>')
  .replace(/<script type="importmap">[\s\S]*?<\/script>/,'')
