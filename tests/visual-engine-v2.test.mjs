@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import Ajv2020 from 'ajv/dist/2020.js';
 import {runVisualRecipe,validateVisualScene,deserializeVisualScene,SIGNALS} from '../src/visual-engine/scene-model.js';
 import {StereoPcmAnalyzer,zeroStereoFrame,validateStereoFrame} from '../src/visual-engine/audio-frame.js';
+import {inspectVisualImport} from '../src/visual-engine/glb-guard.js';
+import {writeGlb} from '../src/glb.js';
 const readJson=path=>JSON.parse(readFileSync(path,'utf8'));
 const schema=readJson('schemas/mark-visual-recipe-v2.schema.json');
 const ajv=new Ajv2020({allErrors:true,strict:false});
@@ -106,4 +108,29 @@ test('all six channels remain independent for one 6-band synthetic PCM test',()=
  assert.ok(frame.right.high>frame.right.mid*5);
  assert.notEqual(frame.left.low,frame.right.low);
  assert.equal(frame.source,'pcm');
+});
+
+test('GLB import accepts static self-contained textured multi-mesh scene, rejects data-loss paths',()=>{
+ const doc={asset:{version:'2.0'},scene:0,scenes:[{nodes:[0,1]}],
+  nodes:[{mesh:0},{mesh:1}],meshes:[
+   {primitives:[{attributes:{POSITION:0},material:0}]},
+   {primitives:[{attributes:{POSITION:1},material:1}]}
+  ],
+  materials:[{pbrMetallicRoughness:{baseColorTexture:{index:0}}},
+   {pbrMetallicRoughness:{metallicRoughnessTexture:{index:0}},normalTexture:{index:0}}],
+  images:[{uri:'data:image/png;base64,iVBORw0KGgo='}],
+  textures:[{source:0}],buffers:[{byteLength:0}],bufferViews:[],
+  accessors:[{componentType:5126,count:3,type:'VEC3'}, {componentType:5126,count:3,type:'VEC3'}]};
+ const parsed={chunks:[{type:0x4e4f534a,data:new Uint8Array(0)}]};
+ const bytes=writeGlb(parsed,doc);
+ assert.deepEqual(inspectVisualImport(bytes).textures,1);
+ assert.equal(inspectVisualImport(bytes).meshes,2);
+ const altered=structuredClone(doc);altered.animations=[{samplers:[],channels:[]}];
+ assert.throws(()=>inspectVisualImport(writeGlb(parsed,altered)),/Анимированный GLB/);
+ altered.animations=[];altered.skins=[{}];
+ assert.throws(()=>inspectVisualImport(writeGlb(parsed,altered)),/Скелетный GLB/);
+ altered.skins=[];altered.extensionsUsed=['KHR_draco_mesh_compression'];
+ assert.throws(()=>inspectVisualImport(writeGlb(parsed,altered)),/неподдерживаемые расширения/);
+ altered.extensionsUsed=[];altered.meshes[0].primitives[0].targets=[{POSITION:0}];
+ assert.throws(()=>inspectVisualImport(writeGlb(parsed,altered)),/morph targets/);
 });
