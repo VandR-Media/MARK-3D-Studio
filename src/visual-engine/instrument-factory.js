@@ -10,19 +10,19 @@ const mat=(color,metalness=0,roughness=.65,extra={})=>({
  ...extra
 });
 const materials={
- enclosure:mat('#172131',.77,.29),bodyFace:mat('#101a27',.7,.39),
- bezel:mat('#536579',.9,.19),bezelEdge:mat('#9bbed2',.92,.22),
+ enclosure:mat('#172131',.77,.29),bodyface:mat('#101a27',.7,.39),
+ bezel:mat('#536579',.9,.19),bezeledge:mat('#9bbed2',.92,.22),
  dial:mat('#e4cf9a',.13,.65),dialDark:mat('#0f1927',.25,.50),
  amber:mat('#ffae52',.1,.35,{emissive:'#ff9519',emissiveIntensity:.54}),
  glass:mat('#9ac8ed',.05,.08,{type:'physical',opacity:.83,transmission:.64,thickness:.12,ior:1.47}),
  screw:mat('#a2b2bd',.94,.21),
  needle:mat('#ff904b',.4,.28,{emissive:'#f45620',emissiveIntensity:.17}),
- darkLed:mat('#16212a',.17,.45),
- greenLed:mat('#19ef9c',.1,.28,{emissive:'#16d677',emissiveIntensity:.0}),
- yellowLed:mat('#f6df49',.1,.28,{emissive:'#ffb61e',emissiveIntensity:.0}),
- redLed:mat('#ff5d55',.1,.24,{emissive:'#ff202e',emissiveIntensity:.0}),
- cyanLed:mat('#53e3ff',.1,.28,{emissive:'#27bfff',emissiveIntensity:.0}),
- magentaLed:mat('#fa6dff',.1,.28,{emissive:'#e92cfa',emissiveIntensity:.0}),
+ darkled:mat('#16212a',.17,.45),
+ greenled:mat('#19ef9c',.1,.28,{emissive:'#16d677',emissiveIntensity:.0}),
+ yellowled:mat('#f6df49',.1,.28,{emissive:'#ffb61e',emissiveIntensity:.0}),
+ redled:mat('#ff5d55',.1,.24,{emissive:'#ff202e',emissiveIntensity:.0}),
+ cyanled:mat('#53e3ff',.1,.28,{emissive:'#27bfff',emissiveIntensity:.0}),
+ magentaled:mat('#fa6dff',.1,.28,{emissive:'#e92cfa',emissiveIntensity:.0}),
  black:mat('#03060d',.13,.73),rubber:mat('#111319',.05,.83),
  marker:mat('#d3ecff',.63,.21)
 };
@@ -39,9 +39,9 @@ function builder(){
 }
 function casework(add,{width=9,height=5.2,depth=.72}={}){
  add('case.main','Milled aluminium outer body',{type:'bevel-box',width,height,depth,radius:.16,bevel:.105},'enclosure',[0,0,0]);
- add('case.front','Brushed front anodized panel',{type:'bevel-box',width:width-.23,height:height-.22,depth:.13,radius:.12,bevel:.045},'bodyFace',[0,0,depth/2+.03]);
- add('case.lowerline','Lower chrome edge',{type:'box',width:width-.45,height:.022,depth:.018},'bezelEdge',[0,-height/2+.28,depth/2+.125]);
- add('case.upperline','Upper chrome edge',{type:'box',width:width-.45,height:.024,depth:.018},'bezelEdge',[0,height/2-.28,depth/2+.125]);
+ add('case.front','Brushed front anodized panel',{type:'bevel-box',width:width-.23,height:height-.22,depth:.13,radius:.12,bevel:.045},'bodyface',[0,0,depth/2+.03]);
+ add('case.lowerline','Lower chrome edge',{type:'box',width:width-.45,height:.022,depth:.018},'bezeledge',[0,-height/2+.28,depth/2+.125]);
+ add('case.upperline','Upper chrome edge',{type:'box',width:width-.45,height:.024,depth:.018},'bezeledge',[0,height/2-.28,depth/2+.125]);
  for(const x of [-width/2+.33,width/2-.33])for(const y of [-height/2+.34,height/2-.34]){
   const id='screw.'+(x<0?'l':'r')+'.'+(y<0?'b':'t');
   add(id,'Recessed machined steel screw',{type:'cylinder',radiusTop:.085,radiusBottom:.085,height:.048,radialSegments:24},
@@ -56,8 +56,8 @@ function addSegmentColumns(g,{columns,originY,step=.19,width=.46,steps=11,parent
   g.add(group,'Real LED '+col.channel+' '+col.band,{type:'group'},null,
    [col.x,originY,z],parent);
   for(let j=0;j<steps;j++){
-   const shade=j>=Math.ceil(steps*.83)?'redLed':j>=Math.ceil(steps*.63)?'yellowLed':
-    colorful?(col.channel==='left'?'cyanLed':'magentaLed'):'greenLed';
+   const shade=j>=Math.ceil(steps*.83)?'redled':j>=Math.ceil(steps*.63)?'yellowled':
+    colorful?(col.channel==='left'?'cyanled':'magentaled'):'greenled';
    g.add(group+'.seg'+j,'Physical luminous lens '+j,
     {type:'bevel-box',width,height:step*.65,depth:.075,radius:.018,bevel:.012},
     shade,[0,j*step,.01],group,[0,0,0],{role:'led',threshold:(j+1)/steps,shade});
