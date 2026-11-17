@@ -1,9 +1,5 @@
 name: Publish MARK 3D Studio v0.2 Mesh Preview
 on:
-  push:
-    branches: ['develop/mesh-editor-v0.2']
-    paths:
-      - '.github/workflows/publish-mesh-preview.yml'
   workflow_dispatch:
 permissions:
   contents: write
