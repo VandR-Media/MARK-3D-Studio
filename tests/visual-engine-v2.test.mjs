@@ -149,3 +149,20 @@ test('safe JSON keyframe track targets a real GLB mesh, persists and rejects inv
  broken.commands[1].args.clip.tracks[0].keys[1].time=0;
  assert.throws(()=>runVisualRecipe(broken),/invalid keyframe/);
 });
+
+test('recipe security rejects unsafe material keys, SVG maps and waveform-to-numeric bindings',()=>{
+ const base=structuredClone(recipes[0]);
+ for(const id of ['__proto__','constructor']){
+  const recipe=structuredClone(base);
+  recipe.commands.push({operation:'material.set',args:{id,material:{
+   type:'standard',color:'#ffffff',metalness:0,roughness:.5}}});
+  assert.throws(()=>runVisualRecipe(recipe),/invalid material id/);
+ }
+ const dangerous=runVisualRecipe(base).scene;
+ dangerous.materials.enclosure.maps={baseColor:'data:image/svg+xml;base64,PHN2Zz48c2NyaXB0Pg=='};
+ assert.throws(()=>validateVisualScene(dangerous),/external\/invalid texture/);
+ const frame=structuredClone(base);
+ frame.commands.push({operation:'signal.bind',args:{
+  target:'needle.left',signal:'left.waveform',response:'needle'}});
+ assert.throws(()=>runVisualRecipe(frame),/invalid numeric binding/);
+});
