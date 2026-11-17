@@ -60,9 +60,21 @@ async function testPreset(preset,viewport){
   throw Error('Wrong real physical object count '+JSON.stringify(info));
  await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
  const front=await capture(page,kind+'-'+device+'-front.png');
+ const frontLabels=await page.evaluate(()=>window.MARK_VISUAL_API.overlayPositions());
  await page.evaluate(()=>window.MARK_VISUAL_API.view('threequarter'));
  const threequarter=await capture(page,kind+'-'+device+'-threequarter.png');
+ const angledLabels=await page.evaluate(()=>window.MARK_VISUAL_API.overlayPositions());
  if(front===threequarter)throw Error('3D parallax test failed: camera rotation produced identical pixels');
+ const anchorLabel=frontLabels.find(x=>x.anchor!=='hud'&&x.visible);
+ const moved=angledLabels.find(x=>x.anchor===anchorLabel?.anchor&&x.text===anchorLabel?.text);
+ if(!anchorLabel||!moved||!moved.visible||
+  Math.hypot(anchorLabel.left-moved.left,anchorLabel.top-moved.top)<.25)
+  throw Error('P0 overlay: dial lettering did not follow camera perspective');
+ await page.evaluate(()=>window.MARK_VISUAL_API.view('back'));
+ const backLabels=await page.evaluate(()=>window.MARK_VISUAL_API.overlayPositions());
+ const backVisible=backLabels.filter(x=>x.anchor!=='hud'&&x.visible).length;
+ if(backVisible!==0)throw Error('P0 overlay: device-face labels should be occluded from rear ('+backVisible+' visible)');
+ await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
  const b64=await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb());
  const glb=Buffer.from(b64,'base64'),parsed=parseGlb(glb).json;
  if(parsed.meshes.length<70||parsed.materials.length<10||parsed.nodes.length<75)
@@ -72,6 +84,36 @@ async function testPreset(preset,viewport){
  writeFileSync(join(output,kind+'-'+device+'.markscene'),JSON.stringify(saved,null,2)+'\n');
  const reloaded=await page.evaluate(async s=>window.MARK_VISUAL_API.loadScene(s),saved);
  if(reloaded.objects!==saved.objects.length)throw Error('Editable .markscene reload lost objects');
+ if(device==='desktop'){
+  const edited=structuredClone(saved);
+  const chassis=edited.objects.find(o=>o.id==='case.main');
+  chassis.position[0]+=.18;
+  edited.materials.enclosure.color='#304968';
+  await page.evaluate(async x=>window.MARK_VISUAL_API.loadScene(x),edited);
+  const modified=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
+  const doc=parseGlb(modified).json;
+  if(modified.equals(glb)||doc.meshes?.length!==parsed.meshes?.length||
+    doc.materials?.length!==parsed.materials?.length)
+   throw Error('P0 GLB edit: geometry/material changes were lost or node counts shifted');
+  writeFileSync(join(output,kind+'-desktop-edited.glb'),modified);
+  const lit=structuredClone(saved);
+  lit.lights[0].intensity=0;
+  await page.evaluate(async x=>window.MARK_VISUAL_API.loadScene(x),lit);
+  const muted=await capture(page,kind+'-light-change.png');
+  await page.evaluate(async x=>window.MARK_VISUAL_API.loadScene(x),saved);
+  const restored=await capture(page,kind+'-light-restored.png');
+  if(muted===restored)throw Error('P0 lighting: changing key light did not alter the true renderer');
+  await page.locator('#importGlb').setInputFiles({name:'scene-export.glb',
+   mimeType:'model/gltf-binary',buffer:glb});
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Импортировано'),
+   null,{timeout:15000});
+  const repeated=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
+  const repeatedDoc=parseGlb(repeated).json;
+  if(repeatedDoc.meshes?.length<parsed.meshes?.length*2)
+   throw Error('P0 GLB import/re-export lost imported meshes');
+  writeFileSync(join(output,kind+'-desktop-reimport.glb'),repeated);
+  await page.evaluate(async x=>window.MARK_VISUAL_API.loadScene(x),saved);
+ }
  if(kind==='analog'&&device==='desktop'){
   const keyRecipe=JSON.parse(readFileSync('recipes/visual-v2-keyframe-example.json','utf8'));
   await page.evaluate(async r=>window.MARK_VISUAL_API.loadRecipe(r),keyRecipe);
@@ -116,7 +158,8 @@ async function testPreset(preset,viewport){
  if(jsErrors.length)throw Error('Browser JavaScript exceptions: '+jsErrors.join(' | '));
  const summary={preset,device,viewport,meshCount:info.meshCount,ledCount:info.ledCount,
   glbBytes:glb.length,glbSha256:sha(glb),sceneNodes:parsed.nodes.length,
-  materialCount:parsed.materials.length,parallaxVerified:true,profiles:profileStats,status:'pass'};
+  materialCount:parsed.materials.length,parallaxVerified:true,
+  physicalLabelsFollowCamera:true,rearLabelsOccluded:true,profiles:profileStats,status:'pass'};
  report.tests.push(summary);console.log('VISUAL V2 WEBGL PASS '+JSON.stringify(summary));
  await page.close();
 }
