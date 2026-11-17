@@ -104,7 +104,7 @@ export class VisualRenderer{
   this.root=new THREE.Group();this.root.name='MARK Visual Scene';
   this.world.add(this.root);
   this.nodes=new Map();this.boundScene=null;this.ownedGeometry=[];this.ownedMaterials=[];
-  this.pmrem=null;this.composer=null;this.setProfile(profile);
+  this.pmrem=null;this.composer=null;this.environmentTexture=null;this.setProfile(profile);
  }
  setProfile(profile){
   if(!dimensions[profile])throw Error('Unknown quality '+profile);
@@ -141,21 +141,27 @@ export class VisualRenderer{
   this.nodes=new Map();this.boundScene=structuredClone(scene);
   this.world.background=new THREE.Color(scene.environment.color);
   this.world.environment=null;
+  this.environmentTexture?.dispose();this.environmentTexture=null;
   for(const object of [...this.world.children])if(object.userData.visualLight)this.world.remove(object);
   const q=dimensions[this.profile];
   if(q.env){
    const generator=this.pmrem||(this.pmrem=new THREE.PMREMGenerator(this.renderer));
-   if(scene.environment.hdri){
-    // Embeddable HDRI supplied as a data URI; no CDN or network required.
-    const hdr=await new RGBELoader().loadAsync(scene.environment.hdri);
-    this.world.environment=generator.fromEquirectangular(hdr).texture;
-    hdr.dispose?.();
-   }else{
-    const room=new RoomEnvironment();
-    this.world.environment=generator.fromScene(room).texture;
-    room.dispose();
+   try{
+    if(scene.environment.hdri){
+     // Embeddable HDRI supplied as a data URI; no CDN or network required.
+     const hdr=await new RGBELoader().loadAsync(scene.environment.hdri);
+     this.environmentTexture=generator.fromEquirectangular(hdr).texture;
+     hdr.dispose?.();
+    }else{
+     const room=new RoomEnvironment();
+     this.environmentTexture=generator.fromScene(room).texture;
+     room.dispose();
+    }
+    this.world.environment=this.environmentTexture;
+    this.world.environmentIntensity=scene.environment.intensity;
+   }catch(error){
+    console.warn('MARK Visual Engine: environment fallback to three direct PBR lights',error);
    }
-   this.world.environmentIntensity=scene.environment.intensity;
   }
   for(const l of scene.lights){
    let light;
@@ -182,6 +188,8 @@ export class VisualRenderer{
   for(const object of scene.objects){
    const geo=makeVisualGeometry(object.geometry,this.profile);
    const mat=mats.get(object.material);
+   if(geo&&mat?.aoMap&&geo.attributes.uv&&!geo.attributes.uv2)
+    geo.setAttribute('uv2',geo.attributes.uv.clone());
    const target=geo?new THREE.Mesh(geo,mat||new THREE.MeshBasicMaterial({color:'#ffffff'})):new THREE.Group();
    target.name=object.name;target.userData.markId=object.id;target.userData.meta=structuredClone(object.meta||{});
    target.position.set(...object.position);target.rotation.set(...object.rotation);
@@ -246,10 +254,16 @@ export class VisualRenderer{
  }
  async exportGlb(){
   const exporter=new GLTFExporter();
-  const data=await exporter.parseAsync(this.root,{binary:true,trs:true,onlyVisible:false,includeCustomExtensions:true});
+  const exportRoot=this.root.clone(true);
+  exportRoot.add(this.camera.clone());
+  for(const object of this.world.children)
+   if(object.userData.visualLight)exportRoot.add(object.clone());
+  const data=await exporter.parseAsync(exportRoot,{
+   binary:true,trs:true,onlyVisible:false,includeCustomExtensions:true});
   return new Uint8Array(data);
  }
  dispose(){
-  this.controls.dispose();this.composer?.dispose();this.pmrem?.dispose();this.renderer.dispose();
+  this.controls.dispose();this.composer?.dispose();this.environmentTexture?.dispose();
+  this.pmrem?.dispose();this.renderer.dispose();
  }
 }
