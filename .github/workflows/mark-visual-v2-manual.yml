@@ -1,0 +1,59 @@
+name: MARK Visual Engine v2 — manual acceptance only
+
+# Registration workflow only. No push, pull_request, schedule or release triggers.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mark-visual-engine-v2-manual-acceptance
+  cancel-in-progress: true
+
+jobs:
+  visual-engine-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout experimental renderer without merging it into main
+        uses: actions/checkout@v4
+        with:
+          ref: develop/visual-engine-v2
+          persist-credentials: false
+      - name: Set artifact provenance to tested feature branch SHA
+        shell: bash
+        run: echo "GITHUB_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install runtime and test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate JSON scene recipes, PBR depth, PCM and GLB contract
+        run: npm run test:visual-v2
+      - name: Build two editable 3D scenes and offline Huawei WebGL HTML
+        run: |
+          npm run visual:v2:recipe -- --recipe recipes/visual-v2-analog-studio.json
+          npm run visual:v2:recipe -- --recipe recipes/visual-v2-spectrum-matrix.json
+          npm run visual:v2:build
+      - name: Install Chromium for software-backed real WebGL2 checks
+        run: npx playwright install --with-deps chromium
+      - name: Render actual 3D, export/reimport GLB, verify labels, light and stereo WAV
+        run: npm run visual:v2:accept
+      - name: Upload source-matched 3D evidence and editable scenes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-visual-v2-manual-evidence
+          path: dist/visual-v2/
+          if-no-files-found: warn
+      - name: Upload standalone offline Huawei preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-visual-v2-offline-Huawei-HTML
+          path: |
+            dist/MARK-Visual-Engine-v2.html
+            dist/visual-v2-build-info.json
+          if-no-files-found: warn
