@@ -30,13 +30,26 @@ function recipeFor(kind){
    {operation:'camera.set',args:{position:[0,0,13.4],target:[0,0,0],fov:37}}]};
 }
 function status(msg,error=false){$('status').textContent=msg;$('status').dataset.error=error?'yes':'no';}
+function positionOverlays(){
+ if(!scene||!viewer)return;
+ const elements=$('overlay').children;
+ for(const [i,item] of scene.overlays.entries()){
+  const element=elements[i];if(!element)continue;
+  const projected=viewer.projectOverlay(item);
+  element.style.display=projected.visible?'':'none';
+  element.style.left=(projected.x*100)+'%';
+  element.style.top=(projected.y*100)+'%';
+  element.dataset.anchor=item.anchor||'hud';
+ }
+}
 function overlays(){
  const layer=$('overlay');layer.replaceChildren();
  for(const item of scene.overlays){
   const el=document.createElement('span');el.className='mark-label';
-  el.textContent=item.text;el.style.left=(item.x*100)+'%';el.style.top=(item.y*100)+'%';
+  el.textContent=item.text;
   el.style.color=item.color;el.style.fontSize=(item.size||12)+'px';layer.append(el);
  }
+ positionOverlays();
 }
 function inspector(){
  const select=$('objectSelect'),old=select.value;select.replaceChildren();
@@ -357,6 +370,7 @@ function installEvents(){
 async function start(){
  try{
   viewer=new VisualRenderer($('visualCanvas'),{profile:'normal'});
+  viewer.onRender=positionOverlays;
   installEvents();await changeMode(mode);
   silence();window.__MARK_VISUAL_READY__=true;
   window.MARK_VISUAL_API={
@@ -365,6 +379,10 @@ async function start(){
    scene:()=>structuredClone(scene),
    modelInfo,renderFrame,zero:()=>silence(),
    view:x=>viewer.setView(x),setQuality:async x=>{scene.quality=x;await setScene(scene);},
+   overlayPositions:()=>Array.from($('overlay').children).map(e=>({
+    text:e.textContent,anchor:e.dataset.anchor,visible:e.style.display!=='none',
+    left:parseFloat(e.style.left),top:parseFloat(e.style.top)
+   })),
    image:()=>viewer.canvas.toDataURL('image/png'),
    exportGlb:async()=>bytesToBase64(await viewer.exportGlb()),
    renderStats:()=>({objectCount:scene.objects.length,meshCount:[...viewer.nodes.values()].filter(x=>x.isMesh).length,
