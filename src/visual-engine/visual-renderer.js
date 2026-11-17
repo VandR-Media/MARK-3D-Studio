@@ -139,6 +139,7 @@ export class VisualRenderer{
    else o.material.dispose();
   }});
   this.nodes=new Map();this.boundScene=structuredClone(scene);
+  this.renderer.toneMappingExposure=scene.environment.exposure??1.14;
   this.world.background=new THREE.Color(scene.environment.color);
   this.world.environment=null;
   this.environmentTexture?.dispose();this.environmentTexture=null;
