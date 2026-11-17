@@ -63,7 +63,7 @@ export function makeVisualGeometry(g,quality='normal'){
 function makeMaterial(m){
  const props={color:m.color,metalness:m.metalness,roughness:m.roughness,
   emissive:m.emissive||'#000000',emissiveIntensity:m.emissiveIntensity||0,
-  opacity:m.opacity??1,transparent:(m.opacity??1)<1||m.transmission>0,
+  opacity:m.opacity??1,transparent:(m.opacity??1)<1,
   side:THREE.FrontSide,depthWrite:(m.opacity??1)===1};
  if(m.type==='physical')return new THREE.MeshPhysicalMaterial({...props,
   transmission:m.transmission??0,thickness:m.thickness??.08,ior:m.ior??1.48,
