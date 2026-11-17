@@ -22,7 +22,7 @@ const html=source
   '<span class="small-link">MARK Studio · offline</span>')
  .replace('</head>','<meta name="mark-visual-source-sha" content="'+sha+'"></head>')
  .replace('</body>','<script>\n'+javascript+'\n</script>\n</body>');
-if(/https:\/\/|type="importmap"|src="\.\.\/src\/visual-engine/.test(html))
+if(/<script[^>]+src=["']https?:|<link[^>]+href=["']https?:|type="importmap"|src="\.\.\/src\/visual-engine/.test(html))
  throw Error('Offline visual HTML still references a remote runtime');
 mkdirSync(new URL('dist/',root),{recursive:true});
 const target=new URL('dist/MARK-Visual-Engine-v2.html',root);
