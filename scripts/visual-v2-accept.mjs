@@ -32,7 +32,7 @@ const wav=makeStereoWav(),browser=await chromium.launch({headless:true,args:[
  '--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
  '--enable-unsafe-swiftshader','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required'
 ]});
-const report={sourceCommit:process.env.GITHUB_SHA||'local-unverified',renderer:'Chromium WebGL2',
+const report={sourceCommit:process.env.MARK_SOURCE_SHA||process.env.GITHUB_SHA||'local-unverified',renderer:'Chromium WebGL2',
  syntheticInput:'Decoded 9 s WAV with L=120 Hz R=6000 Hz (independent known PCM; not a commercial track)',
  tests:[],screenshots:[],errors:[],status:'running',deviceMeasured:false};
 async function capture(page,file){
