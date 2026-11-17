@@ -45,7 +45,17 @@ function inspector(){
   select.append(opt);
  }
  if(scene.objects.some(o=>o.id===old))select.value=old;else select.value='case.main';
- fillObject();
+ fillObject();refreshClips();
+}
+function refreshClips(){
+ const select=$('clipSelect'),old=select.value;select.replaceChildren();
+ for(const clip of scene?.animation?.clips||[]){
+  const opt=document.createElement('option');opt.value=clip.id;opt.textContent=clip.id;
+  select.append(opt);
+ }
+ if((scene?.animation?.clips||[]).some(c=>c.id===old))select.value=old;
+ select.disabled=!scene?.animation?.clips?.length;
+ $('clipTime').disabled=select.disabled;
 }
 function fillObject(){
  const obj=scene.objects.find(x=>x.id===$('objectSelect').value);
@@ -265,6 +275,36 @@ function installEvents(){
    await setScene(next);status('Удалено объектов: '+ids.size);
   }catch(e){status(e.message,true);}
  });
+ $('clipSelect').addEventListener('change',()=>{
+  $('clipTime').value=0;
+  const clip=scene.animation.clips.find(c=>c.id===$('clipSelect').value);
+  if(clip)viewer.applyAnimation(clip.id,0);
+ });
+ $('clipTime').addEventListener('input',e=>{
+  try{
+   const clip=scene.animation.clips.find(c=>c.id===$('clipSelect').value);
+   if(clip)viewer.applyAnimation(clip.id,Number(e.target.value)/1000*clip.duration);
+  }catch(err){status(err.message,true);}
+ });
+ $('addClip').addEventListener('click',async()=>{
+  try{
+   const obj=scene.objects.find(o=>o.id===$('objectSelect').value);
+   if(!obj)throw Error('Выберите объект');
+   const next=structuredClone(scene);
+   const clipId='clip.'+String(next.animation.clips.length+1);
+   const base=[...obj.rotation],offset=[base[0],base[1]+.12,base[2]];
+   next.animation.clips.push({id:clipId,duration:2,loop:true,
+    tracks:[{target:obj.id,property:'rotation',keys:[
+     {time:0,value:base},{time:1,value:offset},{time:2,value:base}
+    ]}]});
+   await setScene(next);$('clipSelect').value=clipId;status('Создан настоящий 3D-клип: '+clipId);
+  }catch(err){status('Анимация: '+err.message,true);}
+ });
+ $('resetClip').addEventListener('click',()=>{
+  $('clipTime').value=0;
+  const clip=scene.animation.clips.find(c=>c.id===$('clipSelect').value);
+  if(clip)viewer.applyAnimation(clip.id,0);
+ });
  $('exposure').addEventListener('input',e=>{
   const value=Number(e.target.value);
   if(scene){scene.environment.exposure=value;viewer.renderer.toneMappingExposure=value;viewer.render();}
@@ -333,7 +373,8 @@ async function start(){
     const id='meter.'+ch+'.'+b,node=viewer.nodes.get(id);
     return [ch+'.'+b,(node?.children||[]).filter(o=>o.isMesh&&o.material?.emissiveIntensity>.1).length];
    }))),
-   audioState:()=>({playing,demo,source:lastFrame.source,left:lastFrame.left.low,right:lastFrame.right.high})
+   audioState:()=>({playing,demo,source:lastFrame.source,left:lastFrame.left.low,right:lastFrame.right.high}),
+   seekAnimation:(clip,time)=>viewer.applyAnimation(clip,time)
   };
  }catch(e){
   window.__MARK_VISUAL_ERROR__=e.message;status('Ошибка запуска 3D: '+e.message,true);console.error(e);
