@@ -104,6 +104,7 @@ export class VisualRenderer{
   this.root=new THREE.Group();this.root.name='MARK Visual Scene';
   this.world.add(this.root);
   this.nodes=new Map();this.boundScene=null;this.ownedGeometry=[];this.ownedMaterials=[];
+  this.occluders=[];this.raycaster=new THREE.Raycaster();this.onRender=null;
   this.pmrem=null;this.composer=null;this.environmentTexture=null;this.setProfile(profile);
  }
  setProfile(profile){
@@ -197,7 +198,9 @@ export class VisualRenderer{
    target.userData.markId=object.id;target.userData.meta=structuredClone(object.meta||{});
    target.position.set(...object.position);target.rotation.set(...object.rotation);
    target.scale.set(...object.scale);target.visible=object.visible;
-   if(target.isMesh){target.castShadow=true;target.receiveShadow=true;
+   if(target.isMesh){
+    const transmissive=target.material.transmission>0;
+    target.castShadow=!transmissive;target.receiveShadow=!transmissive;
     if(target.userData.meta.role==='led'){
      // Separate material per lens: independent real emission per frequency band.
      target.material=mat.clone();target.userData.onColor=mat.color.clone();
@@ -210,6 +213,11 @@ export class VisualRenderer{
    const target=this.nodes.get(o.id),parent=o.parent?this.nodes.get(o.parent):this.root;
    parent.add(target);
   }
+  // Rebuild occluder set once per scene, never per rendered frame.
+  // Protective transmissive glass is transparent to the text ray test,
+  // while actual metal and mechanical parts occlude labels naturally.
+  this.occluders=[...this.nodes.values()].filter(x=>
+   x.isMesh&&x.material?.opacity>=1&&!x.material.transparent);
   this.resize();
   return {objects:this.nodes.size,meshes:[...this.nodes.values()].filter(x=>x.isMesh).length};
  }
@@ -236,9 +244,33 @@ export class VisualRenderer{
   }
   this.render();
  }
+ /**
+  * World-space anchored 2D typography: follows yaw/pitch/zoom and node
+  * transforms. Opaque front geometry hides labels; transmissive glazing does
+  * not. HUD-only overlays can still use normalized x/y without an anchor.
+  */
+ projectOverlay(item){
+  if(!item.anchor)return {x:item.x,y:item.y,visible:true};
+  const node=this.nodes.get(item.anchor);
+  if(!node||!Array.isArray(item.offset))return {x:0,y:0,visible:false};
+  this.root.updateMatrixWorld(true);this.camera.updateMatrixWorld();
+  const world=node.localToWorld(new THREE.Vector3(...item.offset));
+  const projected=world.clone().project(this.camera);
+  if(projected.z< -1||projected.z>1||Math.abs(projected.x)>1.05||Math.abs(projected.y)>1.05)
+   return {x:0,y:0,visible:false};
+  const direction=world.clone().sub(this.camera.position),distance=direction.length();
+  let occluded=false;
+  if(distance>.05){
+   this.raycaster.set(this.camera.position,direction.normalize());
+   this.raycaster.near=.01;this.raycaster.far=Math.max(.01,distance-.025);
+   occluded=this.raycaster.intersectObjects(this.occluders,false).length>0;
+  }
+  return {x:.5+projected.x*.5,y:.5-projected.y*.5,visible:!occluded};
+ }
  render(){
   if(!this.renderer||!this.camera)return;
   if(this.composer)this.composer.render();else this.renderer.render(this.world,this.camera);
+  this.onRender?.();
  }
  setView(view){
   const views={front:[0,0,13],left:[-8,1,10],right:[8,1,10],threequarter:[5,3,12],
