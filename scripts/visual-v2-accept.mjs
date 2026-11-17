@@ -71,6 +71,23 @@ async function testPreset(preset,viewport){
  const saved=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
  const reloaded=await page.evaluate(async s=>window.MARK_VISUAL_API.loadScene(s),saved);
  if(reloaded.objects!==saved.objects.length)throw Error('Editable .markscene reload lost objects');
+ if(kind==='analog'&&device==='desktop'){
+  const keyRecipe=JSON.parse(readFileSync('recipes/visual-v2-keyframe-example.json','utf8'));
+  await page.evaluate(async r=>window.MARK_VISUAL_API.loadRecipe(r),keyRecipe);
+  await page.evaluate(()=>window.MARK_VISUAL_API.seekAnimation('camera-tilt-study',0));
+  const pose0=await capture(page,'analog-keyframe-start.png');
+  await page.evaluate(()=>window.MARK_VISUAL_API.seekAnimation('camera-tilt-study',1));
+  const pose1=await capture(page,'analog-keyframe-mid.png');
+  if(pose0===pose1)throw Error('Keyframe animation does not transform real 3D geometry');
+  const clipGlb=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
+  const clipDoc=parseGlb(clipGlb).json;
+  if(!clipDoc.animations?.length)throw Error('GLB lost keyframe animation clips');
+  writeFileSync(join(output,'analog-keyframe-animated.glb'),clipGlb);
+  report.tests.push({preset:'analog-keyframe-animation',status:'pass',
+   animations:clipDoc.animations.length,realGlbBytes:clipGlb.length});
+  const originalRecipe=JSON.parse(readFileSync('recipes/visual-v2-analog-studio.json','utf8'));
+  await page.evaluate(async r=>window.MARK_VISUAL_API.loadRecipe(r),originalRecipe);
+ }
  if(device==='desktop'){
   await page.locator('#audioFile').setInputFiles({name:'independent-stereo-120Hz-6000Hz.wav',
    mimeType:'audio/wav',buffer:wav});
