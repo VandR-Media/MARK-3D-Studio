@@ -147,8 +147,7 @@ export class VisualRenderer{
    const generator=this.pmrem||(this.pmrem=new THREE.PMREMGenerator(this.renderer));
    if(scene.environment.hdri){
     // Embeddable HDRI supplied as a data URI; no CDN or network required.
-    const data=await fetch(scene.environment.hdri).then(r=>r.arrayBuffer());
-    const hdr=new RGBELoader().parse(data);
+    const hdr=await new RGBELoader().loadAsync(scene.environment.hdri);
     this.world.environment=generator.fromEquirectangular(hdr).texture;
     hdr.dispose?.();
    }else{
@@ -210,12 +209,12 @@ export class VisualRenderer{
    const target=this.nodes.get(b.target);if(!target)continue;
    const path=b.signal.split('.');
    const value=frame.playing?(path.length===2?frame[path[0]]?.[path[1]]:frame[b.signal])||0:0;
-   const magnitude=clamp(value*(b.gain??1));
+   const magnitude=clamp(value);
    if(b.response==='needle')target.rotation.z=(b.offset??-.95)+magnitude*(b.gain??1);
    else if(b.response==='led-column'){
     for(const led of target.children){
      if(!led.isMesh||led.userData.meta?.role!=='led')continue;
-     const isOn=magnitude>=led.userData.meta.threshold;
+     const isOn=clamp(magnitude*(b.gain??1))>=led.userData.meta.threshold;
      led.material.emissiveIntensity=isOn?2.2:0;
      led.material.color.copy(isOn?led.userData.onColor:new THREE.Color('#15212b'));
     }
@@ -228,8 +227,7 @@ export class VisualRenderer{
  }
  render(){
   if(!this.renderer||!this.camera)return;
-  this.renderer.render(this.world,this.camera);
-  if(this.composer)this.composer.render();
+  if(this.composer)this.composer.render();else this.renderer.render(this.world,this.camera);
  }
  setView(view){
   const views={front:[0,0,13],left:[-8,1,10],right:[8,1,10],threequarter:[5,3,12],
