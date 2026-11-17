@@ -12,7 +12,7 @@ const mat=(color,metalness=0,roughness=.65,extra={})=>({
 const materials={
  enclosure:mat('#172131',.77,.29),bodyface:mat('#101a27',.7,.39),
  bezel:mat('#536579',.9,.19),bezeledge:mat('#9bbed2',.92,.22),
- dial:mat('#e4cf9a',.13,.65),dialDark:mat('#0f1927',.25,.50),
+ dial:mat('#e4cf9a',.13,.65),dialdark:mat('#0f1927',.25,.50),
  amber:mat('#ffae52',.1,.35,{emissive:'#ff9519',emissiveIntensity:.54}),
  glass:mat('#9ac8ed',.05,.08,{type:'physical',opacity:.83,transmission:.64,thickness:.12,ior:1.47}),
  screw:mat('#a2b2bd',.94,.21),
