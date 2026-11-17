@@ -217,7 +217,8 @@ export class VisualRenderer{
   // Protective transmissive glass is transparent to the text ray test,
   // while actual metal and mechanical parts occlude labels naturally.
   this.occluders=[...this.nodes.values()].filter(x=>
-   x.isMesh&&x.material?.opacity>=1&&!x.material.transparent);
+   x.isMesh&&x.material?.opacity>=1&&!x.material.transparent&&
+   !(x.material?.transmission>0));
   this.resize();
   return {objects:this.nodes.size,meshes:[...this.nodes.values()].filter(x=>x.isMesh).length};
  }
