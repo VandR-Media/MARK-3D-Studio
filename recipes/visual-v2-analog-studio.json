@@ -1,0 +1,46 @@
+{
+  "schema": "mark.visual-recipe/2",
+  "id": "analog-studio-v2",
+  "name": "MARK Analog Studio — physical stereo gauge instrument",
+  "commands": [
+    {
+      "operation": "instrument.create",
+      "args": {
+        "kind": "analog-studio",
+        "params": {
+          "width": 9.15,
+          "height": 5.2
+        }
+      }
+    },
+    {
+      "operation": "quality.set",
+      "args": {
+        "profile": "normal"
+      }
+    },
+    {
+      "operation": "camera.set",
+      "args": {
+        "position": [
+          0,
+          0,
+          13.4
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fov": 37
+      }
+    },
+    {
+      "operation": "environment.set",
+      "args": {
+        "color": "#07101d",
+        "intensity": 0.68
+      }
+    }
+  ]
+}
