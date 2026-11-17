@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
       - name: Set artifact provenance to tested feature branch SHA
         shell: bash
-        run: echo "GITHUB_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+        run: echo "MARK_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Install Node
         uses: actions/setup-node@v4
         with:
