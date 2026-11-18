@@ -48,12 +48,25 @@ function assertEqual(a,b,path,epsilon=1e-5){
   if(!nearly(a,b,epsilon))throw Error(path+' numerical drift '+a+' vs '+b);
  }else if(a!==b)throw Error(path+' mismatch '+String(a)+' vs '+String(b));
 }
+function unpadPng(bytes){
+ const signature=[137,80,78,71,13,10,26,10];
+ if(signature.some((v,i)=>bytes[i]!==v))throw Error('Invalid PNG signature');
+ let offset=8;const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+ while(offset+12<=bytes.length){
+  const length=view.getUint32(offset,false);
+  if(length>bytes.length-offset-12)throw Error('Truncated embedded PNG chunk');
+  const kind=String.fromCharCode(...bytes.subarray(offset+4,offset+8));
+  offset+=12+length;
+  if(kind==='IEND')return bytes.subarray(0,offset);
+ }
+ throw Error('Embedded PNG missing IEND');
+}
 function imageDigest(doc,bin,id){
  const image=doc.images?.[id];
  if(!image)throw Error('Missing embedded texture source '+id);
  const bytes=imageBytes(doc,bin,image);
  if((image.mimeType==='image/png'||bytes[0]===137)){
-  const bitmap=PNG.sync.read(Buffer.from(bytes));
+  const bitmap=PNG.sync.read(Buffer.from(unpadPng(bytes)));
   return createHash('sha256').update(bitmap.data).digest('hex')+
    ':'+bitmap.width+'x'+bitmap.height;
  }
@@ -124,7 +137,7 @@ function compareImages(A,ab,B,bb,epsilon){
   const left=imageBytes(A,ab,x),right=imageBytes(B,bb,y);
   if((x.mimeType==='image/png'||left[0]===137)&&
      (y.mimeType==='image/png'||right[0]===137)){
-   const a=PNG.sync.read(Buffer.from(left)),b=PNG.sync.read(Buffer.from(right));
+   const a=PNG.sync.read(Buffer.from(unpadPng(left))),b=PNG.sync.read(Buffer.from(unpadPng(right)));
    if(a.width!==b.width||a.height!==b.height)throw Error('Texture dimensions changed '+i);
    if(!Buffer.from(a.data).equals(Buffer.from(b.data)))
     throw Error('Embedded texture pixel data changed '+i);
