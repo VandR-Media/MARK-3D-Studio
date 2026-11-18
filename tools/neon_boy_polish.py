@@ -242,4 +242,77 @@ for ob in objects:
     if ob.type=="MESH":
         ob["mark_editable"]=True
         ob["mark_unit"]="meter"
+# ---------- Final visual QA corrections ----------
+# Remove floating circular fold tubes. Fabric folds must be built into the mesh,
+# not as decorative bars orbiting the pants.
+for side in ("L","R"):
+    for j in range(3): _remove_proxy("FabricFold_"+side+str(j))
+    for j in range(4): _remove_proxy("Cargo_Crease_"+side+str(j))
+    _remove_proxy("Knee_Pleat_"+side)
+    _remove_proxy("Cargo_RearPocket_"+side)
+    _remove_proxy("RearPocketV_"+side)
+    # True shallow seam pockets; the previous giant boxes read like armor.
+    po=bpy.data.objects.get("CargoPocket_"+side)
+    if po: po.scale.x=.46
+    flap=bpy.data.objects.get("CargoPocketFlap_"+side)
+    if flap: flap.scale.x=.6
+    # Natural creases sculpted directly into the trouser surface.
+    pant=bpy.data.objects.get("CargoPants_"+side)
+    if pant:
+        sign=-1 if side=="L" else 1
+        cx=sign*.48
+        for v in pant.data.vertices:
+            dx=v.co.x-cx;dy=v.co.y-.025;z=v.co.z
+            theta=atan2(dy,dx)
+            wrinkle=0.012*sin(z*23+theta*2.8)+0.012*sin(z*34-theta*1.7)
+            if .8<z<1.9:
+                wrinkle+=.014*sin(z*13+theta*3)
+            r=sqrt(dx*dx+dy*dy)
+            if r>.001:
+                sc=1+wrinkle
+                v.co.x=cx+dx*sc
+                v.co.y=.025+dy*sc
+# Remove anatomical spherical cheek blemishes and use color-only cheek highlights.
+for side,s in (("L",-1),("R",1)):
+    _remove_proxy("SmileDimple_"+side)
+    _remove_proxy("Cheek_"+side)
+    # Subtle cheek blush patch, almost flush with the head, not toy-like protrusion.
+    cheek=ball("Cheek_Rose_"+side,(s*.248,-.337,4.329),(.095,.010,.040),"cheek",20,12)
+    skin(cheek,"Head")
+_remove_proxy("LowerLip")
+# Replace oversized pouch with curved low-profile fabric panel and sewn opening.
+_remove_proxy("Kangaroo_Pocket")
+_remove_proxy("Pouch_Top_Stitch")
+for side in (-1,1):
+    _remove_proxy("PocketEdge_"+str(side))
+pockverts=[
+    (-.47,-.340,2.94),(-.30,-.405,2.98),(0,-.445,2.99),(.30,-.405,2.98),(.47,-.340,2.94),
+    (-.43,-.355,2.63),(-.28,-.408,2.62),(0,-.452,2.615),(.28,-.408,2.62),(.43,-.355,2.63)]
+pockfaces=[(0,1,6,5),(1,2,7,6),(2,3,8,7),(3,4,9,8)]
+pouch=mesh_create("Kangaroo_Pocket_SewnFabric",pockverts,pockfaces,"hoodie_top")
+skin(pouch,"Spine")
+skin(tube("Pouch_Upper_Seam",pockverts[:5],.009,"hoodie_seam",8),"Spine")
+skin(tube("Pouch_Lower_Seam",pockverts[5:10],.007,"hoodie_seam",8),"Spine")
+for sign in (-1,1):
+    skin(line("Pouch_Side_Seam_"+str(sign),
+      (sign*.45,-.34,2.93),(sign*.42,-.355,2.66),.007,"hoodie_seam"),"Spine")
+# Tailored stitching of jeans is internal fabric line, not a protruding cable.
+for ob in objects:
+    if ob.name.startswith("Cargo_OuterSeam_"):
+        for v in ob.data.vertices:
+            # Pull seam inward to the underlying pant surface
+            sign=-1 if "_L" in ob.name else 1
+            v.co.x-=sign*.025
+# Realistic rear pockets, stitched outlines laid nearly flush against pants.
+for side,s in (("L",-1),("R",1)):
+    cx=s*.48
+    pts=[(cx-.155,.290,2.14),(cx+.155,.290,2.14),
+         (cx+.13,.311,1.935),(cx,.332,1.90),
+         (cx-.13,.311,1.935),(cx-.155,.290,2.14)]
+    skin(tube("Rear_Stitched_Pocket_"+side,pts,.009,"cargo_light"),"Thigh."+side)
+# Tone down semi-futuristic ear cup M face slightly to match reference
+for ob in objects:
+    if ob.name.startswith("EarCushion_Stitch_"):
+        pass
+
 print("MARK_POLISH_SUCCESS",len(objects))
