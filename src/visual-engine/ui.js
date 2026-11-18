@@ -18,7 +18,7 @@ const download=(value,name,type='application/json')=>{
 };
 let viewer,scene,analyzer=null,audioContext=null,source=null,buffer=null,
  playing=false,audioStart=0,pauseOffset=0,lastIndex=0,raf=0,mode='analog-studio',
- demo=false,activeChannel=0,lastFrame=zeroStereoFrame();
+ demo=false,activeChannel=0,playbackStarts=0,lastFrame=zeroStereoFrame();
 const modelInfo=()=>({id:scene.id,objects:scene.objects.length,materials:Object.keys(scene.materials).length,
  bindings:scene.bindings.length,mode,realMeshes:[...viewer.nodes.values()].filter(x=>x.isMesh).length});
 function recipeFor(kind){
@@ -230,6 +230,7 @@ async function startAudio(){
   }
  };
  active.start(0,pauseOffset);
+ playbackStarts++;
  playing=true;playbackUI('REAL PCM · воспроизводится и анализируется');
  requestFrame();
 }
@@ -455,7 +456,7 @@ async function start(){
    loadRecipe:async x=>{const r=runVisualRecipe(x);await setScene(r.scene);return modelInfo();},
    loadScene:async x=>{await setScene(x);return modelInfo();},
    scene:()=>structuredClone(scene),
-   audioStatus:()=>({playing,demo,loaded:Boolean(buffer),offsetSeconds:pauseOffset,
+   audioStatus:()=>({playing,demo,loaded:Boolean(buffer),starts:playbackStarts,offsetSeconds:pauseOffset,
     durationSeconds:buffer?.duration||0,channels:buffer?.numberOfChannels||0,
     pcmSource:lastFrame.source}),
    modelInfo,renderFrame,zero:()=>silence(),
