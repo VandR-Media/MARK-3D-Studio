@@ -206,7 +206,16 @@ test('GLB numeric fidelity checker catches vertex and PBR losses even with match
  material.materials[0].pbrMetallicRoughness.roughnessFactor=.7;
  assert.throws(()=>compareGlbFidelity(original,bytes(material,bin)),/roughness/);
  const transform=structuredClone(doc);transform.nodes[0].translation[0]=4;
- assert.throws(()=>compareGlbFidelity(original,bytes(transform,bin)),/worldMatrix/);
+ // A directly changed mesh transform is caught by the local-matrix gate first.
+ assert.throws(()=>compareGlbFidelity(original,bytes(transform,bin)),/localMatrix/);
+ // A moved non-mesh ancestor leaves the mesh local transform unchanged;
+ // verify the independent world-matrix gate catches that regression.
+ const parented=structuredClone(doc);
+ parented.scenes[0].nodes=[1];
+ parented.nodes.push({children:[0],translation:[0,0,0]});
+ const movedParent=structuredClone(parented);
+ movedParent.nodes[1].translation[0]=4;
+ assert.throws(()=>compareGlbFidelity(bytes(parented,bin),bytes(movedParent,bin)),/worldMatrix/);
 });
 
 test('GLB fidelity checks actual embedded PNG pixels, UV selectors and texture samplers',()=>{
