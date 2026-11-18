@@ -48,13 +48,11 @@ jobs:
           npm run pro:rig:qa
           npm run pro:rig:viewer
           npm run pro:rig:native
-      - name: Install Chromium and required MP4 encoder for real animation evidence
+      - name: Install Chromium and verify required MP4 encoder (without global apt mutation)
+        timeout-minutes: 8
         run: |
-          npx playwright install --with-deps chromium
-          if ! command -v ffmpeg >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y ffmpeg
-          fi
+          npx playwright install chromium
+          command -v ffmpeg
           ffmpeg -hide_banner -version | head -1
       - name: Capture real skinned poses, morphs, 3 clips, viewpoints, animated GLB export and frames
         run: npm run pro:rig:accept
