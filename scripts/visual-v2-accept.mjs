@@ -61,6 +61,11 @@ async function testPreset(preset,viewport){
  await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
  const front=await capture(page,kind+'-'+device+'-front.png');
  const frontLabels=await page.evaluate(()=>window.MARK_VISUAL_API.overlayPositions());
+ await page.evaluate(()=>window.MARK_VISUAL_API.view('left30'));
+ await capture(page,kind+'-'+device+'-left30.png');
+ await page.evaluate(()=>window.MARK_VISUAL_API.view('right30'));
+ await capture(page,kind+'-'+device+'-right30.png');
+ await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
  await page.evaluate(()=>window.MARK_VISUAL_API.view('threequarter'));
  const threequarter=await capture(page,kind+'-'+device+'-threequarter.png');
  const angledLabels=await page.evaluate(()=>window.MARK_VISUAL_API.overlayPositions());
@@ -120,6 +125,7 @@ async function testPreset(preset,viewport){
   importedMesh.material='enclosure';
   await page.evaluate(x=>window.MARK_VISUAL_API.loadScene(x),importedScene);
   const altered=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
+  writeFileSync(join(output,kind+'-desktop-imported-edited.markscene'),JSON.stringify(altered,null,2)+'\n');
   const part=altered.objects.find(o=>o.id===importedMesh.id);
   if(part.position[0]!==before+.27||part.material!=='enclosure')
    throw Error('GLB per-part editing not retained in .markscene');
