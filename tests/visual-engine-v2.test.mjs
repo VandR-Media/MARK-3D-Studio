@@ -177,7 +177,7 @@ test('GLB numeric fidelity checker catches vertex and PBR losses even with match
  material.materials[0].pbrMetallicRoughness.roughnessFactor=.7;
  assert.throws(()=>compareGlbFidelity(original,bytes(material,bin)),/roughness/);
  const transform=structuredClone(doc);transform.nodes[0].translation[0]=4;
- assert.throws(()=>compareGlbFidelity(original,bytes(transform,bin)),/translation/);
+ assert.throws(()=>compareGlbFidelity(original,bytes(transform,bin)),/worldMatrix/);
 });
 
 test('safe JSON keyframe track targets a real GLB mesh, persists and rejects invalid ordering',()=>{
