@@ -110,6 +110,11 @@ async function importEditableGlb(bytes,name='imported.glb'){
  const described=await viewer.importGlb(bytes);
  const next=structuredClone(scene);
  next.attachments=next.attachments||[];
+ const encoded='data:model/gltf-binary;base64,'+bytesToBase64(bytes);
+ const existingIds=new Set(next.objects.map(o=>o.id));
+ if(next.attachments.some(x=>x.data===encoded)||
+  described.nodes.some(x=>x.sourceMarkId&&existingIds.has(x.sourceMarkId)))
+  throw Error('Модель уже присутствует в сцене. Для повторного импорта откройте чистую сцену.');
  if(next.attachments.length>=12)throw Error('Лимит: 12 импортированных GLB');
  const asset=next.attachments.length,prefix='glb'+asset+'.';
  const existing=new Set(next.objects.map(x=>x.id));
@@ -118,7 +123,7 @@ async function importEditableGlb(bytes,name='imported.glb'){
   while(existing.has(id))id=prefix+'node'+i+'.'+(++k);
   existing.add(id);return id;
  });
- next.attachments.push({name,data:'data:model/gltf-binary;base64,'+bytesToBase64(bytes)});
+ next.attachments.push({name,data:encoded});
  for(const [i,node] of described.nodes.entries()){
   next.objects.push({id:ids[i],parent:node.parent===null?null:ids[node.parent],
    name:node.name.slice(0,160),geometry:{type:'imported',asset,node:i},material:null,
