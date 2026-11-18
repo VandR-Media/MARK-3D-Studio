@@ -3,7 +3,7 @@
 **Status:** proposed for engineering review; no native core has been implemented.  
 **Date:** 2026-11-18  
 **Driver:** owner's Professional Studio RFC §3, §§4–5, §§8–9, §§19–20 and §28 Release 0.  
-**Source baseline:** \`develop/visual-engine-v2\` @ \`e4a93262ecb44970a4bdb77a9735c95b4d46749b\`.
+**Source baseline:** `develop/visual-engine-v2` @ `e4a93262ecb44970a4bdb77a9735c95b4d46749b`.
 
 ## Context and problem
 
@@ -13,7 +13,7 @@ Visual Engine v2 couples JSON scene data to a Three.js/WebGL2 preview. It correc
 
 Keep the already-working Visual Engine v2 intact behind an explicit **legacy adapter**. Develop v3 as distinct modules with versioned immutable-ish data and deterministic, transactional edits:
 
-\`\`\`text
+```text
 Desktop UI / Web UI / Huawei viewer / CLI / MARK AI Artist
                       |
              Authorised Command Bus
@@ -35,14 +35,14 @@ Desktop UI / Web UI / Huawei viewer / CLI / MARK AI Artist
     Import/Export profiles / glTF / native .markscene
                         |
                   v2 legacy adapter
-\`\`\`
+```
 
 ### Rules (non-negotiable)
 
 1. Scene/asset model and command executor must run without DOM, Three.js or WebGL context.
-2. \`id\`/UUID, object name and mesh datablock identity are distinct fields. An object may instance a mesh asset.
+2. `id`/UUID, object name and mesh datablock identity are distinct fields. An object may instance a mesh asset.
 3. All writes use begin/validate/commit/rollback; undo/redo is defined at the data level; rendering is a derived side effect.
-4. A native \`.markscene\` saves mesh buffers, UV, rig, animation, materials, scene hierarchy, provenance and dependency hashes. Avoid giant inlined base64.
+4. A native `.markscene` saves mesh buffers, UV, rig, animation, materials, scene hierarchy, provenance and dependency hashes. Avoid giant inlined base64.
 5. Import/export reports semantic preservation and explicit unsupported data. Unknown optional fields are retained; unknown required semantics fail safely.
 6. Heavy mesh/rig/bake/render operations are jobs, cancellable with resource budgets, never blocking the UI thread or overwriting the only copy of the user project.
 7. Multiple render backends consume the **same evaluated scene**, not their own duplicate authoring schemas.
@@ -67,7 +67,7 @@ Desktop UI / Web UI / Huawei viewer / CLI / MARK AI Artist
 - Additional adapters, asset migrations and test fixture maintenance, but deterministic headless editing and CI become possible.
 - First vertical slice MUST import a skinned+morphed animated GLB, display an actual changing pose, save v3 native, reopen, export, reimport and compare semantic data.
 - Release 2 AI Bridge depends on the core command bus, not browser automation scripts.
-- Keep \`main\` and legacy Visual Engine v2 unaffected until owner approves separate integration.
+- Keep `main` and legacy Visual Engine v2 unaffected until owner approves separate integration.
 
 ## ADR acceptance
 
