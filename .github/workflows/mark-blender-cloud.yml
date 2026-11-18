@@ -1,0 +1,53 @@
+name: MARK Blender Cloud — Neon Boy
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/mark-blender-cloud.yml'
+      - 'tools/neon_boy_builder.py'
+      - 'tools/neon_boy_polish.py'
+
+permissions:
+  contents: read
+
+jobs:
+  blender-neon-boy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender with fallback
+        run: |
+          if curl --fail --location --retry 2 --connect-timeout 15 --max-time 210 \
+            https://download.blender.org/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz \
+            --output blender.tar.xz; then
+            tar -xJf blender.tar.xz
+            echo "$PWD/blender-4.0.2-linux-x64" >> "$GITHUB_PATH"
+            ./blender-4.0.2-linux-x64/blender --version
+          else
+            echo "Official Blender download unavailable, trying Ubuntu packages"
+            sudo apt-get update -qq -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install --fix-missing -y --no-install-recommends blender python3-numpy
+            blender --version
+          fi
+      - name: Create Neon Boy — animated GLB, static GLB, Blender source, previews
+        run: |
+          blender --background --threads 2 --python tools/neon_boy_builder.py 2>&1 | tee blender_run.log
+          grep -q 'MARK_EXPORT_SUCCESS' blender_run.log
+          test -s output/NEON_BOY_DANCE.glb
+          test -s output/NEON_BOY_STATIC.glb
+          test -s output/NEON_BOY_MASTER.blend
+          test -s output/preview_front.png
+          test -s output/validation.json
+      - name: Upload review package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MARK-Neon-Boy-Review
+          path: |
+            output/
+            blender_run.log
+          if-no-files-found: warn
+          retention-days: 30
