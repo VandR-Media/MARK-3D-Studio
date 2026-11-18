@@ -33,7 +33,8 @@
     "pro:rig:fixtures": "node scripts/pro-studio-glb-fixtures.mjs dist/pro-studio/fixtures",
     "pro:rig:qa": "node scripts/pro-studio-rig-roundtrip.mjs",
     "pro:rig:viewer": "node scripts/pro-studio-rig-build.mjs",
-    "pro:rig:accept": "node scripts/pro-studio-rig-accept.mjs"
+    "pro:rig:accept": "node scripts/pro-studio-rig-accept.mjs",
+    "pro:rig:native": "node scripts/pro-studio-v3-preview.mjs"
   },
   "license": "MIT",
   "dependencies": {
