@@ -5,6 +5,7 @@
  */
 import {parseGlb} from '../glb.js';
 import {PNG} from 'pngjs';
+import {createHash} from 'node:crypto';
 const TYPES={SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16};
 const COMPONENT={5120:['getInt8',1],5121:['getUint8',1],5122:['getInt16',2],
  5123:['getUint16',2],5125:['getUint32',4],5126:['getFloat32',4]};
@@ -47,14 +48,26 @@ function assertEqual(a,b,path,epsilon=1e-5){
   if(!nearly(a,b,epsilon))throw Error(path+' numerical drift '+a+' vs '+b);
  }else if(a!==b)throw Error(path+' mismatch '+String(a)+' vs '+String(b));
 }
-function semanticTextureInfo(info,doc){
+function imageDigest(doc,bin,id){
+ const image=doc.images?.[id];
+ if(!image)throw Error('Missing embedded texture source '+id);
+ const bytes=imageBytes(doc,bin,image);
+ if((image.mimeType==='image/png'||bytes[0]===137)){
+  const bitmap=PNG.sync.read(Buffer.from(bytes));
+  return createHash('sha256').update(bitmap.data).digest('hex')+
+   ':'+bitmap.width+'x'+bitmap.height;
+ }
+ return createHash('sha256').update(bytes).digest('hex');
+}
+function semanticTextureInfo(info,doc,bin){
  if(!info)return null;
  const texture=doc.textures?.[info.index];
  if(!texture)throw Error('Missing material texture '+info.index);
  const sampler=doc.samplers?.[texture.sampler]||{};
  const transform=info.extensions?.KHR_texture_transform||{};
+ const source=texture.source??texture.extensions?.KHR_texture_basisu?.source;
  return {
-  index:info.index,source:texture.source??texture.extensions?.KHR_texture_basisu?.source??null,
+  image:imageDigest(doc,bin,source),
   uv:transform.texCoord??info.texCoord??0,
   offset:transform.offset??[0,0],scale:transform.scale??[1,1],
   rotation:transform.rotation??0,
@@ -66,7 +79,7 @@ function semanticTextureInfo(info,doc){
   strength:info.strength??1,scaleFactor:info.scale??1
  };
 }
-function semanticMaterial(m,doc){
+function semanticMaterial(m,doc,bin){
  const p=m?.pbrMetallicRoughness||{},ext=m?.extensions||{};
  return {
   color:p.baseColorFactor||[1,1,1,1],
@@ -78,13 +91,13 @@ function semanticMaterial(m,doc){
   clearcoat:ext.KHR_materials_clearcoat?.clearcoatFactor??0,
   clearcoatRoughness:ext.KHR_materials_clearcoat?.clearcoatRoughnessFactor??0,
   textures:{
-   baseColor:semanticTextureInfo(p.baseColorTexture,doc),
-   metalRough:semanticTextureInfo(p.metallicRoughnessTexture,doc),
-   normal:semanticTextureInfo(m?.normalTexture,doc),
-   occlusion:semanticTextureInfo(m?.occlusionTexture,doc),
-   emissive:semanticTextureInfo(m?.emissiveTexture,doc),
-   transmission:semanticTextureInfo(ext.KHR_materials_transmission?.transmissionTexture,doc),
-   clearcoat:semanticTextureInfo(ext.KHR_materials_clearcoat?.clearcoatTexture,doc)
+   baseColor:semanticTextureInfo(p.baseColorTexture,doc,bin),
+   metalRough:semanticTextureInfo(p.metallicRoughnessTexture,doc,bin),
+   normal:semanticTextureInfo(m?.normalTexture,doc,bin),
+   occlusion:semanticTextureInfo(m?.occlusionTexture,doc,bin),
+   emissive:semanticTextureInfo(m?.emissiveTexture,doc,bin),
+   transmission:semanticTextureInfo(ext.KHR_materials_transmission?.transmissionTexture,doc,bin),
+   clearcoat:semanticTextureInfo(ext.KHR_materials_clearcoat?.clearcoatTexture,doc,bin)
   }
  };
 }
@@ -198,8 +211,8 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
     findings.accessorValuesCompared+=av.length;
    }
    if(!allowed.has(i)){
-    assertEqual(semanticMaterial(A.materials?.[p.material],A),
-     semanticMaterial(B.materials?.[q.material],B),'mesh['+i+'].material',epsilon);
+    assertEqual(semanticMaterial(A.materials?.[p.material],A,ab),
+     semanticMaterial(B.materials?.[q.material],B,bb),'mesh['+i+'].material',epsilon);
     findings.materialsCompared++;
    }
   }
@@ -230,8 +243,11 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
  }
  // Do not silently lose embedded textures, even if their PNG encoding changes.
  assertEqual(A.images?.length||0,B.images?.length||0,'image count');
- assertEqual(A.textures?.length||0,B.textures?.length||0,'texture count');
- compareImages(A,ab,B,bb,epsilon);
+ // Texture slot index ordering is exporter-internal. Verify resolved images,
+ // actual sampler configuration and UV transforms, not raw table indices.
+ const digests=(doc,bin)=>(doc.images||[]).map((_,i)=>imageDigest(doc,bin,i)).sort();
+ assertEqual(digests(A,ab),digests(B,bb),'embedded texture pixels');
+
  findings.imagesCompared=A.images?.length||0;
  return {status:'pass',...findings};
 }
