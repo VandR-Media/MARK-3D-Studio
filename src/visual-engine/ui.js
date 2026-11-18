@@ -430,13 +430,35 @@ async function start(){
     left:parseFloat(e.style.left),top:parseFloat(e.style.top)
    })),
    image:()=>viewer.canvas.toDataURL('image/png'),
+   framing:()=>viewer.projectedSceneBounds(),
+   labelsInFrame:()=>{
+    const container=$('overlay').getBoundingClientRect();
+    return Array.from($('overlay').children).filter(e=>e.style.display!=='none').map(e=>{
+     const b=e.getBoundingClientRect();
+     return {text:e.textContent,inside:b.left>=container.left-1&&b.right<=container.right+1&&
+      b.top>=container.top-1&&b.bottom<=container.bottom+1};
+    });
+   },
+   geometryStats:()=>{
+    let meshes=0,vertices=0,triangles=0;
+    viewer.root.traverse(o=>{
+     if(!o.isMesh||!o.visible)return;
+     meshes++;const g=o.geometry,position=g.attributes.position;
+     vertices+=position?.count||0;
+     triangles+=g.index?Math.floor(g.index.count/3):
+      position?Math.floor(position.count/3):0;
+    });
+    return {meshObjects:meshes,storedVertices:vertices,storedTriangles:triangles,
+     note:'CPU-side scene geometry, not actual GPU draw calls or device FPS'};
+   },
    gpuInfo:()=>{
     const gl=viewer.renderer.getContext();
     return {webgl2:typeof WebGL2RenderingContext!=='undefined'&&gl instanceof WebGL2RenderingContext,
      version:gl.getParameter(gl.VERSION),
      vendor:gl.getParameter(gl.VENDOR),renderer:gl.getParameter(gl.RENDERER),
-     drawCalls:viewer.renderer.info.render.calls,
-     triangles:viewer.renderer.info.render.triangles};
+     lastPassDrawCalls:viewer.renderer.info.render.calls,
+     lastPassTriangles:viewer.renderer.info.render.triangles,
+     note:'Last WebGL render pass only; not full scene complexity'};
    },
    benchmarkFrames:(count=12)=>{
     if(!Number.isInteger(count)||count<1||count>60)throw Error('Invalid benchmark frame count');
