@@ -17,11 +17,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Install Blender
+      - name: Install official portable Blender 4.0.2
         run: |
-          sudo apt-get update -qq -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends blender python3-numpy
-          blender --version
+          curl --fail --location --retry 2 --connect-timeout 20 --max-time 210 \
+            https://download.blender.org/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz \
+            --output blender.tar.xz
+          tar -xJf blender.tar.xz
+          echo "$PWD/blender-4.0.2-linux-x64" >> "$GITHUB_PATH"
+          ./blender-4.0.2-linux-x64/blender --version
       - name: Create Neon Boy — animated GLB, static GLB, Blender source, previews
         run: |
           blender --background --threads 2 --python tools/neon_boy_builder.py 2>&1 | tee blender_run.log
