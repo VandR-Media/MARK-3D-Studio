@@ -156,7 +156,7 @@ export class VisualRenderer{
   const direction=this.camera.position.clone().sub(this.controls.target);
   if(direction.lengthSq()<.001)direction.set(0,0,1);
   direction.normalize();
-  this.camera.position.copy(center).add(direction.multiplyScalar(12));
+  this.camera.position.copy(center).add(direction.clone().multiplyScalar(12));
   this.camera.lookAt(center);this.camera.updateMatrixWorld(true);
   const inverse=this.camera.quaternion.clone().invert();
   let needed=0;
