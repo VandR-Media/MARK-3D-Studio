@@ -297,14 +297,20 @@ async function testPreset(preset,viewport){
  report.tests.push(summary);console.log('VISUAL V2 WEBGL PASS '+JSON.stringify(summary));
  await page.close();
 }
+let failure=null;
 try{
  for(const p of ['analog-studio','spectrum-matrix']){
   await testPreset(p,{width:1280,height:780});
   await testPreset(p,{width:430,height:932});
  }
  report.status='pass';
+}catch(error){
+ failure=error;report.status='fail';
+ report.errors.push({message:error.message,stack:error.stack});
+ console.error('MARK VISUAL V2 ACCEPTANCE FAILED',error.stack);
 }finally{
  writeFileSync(join(output,'browser-report.json'),JSON.stringify(report,null,2)+'\n');
  await browser.close();
 }
+if(failure)throw failure;
 if(report.status!=='pass')throw Error('Visual Engine browser acceptance did not pass');
