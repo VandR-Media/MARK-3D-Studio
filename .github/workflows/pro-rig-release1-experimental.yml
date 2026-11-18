@@ -36,6 +36,7 @@ jobs:
           node --check src/pro-studio/markscene-v3-preview.js
           node --check src/pro-studio/glb-semantic-diff.js
           node --check tests/pro-studio-release1-v3.test.mjs
+          node --check scripts/pro-studio-v3-preview.mjs
       - name: Old v2 compatibility and rigged transport regression
         run: |
           npm run test:pro-rig
@@ -46,6 +47,7 @@ jobs:
           npm run pro:rig:fixtures
           npm run pro:rig:qa
           npm run pro:rig:viewer
+          npm run pro:rig:native
       - name: Install Chromium and required MP4 encoder for real animation evidence
         run: |
           npx playwright install --with-deps chromium
@@ -66,6 +68,7 @@ jobs:
           path: |
             dist/pro-studio/fixtures/*.glb
             dist/pro-studio/release1-preview/**
+            dist/pro-studio/native-scene/**
             dist/pro-studio/rig-viewer-offline.html
             dist/pro-studio/acceptance/**
           if-no-files-found: warn
