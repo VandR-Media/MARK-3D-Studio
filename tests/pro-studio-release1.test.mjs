@@ -93,3 +93,21 @@ test('Release 1 prototype never changes v2 import compatibility or weakens its l
  assert.equal(inspection.skins[0].joints,70);
 });
 
+
+
+test('real BIN corruption: reject invalid joint palette indices, vertex weight sums and keyframe times',()=>{
+ const corrupt=(accessorIndex,patch)=>{
+  const p=parseGlb(fixture.bytes),doc=structuredClone(p.json);
+  const copy=p.chunks.map(x=>({type:x.type,data:x.data.slice()}));
+  const bin=copy.find(x=>x.type===0x004e4942).data;
+  const a=doc.accessors[accessorIndex],view=doc.bufferViews[a.bufferView];
+  const dv=new DataView(bin.buffer,bin.byteOffset,bin.byteLength);
+  patch(dv,(view.byteOffset||0)+(a.byteOffset||0));
+  return writeGlb({json:doc,chunks:copy},doc);
+ };
+ const attrs=fixture.doc.meshes[0].primitives[0].attributes;
+ expectReject(corrupt(attrs.JOINTS_0,(dv,p)=>dv.setUint16(p,999,true)),'SKIN_JOINT_RANGE');
+ expectReject(corrupt(attrs.WEIGHTS_0,(dv,p)=>dv.setFloat32(p,1.5,true)),'SKIN_WEIGHT_SUM');
+ const time=fixture.doc.animations[0].samplers[0].input;
+ expectReject(corrupt(time,(dv,p)=>dv.setFloat32(p+4,-2,true)),'ANIMATION_TIMES');
+});
