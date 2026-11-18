@@ -5,14 +5,31 @@
 import {build} from 'esbuild';
 import {readFileSync,writeFileSync,mkdirSync,statSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {Script} from 'node:vm';
 const root=new URL('../',import.meta.url),read=f=>readFileSync(new URL(f,root),'utf8');
 const source=read('visual-engine/Visual-Engine-v2.html'),
  css=read('visual-engine/visual-v2.css');
-const result=await build({entryPoints:[new URL('src/visual-engine/ui.js',root).pathname],
- bundle:true,format:'iife',platform:'browser',target:['es2020'],minify:true,
- write:false,logLevel:'warning',legalComments:'none'});
-const javascript=new TextDecoder().decode(result.outputFiles[0].contents);
-if(javascript.includes('</script>'))throw Error('Bundled JS contains unsafe HTML script closer');
+const bundleOptions={entryPoints:[new URL('src/visual-engine/ui.js',root).pathname],
+ bundle:true,format:'iife',platform:'browser',target:['es2020'],
+ write:false,logLevel:'warning',legalComments:'none'};
+const bundle=async(minify)=>{
+ const result=await build({...bundleOptions,minify});
+ const javascript=new TextDecoder().decode(result.outputFiles[0].contents);
+ if(javascript.includes('</script>'))throw Error('Bundled JS contains unsafe HTML script closer');
+ // Validate the actual inline JavaScript before writing a preview and before
+ // allowing CI to claim it is ready for a browser acceptance run.
+ new Script(javascript,{filename:'mark-visual-v2.bundle.js'});
+ return javascript;
+};
+let javascript;
+try {
+ javascript=await bundle(true);
+} catch(error) {
+ // If minification emits invalid JavaScript, preserve functionality using
+ // the readable build. Still fail closed if its syntax cannot be parsed.
+ console.warn('Minified bundle failed integrity check; retrying unminified:',error.message);
+ javascript=await bundle(false);
+}
 const checkedOutSha=process.env.MARK_SOURCE_SHA||process.env.GITHUB_SHA||'';
 const sha=/^[0-9a-f]{40}$/.test(checkedOutSha)?checkedOutSha:'local-unverified';
 const html=source
