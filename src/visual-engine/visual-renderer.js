@@ -291,10 +291,13 @@ export class VisualRenderer{
    this.motionLevels.set(b.target,{value,peak,holdUntil});
    if(b.response==='needle')target.rotation.z=(b.offset??-.95)+effective;
    else if(b.response==='led-column'){
-    for(const led of target.children){
-     if(!led.isMesh||led.userData.meta?.role!=='led')continue;
-     const isOn=effective>=led.userData.meta.threshold;
-     led.material.emissiveIntensity=isOn?2.2:0;
+    const segments=target.children.filter(led=>led.isMesh&&led.userData.meta?.role==='led');
+    const heldIndex=Math.min(segments.length-1,
+     Math.max(0,Math.ceil(clamp(peak*(b.gain??1))*segments.length)-1));
+    for(const [index,led] of segments.entries()){
+     const held=frame.playing&&peak>value+.02&&index===heldIndex;
+     const isOn=effective>=led.userData.meta.threshold||held;
+     led.material.emissiveIntensity=isOn?(held?1.25:2.2):0;
      led.material.color.copy(isOn?led.userData.onColor:new THREE.Color('#15212b'));
     }
    }else if(b.response==='scale-y')target.scale.y=Math.max(.005,effective);
