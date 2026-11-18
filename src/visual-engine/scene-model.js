@@ -7,7 +7,7 @@ const vec3=x=>Array.isArray(x)&&x.length===3&&x.every(finite);
 const clone=x=>structuredClone(x),hex=x=>typeof x==='string'&&/^#[0-9a-f]{6}$/i.test(x);
 const check=(p,msg)=>{if(!p)throw Error('Visual Engine: '+msg);};
 const range=(x,a,b)=>finite(x)&&x>=a&&x<=b;
-const geometries=new Set(['group','box','bevel-box','cylinder','sphere','torus','needle','plane','tube','disk']);
+const geometries=new Set(['group','box','bevel-box','cylinder','sphere','torus','needle','plane','tube','disk','imported']);
 const responses=new Set(['needle','led-column','scale-y','rotation-z','emissive','position-y']);
 export function newVisualScene({id='visual-scene',name='MARK Visual Scene'}={}){
  check(idPattern.test(id),'invalid scene ID');
@@ -60,7 +60,13 @@ export function validateVisualScene(s){
   check((o.material==null||(idPattern.test(o.material)&&Object.hasOwn(s.materials,o.material)))&&
    vec3(o.position)&&vec3(o.rotation)&&vec3(o.scale)&&
    o.scale.every(v=>v>0&&v<=100)&&typeof o.visible==='boolean','invalid object '+o.id);
-  for(const [k,v] of Object.entries(o.geometry))
+  if(o.geometry.type==='imported'){
+   check(Number.isInteger(o.geometry.asset)&&o.geometry.asset>=0&&
+    Number.isInteger(o.geometry.node)&&o.geometry.node>=0,
+    'invalid GLB reference '+o.id);
+   check(Array.isArray(s.attachments)&&s.attachments[o.geometry.asset],
+    'missing GLB attachment '+o.id);
+  }else for(const [k,v] of Object.entries(o.geometry))
    if(k!=='type')check(range(v,0,200),'invalid geometry parameter '+o.id+'.'+k);
  }
  const byId=new Map(s.objects.map(o=>[o.id,o]));
