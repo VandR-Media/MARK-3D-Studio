@@ -33,9 +33,13 @@ jobs:
           node --check scripts/pro-studio-rig-build.mjs
           node --check scripts/pro-studio-rig-accept.mjs
           node --check tests/pro-studio-release1.test.mjs
+          node --check src/pro-studio/markscene-v3-preview.js
+          node --check src/pro-studio/glb-semantic-diff.js
+          node --check tests/pro-studio-release1-v3.test.mjs
       - name: Old v2 compatibility and rigged transport regression
         run: |
           npm run test:pro-rig
+          node --test tests/pro-studio-release1-v3.test.mjs
           npm run test:visual-v2
       - name: Build genuine fixture, secure archive and offline Three.js viewer
         run: |
