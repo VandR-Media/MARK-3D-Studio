@@ -1,0 +1,120 @@
+/**
+ * GLB semantic roundtrip checker. Compares decoded vertex/index data, mesh
+ * primitives, PBR numbers and node matrices rather than byte hashes or counts.
+ * This is a strict regression gate, not a promise of generic extension fidelity.
+ */
+import {parseGlb} from '../glb.js';
+const TYPES={SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16};
+const COMPONENT={5120:['getInt8',1],5121:['getUint8',1],5122:['getInt16',2],
+ 5123:['getUint16',2],5125:['getUint32',4],5126:['getFloat32',4]};
+const nearly=(a,b,e)=>Math.abs(a-b)<=e;
+function accessor(doc,bin,id){
+ const a=doc.accessors?.[id],v=doc.bufferViews?.[a?.bufferView];
+ if(!a||!v||a.sparse)throw Error('Unsupported/sparse accessor '+id);
+ if(v.buffer!==0)throw Error('External buffer in accessor '+id);
+ const [getter,size]=COMPONENT[a.componentType]||[];
+ const components=TYPES[a.type];
+ if(!getter||!components)throw Error('Unknown accessor layout '+id);
+ const stride=v.byteStride||components*size;
+ const view=new DataView(bin.buffer,bin.byteOffset,bin.byteLength);
+ const values=[];
+ for(let i=0;i<a.count;i++)for(let j=0;j<components;j++){
+  const offset=(v.byteOffset||0)+(a.byteOffset||0)+i*stride+j*size;
+  if(offset+size>bin.length)throw Error('Truncated vertex/index data '+id);
+  let value=view[getter](offset,true);
+  if(a.normalized&&a.componentType!==5126){
+   if([5120,5122].includes(a.componentType))value=Math.max(-1,value/(a.componentType===5120?127:32767));
+   else value=value/(a.componentType===5121?255:a.componentType===5123?65535:4294967295);
+  }
+  values.push(value);
+ }
+ return values;
+}
+function assertEqual(a,b,path,epsilon=1e-5){
+ if(Array.isArray(a)||Array.isArray(b)){
+  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)
+   throw Error(path+' array length/shape mismatch');
+  for(let i=0;i<a.length;i++)assertEqual(a[i],b[i],path+'['+i+']',epsilon);
+ }else if(typeof a==='number'&&typeof b==='number'){
+  if(!nearly(a,b,epsilon))throw Error(path+' numerical drift '+a+' vs '+b);
+ }else if(a!==b)throw Error(path+' mismatch '+String(a)+' vs '+String(b));
+}
+function semanticMaterial(m){
+ const p=m?.pbrMetallicRoughness||{},ext=m?.extensions||{};
+ const transmission=ext.KHR_materials_transmission?.transmissionFactor??0;
+ const ior=ext.KHR_materials_ior?.ior??1.5;
+ return {
+  color:p.baseColorFactor||[1,1,1,1],
+  metallic:p.metallicFactor??1,roughness:p.roughnessFactor??1,
+  emissive:m?.emissiveFactor||[0,0,0],alphaMode:m?.alphaMode||'OPAQUE',
+  alphaCutoff:m?.alphaCutoff??.5,doubleSided:m?.doubleSided||false,
+  transmission,ior,
+  textureSlots:['baseColorTexture','metallicRoughnessTexture'].map(k=>Boolean(p[k]))
+   .concat(['normalTexture','occlusionTexture','emissiveTexture'].map(k=>Boolean(m?.[k]))),
+ };
+}
+function binData(parsed){
+ return parsed.chunks.find(c=>c.type===0x004e4942)?.data||new Uint8Array();
+}
+function localTRS(n){
+ if(n.matrix)return {matrix:n.matrix};
+ return {translation:n.translation||[0,0,0],rotation:n.rotation||[0,0,0,1],
+  scale:n.scale||[1,1,1]};
+}
+function parents(nodes){
+ const p=nodes.map(()=>-1);
+ nodes.forEach((n,i)=>(n.children||[]).forEach(k=>{if(p[k]!==-1)throw Error('Multiple parents '+k);p[k]=i;}));
+ return p;
+}
+export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes=[]}={}){
+ const a=parseGlb(before),b=parseGlb(after),A=a.json,B=b.json;
+ const allowed=new Set(allowChangedMeshes);
+ const findings={epsilon,meshesCompared:0,accessorValuesCompared:0,materialsCompared:0,
+  nodesCompared:0,imagesCompared:0,ignoredChanges:allowChangedMeshes};
+ assertEqual(A.meshes?.length||0,B.meshes?.length||0,'meshes.length');
+ const ab=binData(a),bb=binData(b);
+ for(let i=0;i<(A.meshes||[]).length;i++){
+  const x=A.meshes[i],y=B.meshes[i];
+  assertEqual(x.primitives.length,y.primitives.length,'mesh['+i+'].primitives');
+  for(let k=0;k<x.primitives.length;k++){
+   const p=x.primitives[k],q=y.primitives[k];
+   assertEqual(p.mode??4,q.mode??4,'mesh['+i+'].topology');
+   if(Boolean(p.indices)!==Boolean(q.indices))throw Error('index presence mismatch');
+   for(const semantic of ['POSITION','NORMAL','TEXCOORD_0','TEXCOORD_1','TANGENT']){
+    const ax=p.attributes?.[semantic],bx=q.attributes?.[semantic];
+    if((ax===undefined)!==(bx===undefined))throw Error('Attribute lost '+i+'.'+semantic);
+    if(ax!==undefined){
+     const av=accessor(A,ab,ax),bv=accessor(B,bb,bx);
+     assertEqual(av,bv,'mesh['+i+'].'+semantic,epsilon);
+     findings.accessorValuesCompared+=av.length;
+    }
+   }
+   if(p.indices!==undefined){
+    const av=accessor(A,ab,p.indices),bv=accessor(B,bb,q.indices);
+    assertEqual(av,bv,'mesh['+i+'].indices',0);
+    findings.accessorValuesCompared+=av.length;
+   }
+   if(!allowed.has(i)){
+    assertEqual(semanticMaterial(A.materials?.[p.material]),
+     semanticMaterial(B.materials?.[q.material]),'mesh['+i+'].material',epsilon);
+    findings.materialsCompared++;
+   }
+  }
+  findings.meshesCompared++;
+ }
+ // Exporters may include cameras and lights as extra nodes. Preserve the mesh
+ // ownership tree and local transforms, independently from non-mesh extras.
+ const meshNodes=doc=>(doc.nodes||[]).filter(n=>n.mesh!==undefined);
+ const am=meshNodes(A),bm=meshNodes(B);
+ assertEqual(am.length,bm.length,'meshNode count');
+ for(let i=0;i<am.length;i++){
+  assertEqual(am[i].mesh,bm[i].mesh,'meshNode['+i+'].geometry');
+  if(!allowed.has(am[i].mesh))assertEqual(localTRS(am[i]),localTRS(bm[i]),'meshNode['+i+'].TRS',epsilon);
+  findings.nodesCompared++;
+ }
+ // Do not silently lose embedded textures, even if their PNG encoding changes.
+ assertEqual(A.images?.length||0,B.images?.length||0,'image count');
+ assertEqual(A.textures?.length||0,B.textures?.length||0,'texture count');
+ findings.imagesCompared=A.images?.length||0;
+ return {status:'pass',...findings};
+}
