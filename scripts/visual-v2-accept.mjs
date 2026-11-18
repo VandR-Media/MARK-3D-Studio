@@ -103,15 +103,44 @@ async function testPreset(preset,viewport){
   await page.evaluate(async x=>window.MARK_VISUAL_API.loadScene(x),saved);
   const restored=await capture(page,kind+'-light-restored.png');
   if(muted===restored)throw Error('P0 lighting: changing key light did not alter the true renderer');
-  await page.locator('#importGlb').setInputFiles({name:'scene-export.glb',
-   mimeType:'model/gltf-binary',buffer:glb});
-  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Импортировано'),
-   null,{timeout:15000});
-  const repeated=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
-  const repeatedDoc=parseGlb(repeated).json;
-  if(repeatedDoc.meshes?.length<parsed.meshes?.length*2)
-   throw Error('P0 GLB import/re-export lost imported meshes');
-  writeFileSync(join(output,kind+'-desktop-reimport.glb'),repeated);
+  // Roundtrip must reconstruct a CLEAN editable graph, never append a duplicate.
+  const clean=structuredClone(saved);
+  clean.objects=[];clean.bindings=[];clean.overlays=[];delete clean.attachments;
+  await page.evaluate(x=>window.MARK_VISUAL_API.loadScene(x),clean);
+  const imported=await page.evaluate(x=>window.MARK_VISUAL_API.importGlb(x),
+   glb.toString('base64'));
+  if(imported.meshes!==parsed.meshes.length)
+   throw Error('GLB mesh count lost on clean import: '+imported.meshes+' vs '+parsed.meshes.length);
+  const importedScene=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
+  const importedMesh=importedScene.objects.find(o=>o.geometry.type==='imported'&&
+   imported.ids.includes(o.id)&&o.material===null&&o.name);
+  if(!importedMesh)throw Error('Imported meshes not available in editable inspector');
+  const before=importedMesh.position[0];
+  importedMesh.position[0]+=.27;
+  importedMesh.material='enclosure';
+  await page.evaluate(x=>window.MARK_VISUAL_API.loadScene(x),importedScene);
+  const altered=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
+  const part=altered.objects.find(o=>o.id===importedMesh.id);
+  if(part.position[0]!==before+.27||part.material!=='enclosure')
+   throw Error('GLB per-part editing not retained in .markscene');
+  const editedGlb=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
+  const editedDoc=parseGlb(editedGlb).json;
+  if(editedDoc.meshes.length!==parsed.meshes.length)
+   throw Error('GLB clean edit/export changed mesh count');
+  writeFileSync(join(output,kind+'-desktop-reimport.glb'),editedGlb);
+  // Reopen edited binary into a second clean scene and verify no duplicate meshes.
+  await page.evaluate(x=>window.MARK_VISUAL_API.loadScene(x),clean);
+  const second=await page.evaluate(x=>window.MARK_VISUAL_API.importGlb(x),editedGlb.toString('base64'));
+  if(second.meshes!==parsed.meshes.length)
+   throw Error('GLB second import lost or duplicated meshes');
+  const finalGlb=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
+  if(parseGlb(finalGlb).json.meshes.length!==parsed.meshes.length)
+   throw Error('GLB second export changed mesh count');
+  report.tests.push({preset:kind+'-GLB-edit-roundtrip',status:'pass',
+   originalMeshes:parsed.meshes.length,firstImportMeshes:imported.meshes,
+   secondImportMeshes:second.meshes,editorObjectId:part.id,
+   editedMaterial:part.material,editedPosition:part.position,
+   originalMaterials:parsed.materials.length,editedMaterials:editedDoc.materials.length});
   await page.evaluate(async x=>window.MARK_VISUAL_API.loadScene(x),saved);
  }
  if(kind==='analog'&&device==='desktop'){
