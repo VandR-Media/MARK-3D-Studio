@@ -20,7 +20,11 @@ const good=(yes,code,message)=>{
 };
 const bytesOf=x=>{
  good(x instanceof ArrayBuffer||ArrayBuffer.isView(x),'BYTES','input must be binary');
- return x instanceof Uint8Array?x:new Uint8Array(x.buffer||x,x.byteOffset||0,x.byteLength);
+ // Normalize Node Buffer to an ordinary Uint8Array VIEW. Buffer.slice()
+ // returns a shared-view, not a copy, so digest(x.slice().buffer) on a
+ // Buffer can silently hash unrelated pooled bytes outside its byteOffset.
+ if(ArrayBuffer.isView(x))return new Uint8Array(x.buffer,x.byteOffset,x.byteLength);
+ return new Uint8Array(x);
 };
 const bytesHex=bytes=>Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
 export async function sha256(bytes){
