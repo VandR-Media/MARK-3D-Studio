@@ -18,7 +18,7 @@ const download=(value,name,type='application/json')=>{
 };
 let viewer,scene,analyzer=null,audioContext=null,source=null,buffer=null,
  playing=false,audioStart=0,pauseOffset=0,lastIndex=0,raf=0,mode='analog-studio',
- demo=false,activeChannel=0,lastFrame=zeroStereoFrame(),imported=[];
+ demo=false,activeChannel=0,lastFrame=zeroStereoFrame();
 const modelInfo=()=>({id:scene.id,objects:scene.objects.length,materials:Object.keys(scene.materials).length,
  bindings:scene.bindings.length,mode,realMeshes:[...viewer.nodes.values()].filter(x=>x.isMesh).length});
 function recipeFor(kind){
@@ -74,6 +74,10 @@ function fillObject(){
  const obj=scene.objects.find(x=>x.id===$('objectSelect').value);
  if(!obj)return;
  $('materialSelect').replaceChildren();
+ if(obj.geometry.type==='imported'){
+  const original=document.createElement('option');original.value='';original.textContent='Исходный GLB-материал';
+  $('materialSelect').append(original);
+ }
  for(const id of Object.keys(scene.materials)){
   const option=document.createElement('option');option.value=id;option.textContent=id;
   $('materialSelect').append(option);
@@ -97,14 +101,32 @@ function fillObject(){
 async function setScene(next,{restoreImported=true}={}){
  scene=deserializeVisualScene(next);viewer.setProfile(scene.quality);
  await viewer.setScene(scene);
- if(restoreImported&&scene.attachments?.length){
-  for(const asset of scene.attachments){
-   const bytes=b64ToBytes(asset.data.split(',')[1]);
-   await viewer.importGlb(bytes);
-  }
- }
+ // Embedded GLB nodes are reconstructed through scene.objects by the renderer.
  overlays();inspector();viewer.render();
  status('Настоящая 3D-сцена: '+scene.objects.length+' объектов. Профиль '+scene.quality.toUpperCase()+'.');
+}
+async function importEditableGlb(bytes,name='imported.glb'){
+ const safe=inspectVisualImport(bytes);
+ const described=await viewer.importGlb(bytes);
+ const next=structuredClone(scene);
+ next.attachments=next.attachments||[];
+ if(next.attachments.length>=12)throw Error('Лимит: 12 импортированных GLB');
+ const asset=next.attachments.length,prefix='glb'+asset+'.';
+ const existing=new Set(next.objects.map(x=>x.id));
+ const ids=described.nodes.map((_,i)=>{
+  let id=prefix+'node'+i,k=0;
+  while(existing.has(id))id=prefix+'node'+i+'.'+(++k);
+  existing.add(id);return id;
+ });
+ next.attachments.push({name,data:'data:model/gltf-binary;base64,'+bytesToBase64(bytes)});
+ for(const [i,node] of described.nodes.entries()){
+  next.objects.push({id:ids[i],parent:node.parent===null?null:ids[node.parent],
+   name:node.name.slice(0,160),geometry:{type:'imported',asset,node:i},material:null,
+   position:node.position,rotation:node.rotation,scale:node.scale,visible:node.visible,
+   meta:{imported:true}});
+ }
+ await setScene(next);
+ return {...safe,ids,meshes:described.meshes};
 }
 async function changeMode(name){
  if(!['analog-studio','spectrum-matrix'].includes(name))throw Error('Другие режимы пока не готовы');
@@ -346,10 +368,10 @@ function installEvents(){
    const bytes=new Uint8Array(await file.arrayBuffer());
    if(bytes.length>15000000)throw Error('GLB >15 MB: для смартфона используйте облегчённый файл');
    const safe=inspectVisualImport(bytes);
-   const loaded=await viewer.importGlb(bytes);
-   scene.attachments=scene.attachments||[];
-   scene.attachments.push({name:file.name,data:'data:model/gltf-binary;base64,'+bytesToBase64(bytes)});
-   status('Импортировано '+loaded.meshes+' реальных мешей; текстур: '+safe.textures+'. Исходный GLB сохранён в .markscene.');
+   const loaded=await importEditableGlb(bytes,file.name);
+   $('objectSelect').value=loaded.ids.find(id=>viewer.nodes.get(id)?.isMesh)||loaded.ids[0];
+   fillObject();
+   status('Импортировано '+loaded.meshes+' редактируемых GLB-мешей; текстур: '+safe.textures+'.');
   }catch(err){status('GLB: '+err.message,true);}
   e.target.value='';
  });
@@ -385,6 +407,7 @@ async function start(){
    })),
    image:()=>viewer.canvas.toDataURL('image/png'),
    exportGlb:async()=>bytesToBase64(await viewer.exportGlb()),
+   importGlb:async(base64,name='browser-test.glb')=>importEditableGlb(b64ToBytes(base64),name),
    renderStats:()=>({objectCount:scene.objects.length,meshCount:[...viewer.nodes.values()].filter(x=>x.isMesh).length,
     ledCount:[...viewer.nodes.values()].filter(x=>x.userData.meta?.role==='led').length}),
    activeSegments:()=>Object.fromEntries(['left','right'].flatMap(ch=>['low','mid','high'].map(b=>{
