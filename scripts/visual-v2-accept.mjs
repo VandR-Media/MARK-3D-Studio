@@ -35,9 +35,8 @@ const mp3Process=spawnSync('ffmpeg',[
  '-hide_banner','-loglevel','error','-f','wav','-i','pipe:0',
  '-codec:a','libmp3lame','-q:a','6','-f','mp3','pipe:1'
 ],{input:makeStereoWav({seconds:30}),maxBuffer:2*1024*1024});
-if(mp3Process.status!==0||!mp3Process.stdout?.length)
- throw Error('MP3 test fixture encoding unavailable: '+String(mp3Process.stderr));
-const mp3=mp3Process.stdout;
+const mp3=mp3Process.status===0&&mp3Process.stdout?.length?mp3Process.stdout:null;
+if(!mp3)console.warn('MARK Visual v2: MP3 fixture cannot be generated on this runner; MP3 case NOT VERIFIED. WAV and true PCM remain mandatory.');
 const browser=await chromium.launch({headless:true,args:[
  '--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
  '--enable-unsafe-swiftshader','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required'
@@ -80,7 +79,7 @@ async function testPreset(preset,viewport){
  await page.locator('#mode').selectOption(preset);
  await page.waitForFunction(target=>window.MARK_VISUAL_API?.scene()?.id===target,
   preset==='analog-studio'?'analog-studio-v2':'spectrum-matrix-v2',{timeout:40000,polling:200});
- if(kind==='analog'&&device==='desktop'){
+ if(kind==='analog'&&device==='desktop'&&mp3){
   const [picker]=await Promise.all([
    page.waitForEvent('filechooser'),page.locator('#openMusic').click()
   ]);
@@ -107,6 +106,10 @@ async function testPreset(preset,viewport){
   await page.locator('#stop').click();
   report.tests.push({preset:'analog-local-MP3-button-pause-resume-replay',
    status:'pass',channels:active.channels,actualMusicFilename:'local-actual-track.mp3'});
+ }
+ if(kind==='analog'&&device==='desktop'){
+  if(!mp3)report.tests.push({preset:'analog-local-MP3',
+   status:'not-run',reason:'MP3 test fixture encoder unavailable; no MP3 compatibility claim'});
   // WAV playback and end-of-track are verified as distinct real-media paths.
   await page.locator('#audioFile').setInputFiles({
    name:'local-stereo-test.wav',mimeType:'audio/wav',
