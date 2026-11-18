@@ -42,8 +42,14 @@ jobs:
           npm run pro:rig:fixtures
           npm run pro:rig:qa
           npm run pro:rig:viewer
-      - name: Install Chromium for software-backed real WebGL2 playback
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium and required MP4 encoder for real animation evidence
+        run: |
+          npx playwright install --with-deps chromium
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -hide_banner -version | head -1
       - name: Capture real skinned poses, morphs, 3 clips, viewpoints, animated GLB export and frames
         run: npm run pro:rig:accept
         env:
