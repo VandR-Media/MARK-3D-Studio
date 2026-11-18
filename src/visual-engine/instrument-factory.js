@@ -104,9 +104,14 @@ function analog(params){
   const x=channel==='left'?-2.13:2.13;
   const group='gauge.'+channel;
   add(group,channel.toUpperCase()+' physical VU gauge',{type:'group'},null,[x,.53,.55]);
-  add(group+'.bezel','Machined silver VU window surround',
-   {type:'bevel-box',width:3.82,height:2.86,depth:.15,radius:.15,bevel:.052},
-   'bezel',[0,0,.04],group);
+  for(const side of [-1,1]){
+   add(group+'.bezel.side.'+(side<0?'l':'r'),'Raised solid machined VU rim',
+    {type:'bevel-box',width:.145,height:2.86,depth:.16,radius:.045,bevel:.025},
+    'bezel',[side*1.84,0,.31],group);
+   add(group+'.bezel.end.'+(side<0?'b':'t'),'Raised solid machined VU rim',
+    {type:'bevel-box',width:3.70,height:.145,depth:.16,radius:.045,bevel:.025},
+    'bezel',[0,side*1.38,.31],group);
+  }
   add(group+'.back','Deep recessed inset',{type:'bevel-box',width:3.67,height:2.72,depth:.29,radius:.12,bevel:.08},
    'black',[0,0,.065],group);
   add(group+'.dial','Warm ivory physical dial face',{type:'bevel-box',width:3.30,height:2.38,depth:.025,radius:.06,bevel:.019},
@@ -166,6 +171,14 @@ function matrix(params){
  add('matrix.border','Machined silver display surround',
   {type:'bevel-box',width:8.17,height:3.73,depth:.13,radius:.16,bevel:.045},
   'bezel',[0,-.18,.55]);
+ for(const side of [-1,1]){
+  add('matrix.rim.side.'+(side<0?'l':'r'),'Thin bright machined LCD side rim',
+   {type:'bevel-box',width:.078,height:3.63,depth:.08,radius:.024,bevel:.012},
+   'bezeledge',[side*4.03,-.18,.86]);
+  add('matrix.rim.end.'+(side<0?'b':'t'),'Thin bright machined LCD upper rim',
+   {type:'bevel-box',width:8.05,height:.075,depth:.08,radius:.024,bevel:.012},
+   'bezeledge',[0,-.18+side*1.79,.86]);
+ }
  add('matrix.blackbed','Deep antiglare backplane',{type:'bevel-box',width:8.05,height:3.57,depth:.19,radius:.13,bevel:.045},
   'black',[0,-.18,.61]);
  add('matrix.glass','Neutral ultra-clear protective front glass',{type:'bevel-box',width:7.93,height:3.46,depth:.028,radius:.07,bevel:.012},
