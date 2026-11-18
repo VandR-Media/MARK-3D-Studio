@@ -146,7 +146,7 @@ async function testPreset(preset,viewport){
      left.left.tipX>base.left.tipX+.35&&
      Math.abs(left.right.tipX-base.right.tipX)<.07&&
      right.right.tipX>base.right.tipX+.35&&
-     Math.abs(right.left.tipX-base.left.tipX)<.07&&
+     right.left.tipX<left.left.tipX-.5&&
      full.left.tipX>left.left.tipX+.1&&full.right.tipX>right.right.tipX+.1&&
      Math.abs(paused.left.tipX-base.left.tipX)<.07&&
      Math.abs(paused.right.tipX-base.right.tipX)<.07))
