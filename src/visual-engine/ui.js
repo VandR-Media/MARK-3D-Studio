@@ -430,6 +430,27 @@ async function start(){
     left:parseFloat(e.style.left),top:parseFloat(e.style.top)
    })),
    image:()=>viewer.canvas.toDataURL('image/png'),
+   gpuInfo:()=>{
+    const gl=viewer.renderer.getContext();
+    return {webgl2:typeof WebGL2RenderingContext!=='undefined'&&gl instanceof WebGL2RenderingContext,
+     version:gl.getParameter(gl.VERSION),
+     vendor:gl.getParameter(gl.VENDOR),renderer:gl.getParameter(gl.RENDERER),
+     drawCalls:viewer.renderer.info.render.calls,
+     triangles:viewer.renderer.info.render.triangles};
+   },
+   benchmarkFrames:(count=12)=>{
+    if(!Number.isInteger(count)||count<1||count>60)throw Error('Invalid benchmark frame count');
+    const gl=viewer.renderer.getContext(),samples=[];
+    for(let i=0;i<count;i++){
+     const start=performance.now();
+     viewer.render();gl.finish();
+     samples.push(performance.now()-start);
+    }
+    const sorted=[...samples].sort((a,b)=>a-b),sum=samples.reduce((a,b)=>a+b,0);
+    return {frames:count,meanFrameMs:sum/count,p95FrameMs:sorted[Math.min(count-1,Math.ceil(count*.95)-1)],
+     measuredThroughputFps:1000/(sum/count),
+     kind:'forced synchronous WebGL2 render; not display FPS or Huawei hardware'};
+   },
    exportGlb:async()=>bytesToBase64(await viewer.exportGlb()),
    importGlb:async(base64,name='browser-test.glb')=>importEditableGlb(b64ToBytes(base64),name),
    renderStats:()=>({objectCount:scene.objects.length,meshCount:[...viewer.nodes.values()].filter(x=>x.isMesh).length,
