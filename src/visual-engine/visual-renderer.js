@@ -243,41 +243,64 @@ export class VisualRenderer{
    const occluders=[...stagedNodes.values()].filter(o=>
     o.isMesh&&o.material?.opacity>=1&&!o.material.transparent&&
     !(o.material?.transmission>0));
-   // Phase 2: commit. No asynchronous operations or creation of materials/meshes.
+   // Phase 2: the commit is synchronous. Snapshot the active viewport and
+   // references, so a rare context/resize failure also restores the old UI.
    const oldRoot=this.root,oldEnvironment=this.environmentTexture;
    const oldLights=this.world.children.filter(o=>o.userData.visualLight);
-   this.world.remove(oldRoot,...oldLights);
-   this.root=stagedRoot;this.world.add(stagedRoot,...stagedLights);
-   this.world.background=new THREE.Color(scene.environment.color);
-   this.world.environment=stagedEnvironment;
-   this.environmentTexture=stagedEnvironment;
-   this.world.environmentIntensity=scene.environment.intensity;
-   this.renderer.toneMappingExposure=scene.environment.exposure??1.14;
-   this.camera.position.set(...scene.camera.position);
-   this.camera.near=scene.camera.near;this.camera.far=scene.camera.far;
-   this.camera.fov=scene.camera.fov;this.camera.updateProjectionMatrix();
-   this.controls.target.set(...scene.camera.target);
-   this.nodes=stagedNodes;this.occluders=occluders;
-   this.boundScene=structuredClone(scene);
+   const oldNodes=this.nodes,oldOccluders=this.occluders,oldBound=this.boundScene;
+   const oldBackground=this.world.background,oldIntensity=this.world.environmentIntensity;
+   const oldExposure=this.renderer.toneMappingExposure;
+   const oldCamera={position:this.camera.position.clone(),near:this.camera.near,
+    far:this.camera.far,fov:this.camera.fov,target:this.controls.target.clone()};
+   const nextBound=structuredClone(scene);
+   try{
+    this.world.remove(oldRoot,...oldLights);
+    this.root=stagedRoot;this.world.add(stagedRoot,...stagedLights);
+    this.world.background=new THREE.Color(scene.environment.color);
+    this.world.environment=stagedEnvironment;
+    this.environmentTexture=stagedEnvironment;
+    this.world.environmentIntensity=scene.environment.intensity;
+    this.renderer.toneMappingExposure=scene.environment.exposure??1.14;
+    this.camera.position.set(...scene.camera.position);
+    this.camera.near=scene.camera.near;this.camera.far=scene.camera.far;
+    this.camera.fov=scene.camera.fov;this.camera.updateProjectionMatrix();
+    this.controls.target.set(...scene.camera.target);
+    this.nodes=stagedNodes;this.occluders=occluders;this.boundScene=nextBound;
+    this.controls.update();this.resize();
+    committed=true;
+   }catch(error){
+    this.world.remove(stagedRoot,...stagedLights);
+    this.root=oldRoot;this.world.add(oldRoot,...oldLights);
+    this.world.background=oldBackground;this.world.environment=oldEnvironment;
+    this.environmentTexture=oldEnvironment;this.world.environmentIntensity=oldIntensity;
+    this.renderer.toneMappingExposure=oldExposure;
+    this.camera.position.copy(oldCamera.position);this.camera.near=oldCamera.near;
+    this.camera.far=oldCamera.far;this.camera.fov=oldCamera.fov;
+    this.camera.updateProjectionMatrix();this.controls.target.copy(oldCamera.target);
+    this.nodes=oldNodes;this.occluders=oldOccluders;this.boundScene=oldBound;
+    throw error;
+   }
    this.motionLevels.clear();this.lastMotionAt=null;
-   committed=true;
-   // Cleanup is after the successful switch: the previous project is still
-   // fully rendered until this point. Dispose distinct owned GPU resources.
-   const oldGeo=new Set(),oldMat=new Set(),oldTx=new Set();
-   oldRoot.traverse(o=>{if(o.isMesh){
-    oldGeo.add(o.geometry);
-    for(const m of Array.isArray(o.material)?o.material:[o.material]){
-     if(!m)continue;
-     oldMat.add(m);
-     for(const slot of ['map','normalMap','metalnessMap','roughnessMap','emissiveMap','aoMap'])
-      if(m[slot])oldTx.add(m[slot]);
-    }
-   }});
-   oldGeo.forEach(g=>g.dispose());
-   oldMat.forEach(m=>m.dispose());
-   oldTx.forEach(t=>t.dispose());
-   if(oldEnvironment&&oldEnvironment!==stagedEnvironment)oldEnvironment.dispose();
-   this.controls.update();this.resize();
+   // Phase 3: release old GPU resources ONLY after the successful render.
+   // Resource disposal must not invalidate a committed user project.
+   try{
+    const oldGeo=new Set(),oldMat=new Set(),oldTx=new Set();
+    oldRoot.traverse(o=>{if(o.isMesh){
+     oldGeo.add(o.geometry);
+     for(const m of Array.isArray(o.material)?o.material:[o.material]){
+      if(!m)continue;
+      oldMat.add(m);
+      for(const slot of ['map','normalMap','metalnessMap','roughnessMap','emissiveMap','aoMap'])
+       if(m[slot])oldTx.add(m[slot]);
+     }
+    }});
+    oldGeo.forEach(g=>g.dispose());
+    oldMat.forEach(m=>m.dispose());
+    oldTx.forEach(t=>t.dispose());
+    if(oldEnvironment&&oldEnvironment!==stagedEnvironment)oldEnvironment.dispose();
+   }catch(error){
+    console.warn('MARK Visual Engine: old GPU resource cleanup failed',error);
+   }
    return {objects:this.nodes.size,meshes:[...this.nodes.values()].filter(o=>o.isMesh).length};
   }finally{
    if(!committed){
