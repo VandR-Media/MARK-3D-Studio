@@ -123,7 +123,7 @@ async function importEditableGlb(bytes,name='imported.glb'){
   next.objects.push({id:ids[i],parent:node.parent===null?null:ids[node.parent],
    name:node.name.slice(0,160),geometry:{type:'imported',asset,node:i},material:null,
    position:node.position,rotation:node.rotation,scale:node.scale,visible:node.visible,
-   meta:{imported:true}});
+   meta:{imported:true,mesh:node.isMesh}});
  }
  await setScene(next);
  return {...safe,ids,meshes:described.meshes};
