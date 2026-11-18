@@ -429,6 +429,23 @@ async function start(){
     text:e.textContent,anchor:e.dataset.anchor,visible:e.style.display!=='none',
     left:parseFloat(e.style.left),top:parseFloat(e.style.top)
    })),
+   visualResponse:()=>{
+    const needles={},leds={};
+    for(const ch of ['left','right']){
+     const n=viewer.nodes.get('needle.'+ch);
+     if(n)needles[ch]={angle:n.rotation.z,tipX:-Math.sin(n.rotation.z)};
+     for(const band of ['low','mid','high']){
+      const id='meter.'+ch+'.'+band;
+      const column=viewer.nodes.get(id);
+      if(!column)continue;
+      const segments=column.children.filter(o=>o.isMesh&&o.userData.meta?.role==='led');
+      const active=segments.filter(o=>o.material.emissiveIntensity>.001);
+      leds[ch+'.'+band]={active:active.length,colors:active.map(o=>'#'+o.material.color.getHexString()),
+       emissive:active.map(o=>o.material.emissiveIntensity)};
+     }
+    }
+    return {needles,leds};
+   },
    image:()=>viewer.canvas.toDataURL('image/png'),
    framing:()=>viewer.projectedSceneBounds(),
    labelsInFrame:()=>{
