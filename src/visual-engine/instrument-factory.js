@@ -138,8 +138,8 @@ function analog(params){
   add('needle.'+channel,'3D tapered needle',{type:'needle',length:1.60,width:.055,depth:.028},
    'needle',[0,-.82,.239],group,[0,0,-.97]);
   g.bindings.push({target:'needle.'+channel,signal:channel+'.rms',response:'needle',gain:1.85,offset:-.97});
-  label(channel.toUpperCase(),channel==='left'?.275:.725,.365,'#243142',14,group,[0,.43,.238]);
-  label('VU',channel==='left'?.275:.725,.42,'#283747',17,group,[0,.17,.238]);
+  label(channel.toUpperCase(),channel==='left'?.275:.725,.365,'#29303b',13,group,[-1.03,-.92,.24]);
+  label('VU',channel==='left'?.275:.725,.42,'#29303b',16,group,[0,-.27,.24]);
   for(const [i,value] of ['-20','-10','-5','0','+3'].entries()){
    const angle=-.84+i*.42;
    label(value,.5,.5,i===4?'#c32e20':'#28303b',10,group,
@@ -193,7 +193,7 @@ function matrix(params){
   add('matrix.rail.'+channel+'.'+band,'Machined LED column side rail',
    {type:'bevel-box',width:.83,height:3.25,depth:.025,radius:.05,bevel:.01},
    channel==='left'?'leftaccent':'rightaccent',[x,-.19,.700]);
-  label(band.toUpperCase(),.5+x/9.15,.26,'#d9e5ee',11,'matrix.blackbed',[x,1.95,.30]);
+  label(band.toUpperCase(),.5+x/9.15,.26,'#ecf8ff',12,'matrix.blackbed',[x,1.47,.30]);
  }
  add('matrix.separator','Physical center divider',{type:'box',width:.042,height:3.34,depth:.075},
   'bezel',[0,-.19,.75]);
