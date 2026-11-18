@@ -15,7 +15,7 @@ const sha=x=>createHash('sha256').update(x).digest('hex');
 const output=resolve('dist/visual-v2/acceptance');
 mkdirSync(output,{recursive:true});
 const renderUrl=pathToFileURL(resolve('dist/MARK-Visual-Engine-v2.html')).href;
-function makeStereoWav({sr=48000,seconds=9}={}){
+function makeStereoWav({sr=48000,seconds=45}={}){
  const n=sr*seconds|0,b=new Uint8Array(44+n*4),v=new DataView(b.buffer);
  const ascii=(s,o)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
  ascii('RIFF',0);v.setUint32(4,b.length-8,true);ascii('WAVE',8);ascii('fmt ',12);
@@ -34,7 +34,7 @@ const wav=makeStereoWav(),browser=await chromium.launch({headless:true,args:[
  '--enable-unsafe-swiftshader','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required'
 ]});
 const report={sourceCommit:process.env.MARK_SOURCE_SHA||process.env.GITHUB_SHA||'local-unverified',renderer:'Chromium WebGL2',
- syntheticInput:'Decoded 9 s WAV with L=120 Hz R=6000 Hz (independent known PCM; not a commercial track)',
+ syntheticInput:'Decoded 45 s WAV with L=120 Hz R=6000 Hz (independent known PCM; not a commercial track)',
  tests:[],screenshots:[],errors:[],status:'running',deviceMeasured:false};
 async function capture(page,file){
  const buffer=await page.locator('#visualCanvas').screenshot();
@@ -293,14 +293,20 @@ async function testPreset(preset,viewport){
   if(!(audio.channels['left.low']>audio.channels['left.high']&&
        audio.channels['right.high']>audio.channels['right.low']))
    throw Error('Six real stereo channels do not show test PCM selectivity '+JSON.stringify(audio));
-  await capture(page,kind+'-real-stereo-pcm.png');
+  const activeImage=await capture(page,kind+'-real-stereo-pcm.png');
   await page.waitForTimeout(450);
-  await capture(page,kind+'-real-stereo-pcm-late.png');
+  const lateImage=await capture(page,kind+'-real-stereo-pcm-late.png');
+  if(await page.evaluate(()=>window.MARK_VISUAL_API.audioState().source)!=='pcm')
+   throw Error('PCM finished before real 3D visual frame capture');
   await page.locator('#pause').click();
   await page.waitForFunction(()=>window.MARK_VISUAL_API.audioState().source==='silence',null,{timeout:3000});
   const silence=await page.evaluate(()=>window.MARK_VISUAL_API.activeSegments());
   if(Object.values(silence).some(n=>n!==0))throw Error('Silence/pause did not clear active segments');
-  await capture(page,kind+'-paused-silence.png');
+  const pausedImage=await capture(page,kind+'-paused-silence.png');
+  if(activeImage===pausedImage&&lateImage===pausedImage)
+   throw Error('M2 PCM visual proof failed: active LEDs/needles identical to paused WebGL canvas');
+  report.tests.push({preset:kind+'-webgl-pcm-visible',status:'pass',
+   activeSha256:activeImage,lateSha256:lateImage,pausedSha256:pausedImage});
  }
  if(device==='mobile'){
   for(const viewport of [{width:360,height:800},{width:1080,height:1920}]){
