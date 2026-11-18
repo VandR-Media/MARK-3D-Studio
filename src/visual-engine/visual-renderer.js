@@ -100,7 +100,8 @@ export class VisualRenderer{
   this.camera.position.set(0,0,13);
   this.controls=new OrbitControls(this.camera,canvas);
   this.controls.enableDamping=true;this.controls.dampingFactor=.13;
-  this.controls.minDistance=4;this.controls.maxDistance=35;
+  this.controls.minDistance=3;this.controls.maxDistance=110;
+  this.autoFrameEnabled=true;this.lastViewportAspect=null;
   this.controls.addEventListener('change',()=>this.render());
   this.root=new THREE.Group();this.root.name='MARK Visual Scene';
   this.world.add(this.root);
@@ -129,8 +130,65 @@ export class VisualRenderer{
  resize(width=this.canvas.clientWidth,height=this.canvas.clientHeight){
   width=Math.max(1,Math.floor(width||640));height=Math.max(1,Math.floor(height||480));
   this.renderer.setSize(width,height,false);
-  this.camera.aspect=width/height;this.camera.updateProjectionMatrix();
-  this.composer?.setSize(width,height);this.render();
+  const aspect=width/height;
+  const changed=this.lastViewportAspect===null||Math.abs(aspect-this.lastViewportAspect)>.015;
+  this.camera.aspect=aspect;this.camera.updateProjectionMatrix();
+  this.lastViewportAspect=aspect;
+  this.composer?.setSize(width,height);
+  if(changed&&this.autoFrameEnabled)this.fitCameraToScene();
+  this.render();
+ }
+ sceneBounds(){
+  if(!this.root||!this.boundScene)return null;
+  this.root.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(this.root,true);
+  return bounds.isEmpty()?null:bounds;
+ }
+ fitCameraToScene({fillX,fillY=.82,zoom=1}={}){
+  const bounds=this.sceneBounds();
+  if(!bounds)return null;
+  const size=bounds.getSize(new THREE.Vector3());
+  const center=bounds.getCenter(new THREE.Vector3());
+  const aspect=this.camera.aspect;
+  const goalX=fillX??(aspect<1.4?.86:.76);
+  const fovV=THREE.MathUtils.degToRad(this.camera.fov);
+  const tangentV=Math.tan(fovV/2),tangentH=tangentV*aspect;
+  const direction=this.camera.position.clone().sub(this.controls.target);
+  if(direction.lengthSq()<.001)direction.set(0,0,1);
+  direction.normalize();
+  this.camera.position.copy(center).add(direction.multiplyScalar(12));
+  this.camera.lookAt(center);this.camera.updateMatrixWorld(true);
+  const inverse=this.camera.quaternion.clone().invert();
+  let needed=0;
+  for(const x of [bounds.min.x,bounds.max.x])
+   for(const y of [bounds.min.y,bounds.max.y])
+    for(const z of [bounds.min.z,bounds.max.z]){
+     const p=new THREE.Vector3(x,y,z).sub(center).applyQuaternion(inverse);
+     needed=Math.max(needed,p.z+Math.abs(p.x)/(tangentH*goalX),
+      p.z+Math.abs(p.y)/(tangentV*fillY));
+    }
+  const distance=Math.max(3,needed/Math.max(.2,zoom)+.30);
+  this.camera.position.copy(center).add(direction.multiplyScalar(distance));
+  this.controls.target.copy(center);
+  this.controls.maxDistance=Math.max(110,distance*3);
+  this.camera.far=Math.max(this.camera.far,distance+size.length()*4+20);
+  this.camera.updateProjectionMatrix();this.controls.update();
+  return {distance,aspect,fillX:goalX,fillY};
+ }
+ projectedSceneBounds(){
+  const bounds=this.sceneBounds();if(!bounds)return null;
+  this.camera.updateMatrixWorld(true);
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for(const x of [bounds.min.x,bounds.max.x])
+   for(const y of [bounds.min.y,bounds.max.y])
+    for(const z of [bounds.min.z,bounds.max.z]){
+     const p=new THREE.Vector3(x,y,z).project(this.camera);
+     minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);
+     minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
+    }
+  return {left:(minX+1)/2,right:(maxX+1)/2,
+   top:(1-maxY)/2,bottom:(1-minY)/2,
+   width:(maxX-minX)/2,height:(maxY-minY)/2};
  }
  async setScene(scene){
   validateVisualScene(scene);
@@ -267,6 +325,7 @@ export class VisualRenderer{
     this.camera.fov=scene.camera.fov;this.camera.updateProjectionMatrix();
     this.controls.target.set(...scene.camera.target);
     this.nodes=stagedNodes;this.occluders=occluders;this.boundScene=nextBound;
+    this.autoFrameEnabled=true;this.lastViewportAspect=null;
     this.controls.update();this.resize();
     committed=true;
    }catch(error){
@@ -386,8 +445,10 @@ export class VisualRenderer{
   const views={front:[0,0,13],detail:[0,0,8],left:[-8,1,10],right:[8,1,10],left30:[-6.5,0,11.26],right30:[6.5,0,11.26],threequarter:[5,3,12],
    side:[13,0,0],back:[0,0,-13]};
   if(!views[view])throw Error('Unknown camera view '+view);
-  this.camera.position.set(...views[view]);this.controls.target.set(0,0,0);
-  this.controls.update();this.render();
+  const center=this.sceneBounds()?.getCenter(new THREE.Vector3())||new THREE.Vector3();
+  this.camera.position.copy(center).add(new THREE.Vector3(...views[view]));
+  this.controls.target.copy(center);
+  this.fitCameraToScene({zoom:view==='detail'?1.08:1});this.render();
  }
  applyAnimation(clipId,time){
   const clip=this.boundScene?.animation?.clips?.find(x=>x.id===clipId);
