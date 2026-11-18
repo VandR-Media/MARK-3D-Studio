@@ -5,6 +5,7 @@ import {buildRiggedFixture,buildStaticFixture} from '../scripts/pro-studio-glb-f
 import {inspectRiggedGlb,comparePreservedRiggedGlb} from '../src/pro-studio/rigged-glb-audit.js';
 import {createRigPreviewPack,openRigPreviewPack,reportRigPreviewRoundTrip} from '../src/pro-studio/rigpack-preview.js';
 import {parseGlb,writeGlb} from '../src/glb.js';
+import {inspectVisualImport} from '../src/visual-engine/glb-guard.js';
 const fixture=buildRiggedFixture();
 const modified=(change)=>{const parsed=parseGlb(fixture.bytes),doc=structuredClone(parsed.json);change(doc);
  return writeGlb(parsed,doc);};
@@ -82,5 +83,13 @@ test('the fixture generator is deterministic and clearly separate from the Neon 
  const again=buildRiggedFixture();assert.deepEqual(again.bytes,fixture.bytes);
  assert.match(fixture.doc.asset.extras.purpose,/not Neon Boy/);
  assert.ok(fixture.doc.scenes[0].name.includes('demonstrator'));
+});
+
+test('Release 1 prototype never changes v2 import compatibility or weakens its loss-prevention gate',()=>{
+ const staticExample=buildStaticFixture();
+ assert.equal(inspectVisualImport(staticExample.bytes).meshes,1);
+ assert.throws(()=>inspectVisualImport(fixture.bytes),/Скелетный GLB/);
+ const inspection=inspectRiggedGlb(fixture.bytes);
+ assert.equal(inspection.skins[0].joints,70);
 });
 
