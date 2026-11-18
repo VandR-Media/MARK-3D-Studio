@@ -47,18 +47,45 @@ function assertEqual(a,b,path,epsilon=1e-5){
   if(!nearly(a,b,epsilon))throw Error(path+' numerical drift '+a+' vs '+b);
  }else if(a!==b)throw Error(path+' mismatch '+String(a)+' vs '+String(b));
 }
-function semanticMaterial(m){
+function semanticTextureInfo(info,doc){
+ if(!info)return null;
+ const texture=doc.textures?.[info.index];
+ if(!texture)throw Error('Missing material texture '+info.index);
+ const sampler=doc.samplers?.[texture.sampler]||{};
+ const transform=info.extensions?.KHR_texture_transform||{};
+ return {
+  index:info.index,source:texture.source??texture.extensions?.KHR_texture_basisu?.source??null,
+  uv:transform.texCoord??info.texCoord??0,
+  offset:transform.offset??[0,0],scale:transform.scale??[1,1],
+  rotation:transform.rotation??0,
+  sampler:{
+   magFilter:sampler.magFilter??9729,
+   minFilter:sampler.minFilter??9987,
+   wrapS:sampler.wrapS??10497,wrapT:sampler.wrapT??10497
+  },
+  strength:info.strength??1,scaleFactor:info.scale??1
+ };
+}
+function semanticMaterial(m,doc){
  const p=m?.pbrMetallicRoughness||{},ext=m?.extensions||{};
- const transmission=ext.KHR_materials_transmission?.transmissionFactor??0;
- const ior=ext.KHR_materials_ior?.ior??1.5;
  return {
   color:p.baseColorFactor||[1,1,1,1],
   metallic:p.metallicFactor??1,roughness:p.roughnessFactor??1,
   emissive:m?.emissiveFactor||[0,0,0],alphaMode:m?.alphaMode||'OPAQUE',
   alphaCutoff:m?.alphaCutoff??.5,doubleSided:m?.doubleSided||false,
-  transmission,ior,
-  textureSlots:['baseColorTexture','metallicRoughnessTexture'].map(k=>Boolean(p[k]))
-   .concat(['normalTexture','occlusionTexture','emissiveTexture'].map(k=>Boolean(m?.[k]))),
+  transmission:ext.KHR_materials_transmission?.transmissionFactor??0,
+  ior:ext.KHR_materials_ior?.ior??1.5,
+  clearcoat:ext.KHR_materials_clearcoat?.clearcoatFactor??0,
+  clearcoatRoughness:ext.KHR_materials_clearcoat?.clearcoatRoughnessFactor??0,
+  textures:{
+   baseColor:semanticTextureInfo(p.baseColorTexture,doc),
+   metalRough:semanticTextureInfo(p.metallicRoughnessTexture,doc),
+   normal:semanticTextureInfo(m?.normalTexture,doc),
+   occlusion:semanticTextureInfo(m?.occlusionTexture,doc),
+   emissive:semanticTextureInfo(m?.emissiveTexture,doc),
+   transmission:semanticTextureInfo(ext.KHR_materials_transmission?.transmissionTexture,doc),
+   clearcoat:semanticTextureInfo(ext.KHR_materials_clearcoat?.clearcoatTexture,doc)
+  }
  };
 }
 function binData(parsed){
@@ -171,8 +198,8 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
     findings.accessorValuesCompared+=av.length;
    }
    if(!allowed.has(i)){
-    assertEqual(semanticMaterial(A.materials?.[p.material]),
-     semanticMaterial(B.materials?.[q.material]),'mesh['+i+'].material',epsilon);
+    assertEqual(semanticMaterial(A.materials?.[p.material],A),
+     semanticMaterial(B.materials?.[q.material],B),'mesh['+i+'].material',epsilon);
     findings.materialsCompared++;
    }
   }
