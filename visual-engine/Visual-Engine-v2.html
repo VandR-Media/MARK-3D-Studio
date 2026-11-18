@@ -28,6 +28,12 @@
  <canvas id="visualCanvas" aria-label="Реальная трёхмерная WebGL2-сцена музыкального прибора"></canvas>
  <div id="overlay" class="labels" aria-hidden="true"></div>
 </div>
+<section class="music-bar" aria-label="Локальное воспроизведение и настоящий PCM">
+ <button id="openMusic" class="music-open" type="button">♫ Открыть музыку</button>
+ <div class="music-meta"><strong id="trackTitle">Музыка не выбрана</strong>
+ <span id="playbackState" role="status">Выберите MP3, WAV или другой поддерживаемый аудиофайл. DEMO отключится автоматически.</span></div>
+ <button id="musicToggle" type="button" disabled>▶ / II</button>
+</section>
 <section class="info-strip"><span id="readout">LEFT 0% · RIGHT 0%</span>
  <span class="subtitle">Проведите пальцем для вращения · двумя пальцами для масштаба</span></section>
 <section class="view-actions" aria-label="Камера">
@@ -37,7 +43,7 @@
  <h2>Аудиореакция <small>LEFT / RIGHT · реальные PCM и FFT</small></h2>
  <p>Загрузите музыкальный файл со смартфона — каналы будут анализироваться независимо. Микрофон и сеть не используются.</p>
  <div class="actions">
-  <label class="buttonlike primary" for="audioFile">Открыть музыку</label>
+  <label class="buttonlike" for="audioFile">Выбрать другой файл</label>
   <input type="file" id="audioFile" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg" hidden>
   <button id="pause">Пауза / продолжить</button><button id="stop">Стоп</button>
  </div>
