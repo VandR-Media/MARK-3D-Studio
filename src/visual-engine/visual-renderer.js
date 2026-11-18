@@ -439,7 +439,7 @@ export class VisualRenderer{
     for(const [index,led] of segments.entries()){
      const held=frame.playing&&peak>value+.02&&index===heldIndex;
      const isOn=effective>=led.userData.meta.threshold||held;
-     led.material.emissiveIntensity=isOn?(held?1.25:2.2):0;
+     led.material.emissiveIntensity=isOn?(held?.65:1.25):0;
      led.material.color.copy(isOn?led.userData.onColor:new THREE.Color('#15212b'));
     }
    }else if(b.response==='scale-y')target.scale.y=Math.max(.005,effective);
