@@ -102,6 +102,46 @@ function parents(nodes){
  nodes.forEach((n,i)=>(n.children||[]).forEach(k=>{if(p[k]!==-1)throw Error('Multiple parents '+k);p[k]=i;}));
  return p;
 }
+const I=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+function multiply(a,b){
+ const out=Array(16).fill(0);
+ for(let c=0;c<4;c++)for(let r=0;r<4;r++)
+  for(let k=0;k<4;k++)out[c*4+r]+=a[k*4+r]*b[c*4+k];
+ return out;
+}
+function matrix(n){
+ if(n.matrix)return n.matrix;
+ const [x,y,z,w]=n.rotation||[0,0,0,1];
+ const [sx,sy,sz]=n.scale||[1,1,1];
+ const [tx,ty,tz]=n.translation||[0,0,0];
+ return [
+  (1-2*(y*y+z*z))*sx,2*(x*y+w*z)*sx,2*(x*z-w*y)*sx,0,
+  2*(x*y-w*z)*sy,(1-2*(x*x+z*z))*sy,2*(y*z+w*x)*sy,0,
+  2*(x*z+w*y)*sz,2*(y*z-w*x)*sz,(1-2*(x*x+y*y))*sz,0,
+  tx,ty,tz,1
+ ];
+}
+function nodeWorlds(doc){
+ const nodes=doc.nodes||[],parent=parents(nodes),cache=new Map(),active=new Set();
+ function world(i){
+  if(cache.has(i))return cache.get(i);
+  if(active.has(i))throw Error('GLB hierarchy cycle at '+i);
+  active.add(i);
+  const result=multiply(parent[i]<0?I:world(parent[i]),matrix(nodes[i]));
+  active.delete(i);cache.set(i,result);
+  return result;
+ }
+ return nodes.map((_,i)=>world(i));
+}
+function meshParentTree(doc){
+ const nodes=doc.nodes||[],parent=parents(nodes);
+ return nodes.map((n,i)=>{
+  if(n.mesh===undefined)return undefined;
+  let p=parent[i];
+  while(p>=0&&nodes[p].mesh===undefined)p=parent[p];
+  return p<0?null:nodes[p].mesh;
+ }).filter(x=>x!==undefined);
+}
 export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes=[]}={}){
  const a=parseGlb(before),b=parseGlb(after),A=a.json,B=b.json;
  const allowed=new Set(allowChangedMeshes);
@@ -140,12 +180,17 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
  }
  // Exporters may include cameras and lights as extra nodes. Preserve the mesh
  // ownership tree and local transforms, independently from non-mesh extras.
- const meshNodes=doc=>(doc.nodes||[]).filter(n=>n.mesh!==undefined);
+ const meshNodes=doc=>(doc.nodes||[]).map((n,index)=>({n,index})).filter(x=>x.n.mesh!==undefined);
  const am=meshNodes(A),bm=meshNodes(B);
  assertEqual(am.length,bm.length,'meshNode count');
+ assertEqual(meshParentTree(A),meshParentTree(B),'mesh parent hierarchy');
+ const worldA=nodeWorlds(A),worldB=nodeWorlds(B);
  for(let i=0;i<am.length;i++){
-  assertEqual(am[i].mesh,bm[i].mesh,'meshNode['+i+'].geometry');
-  if(!allowed.has(am[i].mesh))assertEqual(localTRS(am[i]),localTRS(bm[i]),'meshNode['+i+'].TRS',epsilon);
+  assertEqual(am[i].n.mesh,bm[i].n.mesh,'meshNode['+i+'].geometry');
+  if(!allowed.has(am[i].n.mesh)){
+   assertEqual(worldA[am[i].index],worldB[bm[i].index],
+    'meshNode['+i+'].worldMatrix',epsilon);
+  }
   findings.nodesCompared++;
  }
  // Do not silently lose embedded textures, even if their PNG encoding changes.
