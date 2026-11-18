@@ -2,6 +2,11 @@ name: MARK Blender Cloud (mobile test)
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/mark-blender-cloud.yml'
+      - 'tools/neon_boy_builder.py'
 
 permissions:
   contents: read
