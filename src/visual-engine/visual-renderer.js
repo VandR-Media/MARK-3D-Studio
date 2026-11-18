@@ -291,7 +291,7 @@ export class VisualRenderer{
   this.onRender?.();
  }
  setView(view){
-  const views={front:[0,0,13],left:[-8,1,10],right:[8,1,10],threequarter:[5,3,12],
+  const views={front:[0,0,13],left:[-8,1,10],right:[8,1,10],left30:[-6.5,0,11.26],right30:[6.5,0,11.26],threequarter:[5,3,12],
    side:[13,0,0],back:[0,0,-13]};
   if(!views[view])throw Error('Unknown camera view '+view);
   this.camera.position.set(...views[view]);this.controls.target.set(0,0,0);
