@@ -39,8 +39,8 @@ const html=source
  .replace('<a class="small-link" href="../index.html">← Основная Studio</a>',
   '<span class="small-link">MARK Studio · offline</span>')
  .replace('</head>','<meta name="mark-visual-source-sha" content="'+sha+'"></head>')
- // Use a callback: JS strings contain  .replace('</body>','<script>\n'+javascript+'\n</script>\n</body>'); (e.g. in minified Three.js), which
- // String.replace would otherwise expand to the matched '</body>' HTML tag.
+ // Use a callback so the literal $& sequence in minified Three.js is preserved.
+ // A plain replacement string would substitute the HTML closing tag for $&.
  .replace('</body>',()=>'<script>\n'+javascript+'\n</script>\n</body>');
 const inlineStart=html.lastIndexOf('<script>\n');
 const inlineEnd=html.lastIndexOf('\n</script>');
