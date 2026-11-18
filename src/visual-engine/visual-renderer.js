@@ -324,7 +324,7 @@ export class VisualRenderer{
   const nodes=[],parents=[];
   const walk=(o,parent)=>{
    const index=nodes.length;
-   nodes.push({name:o.name||('GLB part '+index),parent,
+   nodes.push({name:o.name||('GLB part '+index),parent,sourceMarkId:o.userData?.markId||null,
     position:o.position.toArray(),rotation:[o.rotation.x,o.rotation.y,o.rotation.z],
     scale:o.scale.toArray(),visible:o.visible,isMesh:Boolean(o.isMesh)});
    for(const child of o.children)walk(child,index);
