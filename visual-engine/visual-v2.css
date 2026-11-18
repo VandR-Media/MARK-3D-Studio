@@ -28,3 +28,12 @@ button:active,.buttonlike:active{transform:translateY(1px)}
 footer{color:#819db6;font-size:11px;line-height:1.5;margin:12px 0 24px}
 @media(max-width:650px){.studio{padding:9px}.top{align-items:flex-start}.canvas-frame{height:clamp(252px,34vh,395px)}.labels .mark-label{font-size:9px!important}.actions>*{flex:1 1 42%}.panel{padding:11px}.info-strip{font-size:11px}}
 @media(orientation:landscape) and (max-height:600px){.canvas-frame{height:76vh}.studio{padding:6px}.panel{margin:6px 0}}
+
+.music-bar{display:flex;align-items:center;gap:12px;min-height:74px;margin:11px 0 5px;padding:11px 13px;border:1px solid #39728c;border-radius:13px;background:linear-gradient(115deg,#112b40,#071b30);box-shadow:0 4px 20px #0006}
+.music-bar .music-open{flex:0 0 auto;font-size:16px;font-weight:850;padding:14px 18px;min-height:49px;border-color:#55c8e7;color:#061827;background:linear-gradient(110deg,#85e8ff,#31b6e8)}
+.music-meta{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px;overflow:hidden}
+.music-meta strong{font-size:14px;color:#f4f9ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.music-meta span{font-size:12px;color:#a9cbdf;line-height:1.35}
+#musicToggle{min-width:57px;padding:9px 12px;font-size:20px}
+#musicToggle:disabled{opacity:.4;cursor:default}
+@media(max-width:650px){.music-bar{flex-wrap:wrap;gap:8px;padding:9px}.music-bar .music-open{flex:1 1 100%;min-height:53px;font-size:17px}.music-meta{flex:1 1 60%}}
