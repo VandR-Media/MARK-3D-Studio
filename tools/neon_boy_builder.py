@@ -504,7 +504,7 @@ def camera(name,loc,target):
     bpy.context.scene.camera=ob
     return ob
 bpy.context.scene.view_settings.view_transform="AgX"
-bpy.context.scene.view_settings.look="Medium High Contrast"
+bpy.context.scene.view_settings.look="AgX - Medium High Contrast"
 bpy.context.scene.render.engine="CYCLES"
 bpy.context.scene.cycles.samples=28
 bpy.context.scene.render.resolution_x=600
