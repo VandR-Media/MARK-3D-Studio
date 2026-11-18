@@ -11,9 +11,9 @@ const mat=(color,metalness=0,roughness=.65,extra={})=>({
 });
 const materials={
  enclosure:mat('#263342',.84,.31),bodyface:mat('#141e2b',.82,.36),
- bezel:mat('#677684',.91,.28),bezeledge:mat('#a5b7c5',.92,.24),
- dial:mat('#bfa177',.09,.57,{emissive:'#b57733',emissiveIntensity:.14}),dialdark:mat('#111821',.24,.53),
- amber:mat('#ffae52',.1,.35,{emissive:'#ff9519',emissiveIntensity:.54}),
+ bezel:mat('#677684',.91,.28),bezeledge:mat('#8494a3',.79,.37),
+ dial:mat('#c9a571',.06,.65,{emissive:'#e8a14f',emissiveIntensity:.26}),dialdark:mat('#111821',.24,.53),
+ amber:mat('#ffa94a',.08,.39,{emissive:'#ff8c23',emissiveIntensity:.62}),
  glass:mat('#f5faff',0,.095,{type:'physical',opacity:1,transmission:.99,thickness:.012,ior:1.45}),
  screw:mat('#8998a8',.94,.26),
  needle:mat('#e9683c',.42,.27,{emissive:'#ee491f',emissiveIntensity:.10}),
@@ -158,7 +158,7 @@ function analog(params){
   label((channel==='left'?'L ':'R ')+bands[b].toUpperCase(),.5+x/9.15,.82,
    channel==='left'?'#a6ddff':'#ffc0e8',10,'analog.bottom.bay',[x,.365,.12]);
  }
- addSegmentColumns(g,{columns:cols,originY:-1.99,step:.083,steps:8,width:.27,z:.65});
+ addSegmentColumns(g,{columns:cols,originY:-1.99,step:.083,steps:8,width:.27,z:.65,colorful:true});
  return {...g,name:'MARK Analog Studio — physical 3D stereo VU',materials:structuredClone(materials)};
 }
 function matrix(params){
