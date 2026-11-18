@@ -113,7 +113,7 @@ function analog(params){
     'bezel',[0,side*1.38,.31],group);
   }
   add(group+'.back','Deep recessed inset',{type:'bevel-box',width:3.67,height:2.72,depth:.29,radius:.12,bevel:.08},
-   'black',[0,0,.065],group);
+   'black',[0,0,0],group);
   add(group+'.dial','Warm ivory physical dial face',{type:'bevel-box',width:3.30,height:2.38,depth:.025,radius:.06,bevel:.019},
    'dial',[0,0,.17],group);
   add(group+'.glass','Transmissive curved safety cover',{type:'bevel-box',width:3.43,height:2.46,depth:.065,radius:.055,bevel:.031},
