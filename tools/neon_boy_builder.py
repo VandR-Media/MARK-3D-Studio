@@ -533,6 +533,46 @@ bpy.ops.export_scene.gltf(
     export_animations=False,
     export_skins=False)
 
+# Optional GPU draw-call reduction, preserving authoring meshes in .blend.
+# Duplicate editable pieces and join them into one skinned multi-material mesh.
+# This reduces the hundreds of separate glTF mesh nodes to a few primitives.
+mobile_result = {}
+try:
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in objects:
+        if obj.type=="MESH":
+            obj.select_set(True)
+    bpy.context.view_layer.objects.active=next(o for o in objects if o.type=="MESH")
+    bpy.ops.object.duplicate(linked=False)
+    copies=list(bpy.context.selected_objects)
+    bpy.context.view_layer.objects.active=copies[0]
+    bpy.ops.object.join()
+    merged=bpy.context.view_layer.objects.active
+    merged.name="NeonBoy_Mobile_MergedSkinned"
+    assert merged.type=="MESH" and len(merged.vertex_groups)>=14
+    bpy.ops.object.select_all(action="DESELECT")
+    rig.select_set(True); merged.select_set(True)
+    bpy.context.view_layer.objects.active=merged
+    mobile_path=os.path.join(OUT,"NEON_BOY_MOBILE_DANCE.glb")
+    bpy.ops.export_scene.gltf(filepath=mobile_path,export_format="GLB",
+        use_selection=True,export_animations=True,export_skins=True)
+    mobile_result["animated"]=check_mobile_path=mobile_path
+    mobile_static=os.path.join(OUT,"NEON_BOY_MOBILE_STATIC.glb")
+    bpy.ops.export_scene.gltf(filepath=mobile_static,export_format="GLB",
+        use_selection=True,export_animations=False,export_skins=False)
+    mobile_result["static"]=mobile_static
+    bpy.data.objects.remove(merged,do_unlink=True)
+    print("MARK_MOBILE_MERGE_SUCCESS",len(copies))
+except Exception as exc:
+    print("MARK_MOBILE_MERGE_ERROR",repr(exc))
+    # Do not invalidate original exports or authoring meshes.
+    try:
+        for ob in copies:
+            if ob.name in bpy.data.objects and ob != rig: bpy.data.objects.remove(ob,do_unlink=True)
+    except: pass
+    mobile_result={}
+# Restore normal camera rendering selection independently of merged copies.
+
 for name,loc,frame in [
     ("front", (0,-11.7,5.0),1),
     ("side", (-11.8,0,4.8),1),
@@ -559,6 +599,7 @@ checks={
     "animated_glb":check_glb(os.path.join(OUT,"NEON_BOY_DANCE.glb")),
     "static_glb":check_glb(os.path.join(OUT,"NEON_BOY_STATIC.glb")),
     "preview_images":sorted(n for n in os.listdir(OUT) if n.endswith(".png")),
+    "mobile_optimizer_created":bool(mobile_result),
     "scene":"Blender authored; MARK Studio UI and Huawei device remain untested",
     "reference":"Stylized interpretation; not a photogrammetric reproduction"}
 assert checks["animated_glb"]["animations"]>=1,checks
