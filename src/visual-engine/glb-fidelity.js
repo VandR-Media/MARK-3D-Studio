@@ -35,6 +35,13 @@ function assertEqual(a,b,path,epsilon=1e-5){
   if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)
    throw Error(path+' array length/shape mismatch');
   for(let i=0;i<a.length;i++)assertEqual(a[i],b[i],path+'['+i+']',epsilon);
+ }else if(a&&b&&typeof a==='object'&&typeof b==='object'){
+  const keys=Object.keys(a);
+  if(keys.length!==Object.keys(b).length)throw Error(path+' keys mismatch');
+  for(const k of keys){
+   if(!Object.hasOwn(b,k))throw Error(path+' missing key '+k);
+   assertEqual(a[k],b[k],path+'.'+k,epsilon);
+  }
  }else if(typeof a==='number'&&typeof b==='number'){
   if(!nearly(a,b,epsilon))throw Error(path+' numerical drift '+a+' vs '+b);
  }else if(a!==b)throw Error(path+' mismatch '+String(a)+' vs '+String(b));
@@ -79,7 +86,7 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
   for(let k=0;k<x.primitives.length;k++){
    const p=x.primitives[k],q=y.primitives[k];
    assertEqual(p.mode??4,q.mode??4,'mesh['+i+'].topology');
-   if(Boolean(p.indices)!==Boolean(q.indices))throw Error('index presence mismatch');
+   if((p.indices!==undefined)!==(q.indices!==undefined))throw Error('index presence mismatch');
    for(const semantic of ['POSITION','NORMAL','TEXCOORD_0','TEXCOORD_1','TANGENT']){
     const ax=p.attributes?.[semantic],bx=q.attributes?.[semantic];
     if((ax===undefined)!==(bx===undefined))throw Error('Attribute lost '+i+'.'+semantic);
