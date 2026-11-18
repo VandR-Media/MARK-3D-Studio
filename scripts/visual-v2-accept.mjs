@@ -92,7 +92,10 @@ async function testPreset(preset,viewport){
   await page.waitForFunction(()=>!window.MARK_VISUAL_API.audioStatus().playing&&
    document.getElementById('playbackState').textContent.includes('завершился'),
    null,{timeout:30000});
+  const initialStarts=decoded.starts;
   await page.locator('#musicToggle').click();
+  await page.waitForFunction(prev=>window.MARK_VISUAL_API.audioStatus().starts>prev,
+   initialStarts,{timeout:30000});
   await page.waitForFunction(()=>!window.MARK_VISUAL_API.audioStatus().playing&&
    document.getElementById('playbackState').textContent.includes('завершился'),
    null,{timeout:30000});
@@ -135,8 +138,10 @@ async function testPreset(preset,viewport){
    return x.loaded&&!x.playing&&
     document.getElementById('playbackState').textContent.includes('завершился');
   },null,{timeout:40000});
+  const wavStarts=await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus().starts);
   await page.locator('#musicToggle').click();
-  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
+  await page.waitForFunction(prev=>window.MARK_VISUAL_API.audioStatus().starts>prev,
+   wavStarts,{timeout:30000});
   await page.locator('#stop').click();
   report.tests.push({preset:'analog-local-WAV-ended-and-replayed',status:'pass'});
  }
