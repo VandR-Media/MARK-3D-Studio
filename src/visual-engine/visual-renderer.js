@@ -13,6 +13,7 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {validateVisualScene} from './scene-model.js';
+import {inspectVisualImport} from './glb-guard.js';
 import {validateStereoFrame} from './audio-frame.js';
 const clamp=x=>Math.max(0,Math.min(1,x));
 function shapeRect(w,h,r){
@@ -132,6 +133,37 @@ export class VisualRenderer{
  }
  async setScene(scene){
   validateVisualScene(scene);
+  // Parse and validate ALL external dependencies before touching the active
+  // renderer or disposing a single old resource. A corrupt attachment, missing
+  // node or malformed texture must not destroy the user's working scene.
+  const importedGraphs=await Promise.all((scene.attachments||[]).map(async asset=>{
+   const binary=Uint8Array.from(atob(asset.data.split(',')[1]),c=>c.charCodeAt(0));
+   inspectVisualImport(binary);
+   const gltf=await new GLTFLoader().parseAsync(binary.buffer,'');
+   const nodes=[];gltf.scene.traverse(node=>nodes.push(node));
+   return nodes;
+  }));
+  for(const object of scene.objects)if(object.geometry.type==='imported'){
+   const graph=importedGraphs[object.geometry.asset];
+   if(!graph?.[object.geometry.node])
+    throw Error('Missing GLB node '+object.id+' at asset '+object.geometry.asset);
+   const parent=graph[object.geometry.node].parent;
+   const expectedParent=parent?.isScene?null:graph.indexOf(parent);
+   const actualParent=object.parent?
+    scene.objects.find(x=>x.id===object.parent):null;
+   if(expectedParent!==null&&expectedParent>=0&&
+      (!actualParent||actualParent.geometry.type!=='imported'||
+       actualParent.geometry.asset!==object.geometry.asset||
+       actualParent.geometry.node!==expectedParent))
+    throw Error('GLB hierarchy mismatch '+object.id);
+  }
+  const preparedTextures=new Map();
+  for(const [id,record] of Object.entries(scene.materials)){
+   const maps=new Map();
+   for(const [slot,data] of Object.entries(record.maps||{}))
+    maps.set(slot,await loadTextureData(data,slot));
+   preparedTextures.set(id,maps);
+  }
   const previous=this.root;
   this.root=new THREE.Group();this.root.name=scene.name;this.world.add(this.root);
   this.world.remove(previous);
@@ -143,14 +175,6 @@ export class VisualRenderer{
   oldGeometry.forEach(g=>g.dispose());
   oldMaterials.forEach(m=>m?.dispose());
   this.nodes=new Map();this.boundScene=structuredClone(scene);
-  // One parsed source graph per attachment. Imported objects are registered
-  // through scene.objects, never appended as a second invisible graph.
-  const importedGraphs=await Promise.all((scene.attachments||[]).map(async asset=>{
-   const binary=Uint8Array.from(atob(asset.data.split(',')[1]),c=>c.charCodeAt(0));
-   const gltf=await new GLTFLoader().parseAsync(binary.buffer,'');
-   const nodes=[];gltf.scene.traverse(node=>nodes.push(node));
-   return nodes;
-  }));
   this.renderer.toneMappingExposure=scene.environment.exposure??1.14;
   this.world.background=new THREE.Color(scene.environment.color);
   this.world.environment=null;
@@ -194,8 +218,8 @@ export class VisualRenderer{
   const mats=new Map();
   for(const [id,record] of Object.entries(scene.materials)){
    const material=makeMaterial(record);
-   for(const [slot,data] of Object.entries(record.maps||{}))
-    await applyMap(material,slot,await loadTextureData(data,slot));
+   for(const [slot,texture] of preparedTextures.get(id))
+    applyMap(material,slot,texture);
    mats.set(id,material);
   }
   for(const object of scene.objects){
