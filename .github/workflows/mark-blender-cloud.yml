@@ -1,0 +1,71 @@
+name: MARK Blender Cloud (mobile test)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version
+
+      - name: Generate Blender and GLB sample
+        run: |
+          cat > create_sample.py <<'PY'
+          import bpy, math, os
+          bpy.ops.object.select_all(action="SELECT")
+          bpy.ops.object.delete(use_global=False)
+
+          mat = bpy.data.materials.new("MARK_Cyan_PBR")
+          mat.use_nodes = True
+          mat.diffuse_color = (0.03, 0.7, 0.84, 1.0)
+          shader = mat.node_tree.nodes.get("Principled BSDF")
+          shader.inputs["Base Color"].default_value = mat.diffuse_color
+          shader.inputs["Metallic"].default_value = 0.3
+          shader.inputs["Roughness"].default_value = 0.35
+
+          root = bpy.data.objects.new("MARK_Test_Animated_Root", None)
+          bpy.context.collection.objects.link(root)
+          bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 0.65))
+          body = bpy.context.object
+          body.name = "MARK_Test_Body"
+          body.dimensions = (0.9, 0.55, 1.3)
+          bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+          body.parent = root
+          body.data.materials.append(mat)
+
+          bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, location=(0, 0, 1.6))
+          head = bpy.context.object
+          head.name = "MARK_Test_Head"
+          head.scale = (0.32, 0.32, 0.32)
+          head.parent = root
+          head.data.materials.append(mat)
+
+          for frame, angle in [(1, 0), (30, math.pi), (61, math.tau)]:
+              root.rotation_euler.z = angle
+              root.keyframe_insert(data_path="rotation_euler", frame=frame)
+          bpy.context.scene.frame_start = 1
+          bpy.context.scene.frame_end = 61
+          bpy.context.scene.render.fps = 30
+          bpy.context.scene.frame_set(1)
+          os.makedirs("output", exist_ok=True)
+          bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath("output/MARK_test.blend"))
+          bpy.ops.export_scene.gltf(filepath=os.path.abspath("output/MARK_test.glb"), export_format="GLB", export_animations=True)
+          assert os.path.getsize("output/MARK_test.glb") > 1000
+          PY
+          blender --background --python create_sample.py
+
+      - name: Upload generated model
+        uses: actions/upload-artifact@v4
+        with:
+          name: MARK-Blender-Cloud-Sample
+          path: output/
+          if-no-files-found: error
