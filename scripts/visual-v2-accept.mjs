@@ -9,6 +9,7 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
 import {parseGlb,writeGlb} from '../src/glb.js';
 import {compareGlbFidelity} from '../src/visual-engine/glb-fidelity.js';
 const sha=x=>createHash('sha256').update(x).digest('hex');
@@ -29,7 +30,15 @@ function makeStereoWav({sr=48000,seconds=45}={}){
  }
  return Buffer.from(b);
 }
-const wav=makeStereoWav(),browser=await chromium.launch({headless:true,args:[
+const wav=makeStereoWav();
+const mp3Process=spawnSync('ffmpeg',[
+ '-hide_banner','-loglevel','error','-f','wav','-i','pipe:0',
+ '-codec:a','libmp3lame','-q:a','6','-f','mp3','pipe:1'
+],{input:makeStereoWav({seconds:30}),maxBuffer:2*1024*1024});
+if(mp3Process.status!==0||!mp3Process.stdout?.length)
+ throw Error('MP3 test fixture encoding unavailable: '+String(mp3Process.stderr));
+const mp3=mp3Process.stdout;
+const browser=await chromium.launch({headless:true,args:[
  '--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
  '--enable-unsafe-swiftshader','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required'
 ]});
@@ -71,6 +80,49 @@ async function testPreset(preset,viewport){
  await page.locator('#mode').selectOption(preset);
  await page.waitForFunction(target=>window.MARK_VISUAL_API?.scene()?.id===target,
   preset==='analog-studio'?'analog-studio-v2':'spectrum-matrix-v2',{timeout:40000,polling:200});
+ if(kind==='analog'&&device==='desktop'){
+  const [picker]=await Promise.all([
+   page.waitForEvent('filechooser'),page.locator('#openMusic').click()
+  ]);
+  await picker.setFiles({name:'local-actual-track.mp3',mimeType:'audio/mpeg',buffer:mp3});
+  await page.waitForFunction(()=>{
+   const x=window.MARK_VISUAL_API?.audioStatus();
+   return x?.playing&&x?.loaded&&x.pcmSource==='pcm'&&x.channels===2;
+  },null,{timeout:30000});
+  const active=await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus());
+  if(active.demo||!active.playing)throw Error('MP3 player failed to disable DEMO');
+  const mp3Frame=await page.evaluate(()=>window.MARK_VISUAL_API.visualResponse());
+  if(mp3Frame.needles.left?.tipX===undefined)
+   throw Error('MP3 was not mapped to physical stereo visual');
+  await capture(page,'analog-MP3-live-PCM.png');
+  await page.locator('#musicToggle').click();
+  const paused=await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus());
+  if(paused.playing||paused.pcmSource==='pcm')
+   throw Error('MP3 pause did not silence REAL PCM');
+  await page.locator('#musicToggle').click();
+  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
+  await page.locator('#stop').click();
+  await page.locator('#musicToggle').click();
+  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
+  await page.locator('#stop').click();
+  report.tests.push({preset:'analog-local-MP3-button-pause-resume-replay',
+   status:'pass',channels:active.channels,actualMusicFilename:'local-actual-track.mp3'});
+  // WAV playback and end-of-track are verified as distinct real-media paths.
+  await page.locator('#audioFile').setInputFiles({
+   name:'local-stereo-test.wav',mimeType:'audio/wav',
+   buffer:makeStereoWav({seconds:2})
+  });
+  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
+  await page.waitForFunction(()=>{
+   const x=window.MARK_VISUAL_API.audioStatus();
+   return x.loaded&&!x.playing&&x.offsetSeconds===0;
+  },null,{timeout:25000});
+  await page.locator('#musicToggle').click();
+  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
+  await page.locator('#stop').click();
+  report.tests.push({preset:'analog-local-WAV-end-and-replay',
+   status:'pass',channels:2,loadedViaFilePicker:true});
+ }
  const gpu=await page.evaluate(()=>window.MARK_VISUAL_API.gpuInfo());
  if(!gpu.webgl2)throw Error('Renderer is not a real WebGL2 context: '+JSON.stringify(gpu));
  const info=await page.evaluate(()=>window.MARK_VISUAL_API.renderStats());
