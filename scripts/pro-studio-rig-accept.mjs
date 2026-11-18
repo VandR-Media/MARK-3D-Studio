@@ -4,8 +4,7 @@
  */
 import {chromium} from 'playwright';
 import {createHash} from 'node:crypto';
-import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
-import {spawnSync} from 'node:child_process';
+import {mkdirSync,writeFileSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {inspectRiggedGlb} from '../src/pro-studio/rigged-glb-audit.js';
@@ -229,26 +228,53 @@ try{
  await page.evaluate(async bytes=>{
   await window.MARK_RIG_VIEWER_API.loadBinary(new Uint8Array(bytes));
  },Array.from(inputRig.bytes));
- // Deterministic 8fps frame sequence from genuine WebGL2 canvas, not a CGI concept.
+ // Deterministic 8 fps video of real WebGL2 canvas through native
+ // Chromium MediaRecorder: never depends on ffmpeg or synthetic images.
  const frames=join(root,'video-frames');mkdirSync(frames,{recursive:true});
  await page.evaluate(()=>window.MARK_RIG_VIEWER_API.selectClip(2));
+ const recSetup=await page.evaluate(()=>{
+  const canvas=document.getElementById('viewport');
+  if(!canvas.captureStream||!window.MediaRecorder||
+   !MediaRecorder.isTypeSupported('video/webm;codecs=vp8'))
+   return {supported:false};
+  const stream=canvas.captureStream(0),track=stream.getVideoTracks()[0];
+  const segments=[];
+  const recorder=new MediaRecorder(stream,{
+   mimeType:'video/webm;codecs=vp8',videoBitsPerSecond:1400000
+  });
+  const done=new Promise((resolve,reject)=>{
+   recorder.onstop=resolve;recorder.onerror=e=>reject(Error(String(e.error||e)));
+  });
+  recorder.ondataavailable=e=>{if(e.data.size)segments.push(e.data);};
+  window.__MARK_RECORDING={stream,track,segments,recorder,done};
+  recorder.start(125);return {supported:true,mime:recorder.mimeType};
+ });
+ if(!recSetup.supported)fail('RIG-VIDEO-008','Canvas MediaRecorder VP8 is unavailable');
  for(let i=0;i<32;i++){
   const t=i*12/32;
-  await page.evaluate(seconds=>window.MARK_RIG_VIEWER_API.seek(seconds),t);
+  await page.evaluate(seconds=>{
+   window.MARK_RIG_VIEWER_API.seek(seconds);
+   window.__MARK_RECORDING.track.requestFrame();
+  },t);
   const image=toBytes(await page.evaluate(()=>window.MARK_RIG_VIEWER_API.canvas()));
   writeFileSync(join(frames,`frame-${String(i).padStart(3,'0')}.png`),image);
+  await page.waitForTimeout(125);
  }
- const movie=join(root,'rig-dance-real-webgl.mp4');
- const ffmpeg=spawnSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-framerate','8',
-  '-i',join(frames,'frame-%03d.png'),
-  '-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2',
-  '-c:v','libx264','-preset','ultrafast','-movflags','+faststart',
-  '-pix_fmt','yuv420p',movie],{timeout:120000});
- if(ffmpeg.error||ffmpeg.status!==0)
-  fail('RIG-VIDEO-008','Actual WebGL frame sequence could not be encoded: '+
-   String(ffmpeg.error||ffmpeg.stderr||ffmpeg.signal||'unknown').slice(0,600));
- const movieBytes=readFileSync(movie);
- assertTest('RIG-VIDEO-008',movieBytes.length>2000,put('rig-dance-real-webgl.mp4',movieBytes));
+ const recorded=await page.evaluate(async()=>{
+  const r=window.__MARK_RECORDING;
+  r.recorder.stop();await r.done;r.track.stop();
+  const data=new Uint8Array(await new Blob(r.segments,{type:'video/webm'}).arrayBuffer());
+  let base64='';
+  for(let i=0;i<data.length;i+=16384)
+   base64+=String.fromCharCode(...data.subarray(i,i+16384));
+  delete window.__MARK_RECORDING;
+  return {base64:btoa(base64),mime:'video/webm',bytes:data.length};
+ });
+ const movieBytes=Buffer.from(recorded.base64,'base64');
+ const isWebm=movieBytes.length>2500&&movieBytes.subarray(0,4).toString('hex')==='1a45dfa3';
+ assertTest('RIG-VIDEO-008',isWebm,
+  {...put('rig-dance-real-webgl.webm',movieBytes),codec:'VP8',fps:8,source:'canvas.captureStream'},
+  'MediaRecorder produced no valid EBML WebM from real WebGL2 animation');
  assertTest('RIG-PAGE-ERRORS-009',consoleErrors.length===0,{consoleErrors},
   'Browser errors during real animation '+JSON.stringify(consoleErrors));
  json.status='pass';
