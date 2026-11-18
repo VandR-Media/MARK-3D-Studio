@@ -63,7 +63,7 @@ export function makeVisualGeometry(g,quality='normal'){
 }
 let sharedBrushedNormal=null;
 function brushedAluminiumNormal(){
- if(sharedBrushedNormal)return sharedBrushedNormal;
+ if(sharedBrushedNormal){sharedBrushedNormal.needsUpdate=true;return sharedBrushedNormal;}
  // Generated normal microstructure, not a photographic plate or network asset.
  const width=128,height=128,bytes=new Uint8Array(width*height*4);
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
