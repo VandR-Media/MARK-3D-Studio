@@ -136,8 +136,11 @@ function analog(params){
   add(group+'.pivot','Needle axis (mechanical)',{type:'cylinder',radiusTop:.12,radiusBottom:.13,height:.115,radialSegments:32},
    'bezel',[0,-.82,.217],group,[Math.PI/2,0,0]);
   add('needle.'+channel,'3D tapered needle',{type:'needle',length:1.60,width:.055,depth:.028},
-   'needle',[0,-.82,.239],group,[0,0,-.97]);
-  g.bindings.push({target:'needle.'+channel,signal:channel+'.rms',response:'needle',gain:1.85,offset:-.97});
+   'needle',[0,-.82,.239],group,[0,0,.97]);
+  // Needle geometry points along +Y. Positive Z rotation tilts it LEFT;
+  // increasing signal must decrease Z rotation to sweep RIGHT into +3 VU.
+  g.bindings.push({target:'needle.'+channel,signal:channel+'.rms',
+   response:'needle',gain:1.85,offset:.97,sweep:-1.94,attackMs:120,releaseMs:300});
   label(channel.toUpperCase(),channel==='left'?.275:.725,.365,'#29303b',13,group,[-1.03,-.92,.24]);
   label('VU',channel==='left'?.275:.725,.42,'#29303b',16,group,[0,-.27,.24]);
   for(const [i,value] of ['-20','-10','-5','0','+3'].entries()){
