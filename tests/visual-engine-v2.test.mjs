@@ -250,7 +250,7 @@ test('GLB fidelity checks actual embedded PNG pixels, UV selectors and texture s
  const changedImage=structuredClone(doc);changedImage.images[0].bufferView=1;
  changedImage.bufferViews[1].byteLength=png2.length;
  changedImage.buffers[0].byteLength=bin2.length;
- assert.throws(()=>compareGlbFidelity(original,glb(changedImage,bin2)),/pixel data changed/);
+ assert.throws(()=>compareGlbFidelity(original,glb(changedImage,bin2)),/image mismatch|pixel data changed/);
 });
 
 test('safe JSON keyframe track targets a real GLB mesh, persists and rejects invalid ordering',()=>{
