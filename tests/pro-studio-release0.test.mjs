@@ -28,6 +28,9 @@ test('Release 0 machine-readable capability audit follows schema and has unique 
  const ajv=new Ajv2020({allErrors:true,strict:false});
  const validate=ajv.compile(schema);
  assert.ok(validate(registry),ajv.errorsText(validate.errors));
+ const proposed=json('schemas/mark-professional-scene-v3-proposal.schema.json');
+ assert.equal(proposed.properties.specStatus.const,'DRAFT_NOT_IMPLEMENTED');
+ assert.equal(proposed.properties.schema.const,'mark.professional-scene/3-draft');
  const ids=registry.capabilities.map(x=>x.id);
  assert.equal(new Set(ids).size,ids.length);
  assert.match(registry.auditedSourceCommit,/^[0-9a-f]{40}$/);
