@@ -77,6 +77,14 @@ async function testPreset(preset,viewport){
  if(info.meshCount<(kind==='analog'?100:110)||info.ledCount!==(kind==='analog'?48:108))
   throw Error('Wrong real physical object count '+JSON.stringify(info));
  await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
+ const frame=await page.evaluate(()=>window.MARK_VISUAL_API.framing());
+ const geometry=await page.evaluate(()=>window.MARK_VISUAL_API.geometryStats());
+ if(!frame||frame.left<.049||frame.right>.951||frame.top<.02||frame.bottom>.98)
+  throw Error('M2 clipped physical 3D case: '+JSON.stringify({device,frame}));
+ if(device==='desktop'&&(frame.width<.55||frame.width>.85))
+  throw Error('M2 desktop body must use 55-85% canvas width: '+JSON.stringify(frame));
+ if(geometry.meshObjects<100||geometry.storedTriangles<1000)
+  throw Error('M2 invalid scene complexity statistics: '+JSON.stringify(geometry));
  const front=await capture(page,kind+'-'+device+'-front.png');
  const frontLabels=await page.evaluate(()=>window.MARK_VISUAL_API.overlayPositions());
  await page.evaluate(()=>window.MARK_VISUAL_API.view('detail'));
@@ -294,6 +302,21 @@ async function testPreset(preset,viewport){
   if(Object.values(silence).some(n=>n!==0))throw Error('Silence/pause did not clear active segments');
   await capture(page,kind+'-paused-silence.png');
  }
+ if(device==='mobile'){
+  for(const viewport of [{width:360,height:800},{width:1080,height:1920}]){
+   await page.setViewportSize(viewport);
+   await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
+   const responsiveFrame=await page.evaluate(()=>window.MARK_VISUAL_API.framing());
+   if(!responsiveFrame||responsiveFrame.left<.049||responsiveFrame.right>.951||
+      responsiveFrame.top<.02||responsiveFrame.bottom>.98)
+    throw Error('M2 responsive viewport clipping '+JSON.stringify({viewport,responsiveFrame}));
+   await capture(page,kind+'-'+viewport.width+'x'+viewport.height+'-front.png');
+   report.tests.push({preset:kind+'-responsive-'+viewport.width,status:'pass',
+    frame:responsiveFrame,viewport});
+  }
+  await page.setViewportSize({width:430,height:932});
+  await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
+ }
  const profileStats=[];
  for(const profile of ['eco','normal','high']){
   const t0=Date.now();
@@ -306,6 +329,7 @@ async function testPreset(preset,viewport){
  if(jsErrors.length)throw Error('Browser JavaScript exceptions: '+jsErrors.join(' | '));
  const summary={preset,device,viewport,meshCount:info.meshCount,ledCount:info.ledCount,
   glbBytes:glb.length,glbSha256:sha(glb),sceneNodes:parsed.nodes.length,
+  physicalFraming:frame,sceneGeometry:geometry,
   materialCount:parsed.materials.length,parallaxVerified:true,
   physicalLabelsFollowCamera:true,rearLabelsOccluded:true,
   webgl2Verified:true,gpu,profiles:profileStats,status:'pass'};
