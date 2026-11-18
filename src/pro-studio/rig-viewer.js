@@ -8,6 +8,8 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {parseGlb} from '../glb.js';
+import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,exportEditedSourceGlb} from './markscene-v3-preview.js';
 
 const byId=id=>document.getElementById(id);
 const buf=x=>x instanceof Uint8Array?x:new Uint8Array(x);
@@ -41,6 +43,10 @@ const grid=new THREE.GridHelper(3,12,'#364a60','#263344');grid.position.y=-.065;
 let root=null,parsed=null,mixer=null,activeAction=null,activeClip=0,playing=false,
  fixtureBytes=null,sourceBytes=null,skinned=null,loadedName='',poseSeconds=0,
  raf=0,lastTick=0,frameCounter=0;
+let nativeProjectSource=null,nativeProjectOpened=null,nativeNodeIndex=0,
+ nativeMaterialIndex=0,nativeEdits={
+  nodeTransforms:{},materialPbr:{},selection:{clipIndex:0,timeSeconds:0}
+ };
 function resize(){
  const rect=canvas.getBoundingClientRect();
  const w=Math.max(2,rect.width|0),h=Math.max(2,rect.height|0);
@@ -97,6 +103,7 @@ function selectClip(index){
  if(!Number.isInteger(index)||index<0||index>=parsed.animations.length)
   throw Error('Invalid animation clip index '+index);
  playing=false;activeClip=index;poseSeconds=0;
+ nativeEdits.selection={clipIndex:index,timeSeconds:0};
  mixer.stopAllAction();
  mixer.time=0;activeAction=mixer.clipAction(parsed.animations[index]);
  activeAction.reset();activeAction.setLoop(THREE.LoopRepeat,Infinity);
@@ -119,6 +126,7 @@ function seek(seconds){
  mixer.setTime(seconds);
  activeAction.paused=!wasPlaying;
  poseSeconds=seconds;
+ nativeEdits.selection={clipIndex:activeClip,timeSeconds:seconds};
  root.updateMatrixWorld(true);
  byId('timeline').value=String(Math.round(seconds*1000));
  byId('readout').textContent=seconds.toFixed(2)+' s';
@@ -139,6 +147,11 @@ async function loadBinary(bytes,name='local-rigged.glb'){
  if(!fresh.animations?.length)throw Error('No animation clips in source GLB');
  const old=root;
  playing=false;root=fresh.scene;parsed=fresh;sourceBytes=data.slice();
+ nativeProjectSource=data.slice();nativeProjectOpened=null;
+ nativeEdits={nodeTransforms:{},materialPbr:{},selection:{clipIndex:0,timeSeconds:0}};
+ const doc=parseGlb(data).json;
+ nativeNodeIndex=Math.max(0,doc.nodes.findIndex(x=>x.skin!==undefined));
+ nativeMaterialIndex=0;
  mixer=new THREE.AnimationMixer(root);skinned=skins[0];loadedName=name;
  world.add(root);if(old)world.remove(old);
  const select=byId('clip');select.replaceChildren();
@@ -152,6 +165,9 @@ async function loadBinary(bytes,name='local-rigged.glb'){
   skinned.skeleton.bones.length+' bones · '+morphs.length+' morph-enabled mesh · '+
   parsed.animations.length+' clips. Experimental, not Neon Boy.';
  const state=selectClip(0);centerView('front');
+ byId('rig-x').value=String(skinned.position.x);
+ byId('rig-rough').value=String((Array.isArray(skinned.material)?
+  skinned.material[0]:skinned.material)?.roughness??.6);
  return state;
 }
 async function exportRoundTrip(){
@@ -196,10 +212,107 @@ async function exportRoundTrip(){
  if(!result.semanticPass)throw Error('GLB exporter/reimport semantic loss: '+JSON.stringify(result));
  return result;
 }
-function download(bytes,name){
- const url=URL.createObjectURL(new Blob([bytes],{type:'model/gltf-binary'}));
+function download(bytes,name,type='model/gltf-binary'){
+ const url=URL.createObjectURL(new Blob([bytes],{type}));
  const link=document.createElement('a');link.href=url;link.download=name;link.click();
  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function projectEdits(){
+ return structuredClone(nativeEdits);
+}
+function applyProjectEdit({translationX,roughnessFactor}={}){
+ if(!nativeProjectSource||!skinned)throw Error('Open a skinned GLB first');
+ const sourceDoc=parseGlb(nativeProjectSource).json;
+ if(translationX!==undefined){
+  if(!Number.isFinite(translationX)||Math.abs(translationX)>25)
+   throw Error('Translation X outside editor preview range');
+  const origin=sourceDoc.nodes[nativeNodeIndex].translation?.slice()||[0,0,0];
+  origin[0]=translationX;
+  nativeEdits.nodeTransforms[String(nativeNodeIndex)]={translation:origin};
+  skinned.position.x=translationX;
+  byId('rig-x').value=String(translationX);
+ }
+ if(roughnessFactor!==undefined){
+  if(!Number.isFinite(roughnessFactor)||roughnessFactor<0||roughnessFactor>1)
+   throw Error('Roughness outside PBR range');
+  if(!sourceDoc.materials?.[nativeMaterialIndex])
+   throw Error('No editable PBR material in this GLB');
+  nativeEdits.materialPbr[String(nativeMaterialIndex)]={roughnessFactor};
+  const material=Array.isArray(skinned.material)?skinned.material[0]:skinned.material;
+  if(material){material.roughness=roughnessFactor;material.needsUpdate=true;}
+  byId('rig-rough').value=String(roughnessFactor);
+ }
+ root.updateMatrixWorld(true);renderer.render(world,camera);
+ return {edits:projectEdits(),skinnedX:skinned.position.x,
+  roughness:(Array.isArray(skinned.material)?skinned.material[0]:skinned.material)?.roughness};
+}
+async function saveNativeProject(){
+ if(!nativeProjectSource)throw Error('Open GLB before saving .markscene');
+ const result=nativeProjectOpened?
+  await repackPreviewMarkscene(nativeProjectOpened,nativeEdits):
+  await createPreviewMarkscene(nativeProjectSource,{
+   projectId:'mark-rig-experimental',name:loadedName,
+   license:'source-unknown',edits:nativeEdits});
+ const reopened=await openPreviewMarkscene(result.archive);
+ if(JSON.stringify(reopened.edits)!==JSON.stringify(nativeEdits))
+  throw Error('Native project test reopen changed edit data');
+ return {archive:result.archive,sha256:result.archiveSha256,
+  manifest:reopened.manifest,sourceSha256:reopened.sourceSha256};
+}
+async function openNativeProject(bytes){
+ const loaded=await openPreviewMarkscene(bytes);
+ const exported=await exportEditedSourceGlb(loaded);
+ // Reconstruct the working scene from the exact original binary + saved edits.
+ await loadBinary(exported.glb,loaded.manifest.name+'.markscene');
+ nativeProjectSource=loaded.sourceGLB.slice();
+ nativeProjectOpened=loaded;
+ nativeEdits=structuredClone(loaded.edits);
+ const originDoc=parseGlb(nativeProjectSource).json;
+ nativeNodeIndex=Math.max(0,originDoc.nodes.findIndex(x=>x.skin!==undefined));
+ const savedX=nativeEdits.nodeTransforms[String(nativeNodeIndex)]?.translation?.[0];
+ const savedR=nativeEdits.materialPbr[String(nativeMaterialIndex)]?.roughnessFactor;
+ byId('rig-x').value=String(savedX??skinned.position.x);
+ const material=Array.isArray(skinned.material)?skinned.material[0]:skinned.material;
+ byId('rig-rough').value=String(savedR??material?.roughness??.6);
+ const clip=nativeEdits.selection.clipIndex;
+ const time=nativeEdits.selection.timeSeconds;
+ selectClip(clip);
+ seek(Math.min(parsed.animations[clip].duration,time));
+ byId('message').textContent='Открыт собственный .markscene v3 (эксперимент): original GLB SHA-256 '+
+  loaded.sourceSha256.slice(0,12)+' · TRS/PBR правки восстановлены · 3D и анимации сохранены.';
+ return {manifest:loaded.manifest,edits:projectEdits(),sourceSha256:loaded.sourceSha256,
+  pose:collectPose()};
+}
+async function exportNativeEditedGLB(){
+ const saved=await saveNativeProject(),opened=await openPreviewMarkscene(saved.archive);
+ return exportEditedSourceGlb(opened);
+}
+byId('project-save').addEventListener('click',async()=>{
+ try{
+  const saved=await saveNativeProject();
+  download(saved.archive,'MARK-Rig-Experiment.markscene','application/zip');
+  byId('message').textContent='Проект v3-preview сохранён. Исходный GLB и изменения TRS/PBR защищены хэшами.';
+ }catch(error){errorDisplay(error);}
+});
+byId('project-open').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{await openNativeProject(new Uint8Array(await file.arrayBuffer()));}
+ catch(error){errorDisplay(error);}
+ e.target.value='';
+});
+byId('project-export').addEventListener('click',async()=>{
+ try{
+  const result=await exportNativeEditedGLB();
+  download(result.glb,'MARK-Rig-Edited-Project.glb');
+  byId('message').textContent='Создан новый GLB с применёнными TRS/PBR правками. '+
+   'Бинарные данные скелета, морфов, UV, текстур и клипов сохранены.';
+ }catch(error){errorDisplay(error);}
+});
+for(const [id,field] of [['rig-x','translationX'],['rig-rough','roughnessFactor']]){
+ byId(id).addEventListener('input',e=>{
+  try{applyProjectEdit({[field]:Number(e.target.value)});}
+  catch(error){errorDisplay(error);}
+ });
 }
 byId('picker').addEventListener('change',async event=>{
  const f=event.target.files?.[0];if(!f)return;
@@ -232,6 +345,7 @@ byId('export').addEventListener('click',async()=>{
 });
 window.MARK_RIG_VIEWER_API={
  loadBinary,selectClip,seek,pose:collectPose,centerView,
+ applyProjectEdit,projectEdits,saveNativeProject,openNativeProject,exportNativeEditedGLB,
  exportRoundTrip,canvas:()=>canvas.toDataURL('image/png'),
  render:()=>{renderer.render(world,camera);return collectPose();},
  gpu:()=>{const g=renderer.getContext();return {
