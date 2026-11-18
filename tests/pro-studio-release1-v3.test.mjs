@@ -81,8 +81,15 @@ test('modified GLB fails comparison if edits were not authorized',async()=>{
 
 test('numeric semantic comparator detects animation sampler loss without relying on counts',()=>{
  const a=parseGlb(bytes),doc=structuredClone(a.json);
- doc.animations[0].samplers[0].output=doc.animations[0].samplers[0].input;
- const altered=writeGlb(a,doc);
+ const channel=doc.animations[0].channels.find(x=>x.target.path==='weights');
+ const accessorIndex=doc.animations[0].samplers[channel.sampler].output;
+ const entry=doc.accessors[accessorIndex],view=doc.bufferViews[entry.bufferView];
+ const chunks=a.chunks.map(x=>({type:x.type,data:x.data.slice()}));
+ const bin=chunks.find(x=>x.type===0x004e4942).data;
+ const offset=(view.byteOffset||0)+(entry.byteOffset||0);
+ const floats=new DataView(bin.buffer,bin.byteOffset,bin.byteLength);
+ floats.setFloat32(offset,floats.getFloat32(offset,true)+.08,true);
+ const altered=writeGlb({json:doc,chunks},doc);
  assert.equal(inspectRiggedGlb(altered).animations.length,3);
  const result=compareGlbSemantics(bytes,altered);
  assert.equal(result.status,'fail');
