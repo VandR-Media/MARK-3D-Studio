@@ -35,6 +35,17 @@ test('experimental native .markscene v3 saves exact original GLB separately from
  assert.equal(opened.manifest.units,'meters');
 });
 
+test('native project SHA-256 works across browser Uint8Array and Node pooled Buffer',async()=>{
+ const expected=await sha256(bytes);
+ const input=Buffer.concat([Buffer.alloc(17,9),Buffer.from(bytes),Buffer.alloc(21,3)])
+  .subarray(17,17+bytes.length);
+ assert.equal(await sha256(input),expected,'Buffer byteOffset must not affect digest');
+ const saved=await createPreviewMarkscene(input);
+ const read=await openPreviewMarkscene(Buffer.from(saved.archive));
+ assert.equal(read.sourceSha256,expected);
+ assert.deepEqual(read.sourceGLB,bytes);
+});
+
 test('re-open and edit existing project, then export true GLB with modified TRS/PBR and unmodified skin/animation BIN',async()=>{
  const first=await openPreviewMarkscene((await createPreviewMarkscene(bytes)).archive);
  const modified=await repackPreviewMarkscene(first,edits);
