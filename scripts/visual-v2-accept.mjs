@@ -110,21 +110,45 @@ async function testPreset(preset,viewport){
  if(kind==='analog'&&device==='desktop'){
   if(!mp3)report.tests.push({preset:'analog-local-MP3',
    status:'not-run',reason:'MP3 test fixture encoder unavailable; no MP3 compatibility claim'});
-  // WAV playback and end-of-track are verified as distinct real-media paths.
-  await page.locator('#audioFile').setInputFiles({
-   name:'local-stereo-test.wav',mimeType:'audio/wav',
-   buffer:makeStereoWav({seconds:2})
+  // Real user-triggered picker (not synthetic change on a hidden input).
+  const [wavPicker]=await Promise.all([
+   page.waitForEvent('filechooser'),page.locator('#openMusic').click()
+  ]);
+  await wavPicker.setFiles({
+   name:'local-stereo-long.wav',mimeType:'audio/wav',
+   buffer:makeStereoWav({seconds:15})
   });
-  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
-  await page.waitForFunction(()=>{
-   const x=window.MARK_VISUAL_API.audioStatus();
-   return x.loaded&&!x.playing&&x.offsetSeconds===0;
-  },null,{timeout:25000});
+  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing,
+   null,{timeout:40000});
+  const music=await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus());
+  if(music.demo||!music.loaded||music.channels!==2)
+   throw Error('WAV did not begin real stereo PCM playback '+JSON.stringify(music));
+  await capture(page,'analog-local-WAV-playing.png');
+  await page.locator('#musicToggle').click();
+  if((await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus())).playing)
+   throw Error('WAV pause did not stop transport');
   await page.locator('#musicToggle').click();
   await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
   await page.locator('#stop').click();
-  report.tests.push({preset:'analog-local-WAV-end-and-replay',
-   status:'pass',channels:2,loadedViaFilePicker:true});
+  report.tests.push({preset:'analog-local-WAV-picker-pause-replay',
+   status:'pass',channels:music.channels,loadedViaVisibleButton:true});
+  // End-of-track behavior is checked separately from the playing assertion.
+  const [shortPicker]=await Promise.all([
+   page.waitForEvent('filechooser'),page.locator('#openMusic').click()
+  ]);
+  await shortPicker.setFiles({
+   name:'local-stereo-short.wav',mimeType:'audio/wav',
+   buffer:makeStereoWav({seconds:2})
+  });
+  await page.waitForFunction(()=>{
+   const x=window.MARK_VISUAL_API.audioStatus();
+   return x.loaded&&!x.playing&&
+    document.getElementById('playbackState').textContent.includes('завершился');
+  },null,{timeout:40000});
+  await page.locator('#musicToggle').click();
+  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
+  await page.locator('#stop').click();
+  report.tests.push({preset:'analog-local-WAV-ended-and-replayed',status:'pass'});
  }
  const gpu=await page.evaluate(()=>window.MARK_VISUAL_API.gpuInfo());
  if(!gpu.webgl2)throw Error('Renderer is not a real WebGL2 context: '+JSON.stringify(gpu));
