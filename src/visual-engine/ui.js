@@ -172,36 +172,64 @@ function renderFrame(frame){
 function silence(){
  renderFrame(zeroStereoFrame({timestampMs:performance.now(),playing:false}));
 }
+function playbackUI(message){
+ $('musicToggle').disabled=!buffer;
+ $('musicToggle').textContent=playing?'Ⅱ':'▶';
+ $('playbackState').textContent=message||
+  (playing?'REAL PCM · воспроизводится и анализируется':'Остановлено · индикаторы на нуле');
+}
 async function openAudio(file){
- stopAudio();demo=false;$('demo').checked=false;
  if(!file)throw Error('Не выбран файл');
- audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();
- if(audioContext.state==='suspended')await audioContext.resume();
- const bytes=await file.arrayBuffer();
- buffer=await audioContext.decodeAudioData(bytes.slice(0));
- analyzer=new StereoPcmAnalyzer({sampleRate:buffer.sampleRate,fftSize:2048});
- pauseOffset=0;lastIndex=0;
- status('Декодирован настоящий PCM: '+file.name+' ('+buffer.numberOfChannels+' каналов).');
- await startAudio();
+ // A file-picker change is user-initiated. Resume here before heavy decoding
+ // so browsers with gesture-only WebAudio (including mobile) can authorize it.
+ stopAudio();demo=false;$('demo').checked=false;
+ buffer=null;pauseOffset=0;lastIndex=0;
+ $('trackTitle').textContent=file.name;
+ playbackUI('Декодирование локального музыкального файла…');
+ try{
+  audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();
+  if(audioContext.state==='suspended')await audioContext.resume();
+  const bytes=await file.arrayBuffer();
+  const decoded=await audioContext.decodeAudioData(bytes.slice(0));
+  if(!decoded?.length||!decoded?.sampleRate)throw Error('Аудиоданные пусты');
+  buffer=decoded;
+  analyzer=new StereoPcmAnalyzer({sampleRate:buffer.sampleRate,fftSize:2048});
+  status('Реальный PCM: '+file.name+' ('+buffer.numberOfChannels+' каналов).');
+  await startAudio();
+ }catch(error){
+  buffer=null;analyzer=null;stopAudio();playbackUI('Ошибка файла: '+error.message);
+  throw error;
+ }
 }
 function stopSource(){
  if(source){try{source.stop();}catch{}source.disconnect();source=null;}
 }
 function stopAudio(){
- if(playing&&audioContext)pauseOffset=Math.max(0,audioContext.currentTime-audioStart);
+ if(playing&&audioContext)pauseOffset=Math.min(buffer?.duration||0,
+  Math.max(0,audioContext.currentTime-audioStart));
  stopSource();playing=false;cancelAnimationFrame(raf);raf=0;
- analyzer?.reset();silence();
+ analyzer?.reset();silence();playbackUI();
 }
 async function startAudio(){
  if(!buffer)throw Error('Сначала выберите музыкальный файл');
  if(audioContext.state==='suspended')await audioContext.resume();
+ if(audioContext.state!=='running')throw Error('Браузер запретил автозапуск. Нажмите ▶ после выбора файла.');
  stopSource();
- source=audioContext.createBufferSource();source.buffer=buffer;
- source.connect(audioContext.destination);
- audioStart=audioContext.currentTime-pauseOffset;source.start(0,pauseOffset);
- playing=true;
- source.onended=()=>{if(playing&&audioContext.currentTime-audioStart>=buffer.duration-.03){
-  stopAudio();pauseOffset=0;status('Аудиофайл завершился.');}};
+ if(pauseOffset>=buffer.duration-.03){pauseOffset=0;lastIndex=0;analyzer?.reset();}
+ const active=audioContext.createBufferSource();
+ source=active;active.buffer=buffer;active.connect(audioContext.destination);
+ audioStart=audioContext.currentTime-pauseOffset;
+ active.onended=()=>{
+  // A stale source callback must never stop a newly selected or resumed track.
+  if(active!==source||!playing)return;
+  if(audioContext.currentTime-audioStart>=buffer.duration-.03){
+   stopAudio();pauseOffset=0;lastIndex=0;
+   status('Трек завершился. Нажмите ▶, чтобы воспроизвести повторно.');
+   playbackUI('Трек завершился. Нажмите ▶ для повтора.');
+  }
+ };
+ active.start(0,pauseOffset);
+ playing=true;playbackUI('REAL PCM · воспроизводится и анализируется');
  requestFrame();
 }
 function requestFrame(){
@@ -253,16 +281,19 @@ function installEvents(){
   demo=e.target.checked;if(demo){stopAudio();demo=true;status('DEMO — синтетическая реакция, НЕ анализ музыки');requestFrame();}
   else{cancelAnimationFrame(raf);raf=0;silence();status('Демонстрация отключена.');}
  });
+ $('openMusic').addEventListener('click',()=>$('audioFile').click());
+ $('musicToggle').addEventListener('click',()=>$('pause').click());
  $('audioFile').addEventListener('change',async e=>{
-  try{await openAudio(e.target.files?.[0]);}
-  catch(err){status('Не удалось декодировать: '+err.message,true);}
+  try{if(e.target.files?.[0])await openAudio(e.target.files[0]);}
+  catch(err){status('Не удалось декодировать или воспроизвести: '+err.message,true);}
+  e.target.value=''; // permits opening the same MP3/WAV again
  });
  $('pause').addEventListener('click',async()=>{
   if(demo){$('demo').checked=false;demo=false;cancelAnimationFrame(raf);silence();return;}
-  if(playing){stopAudio();status('Пауза: уровень и сигналы обнулены.');}
-  else{try{await startAudio();}catch(err){status(err.message,true);}}
+  if(playing){stopAudio();status('Пауза: уровни и сигналы обнулены.');playbackUI('Пауза · сигналы на нуле');}
+  else{try{await startAudio();}catch(err){status(err.message,true);playbackUI('Нажмите ▶ для разрешения воспроизведения');}}
  });
- $('stop').addEventListener('click',()=>{stopAudio();pauseOffset=0;status('Остановлено.');});
+ $('stop').addEventListener('click',()=>{stopAudio();pauseOffset=0;status('Остановлено.');playbackUI('Остановлено · нажмите ▶ для повтора');});
  $('front').addEventListener('click',()=>viewer.setView('front'));
  $('threequarter').addEventListener('click',()=>viewer.setView('threequarter'));
  $('side').addEventListener('click',()=>viewer.setView('side'));
@@ -418,11 +449,14 @@ async function start(){
   viewer=new VisualRenderer($('visualCanvas'),{profile:'normal'});
   viewer.onRender=positionOverlays;
   installEvents();await changeMode(mode);
-  silence();window.__MARK_VISUAL_READY__=true;
+  silence();playbackUI('Выберите локальную музыку. DEMO не включается автоматически.');window.__MARK_VISUAL_READY__=true;
   window.MARK_VISUAL_API={
    loadRecipe:async x=>{const r=runVisualRecipe(x);await setScene(r.scene);return modelInfo();},
    loadScene:async x=>{await setScene(x);return modelInfo();},
    scene:()=>structuredClone(scene),
+   audioStatus:()=>({playing,demo,loaded:Boolean(buffer),offsetSeconds:pauseOffset,
+    durationSeconds:buffer?.duration||0,channels:buffer?.numberOfChannels||0,
+    pcmSource:lastFrame.source}),
    modelInfo,renderFrame,zero:()=>silence(),
    view:x=>viewer.setView(x),setQuality:async x=>{scene.quality=x;await setScene(scene);},
    overlayPositions:()=>Array.from($('overlay').children).map(e=>({
