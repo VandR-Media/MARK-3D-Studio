@@ -338,6 +338,7 @@ export class VisualRenderer{
     const physicalAnchor=stagedNodes.get(item.anchor);
     if(!physicalAnchor)throw Error('Missing surface-label 3D anchor '+item.anchor);
     const label=createSurfaceLabel(item);
+    label.userData.visualAnchor=item.anchor;
     physicalAnchor.add(label);
     stagedGeometries.add(label.geometry);
     stagedMaterials.add(label.material);
@@ -467,6 +468,23 @@ export class VisualRenderer{
   * transforms. Opaque front geometry hides labels; transmissive glazing does
   * not. HUD-only overlays can still use normalized x/y without an anchor.
   */
+ surfaceLabelPositions(){
+  const records=[];
+  this.root.updateMatrixWorld(true);this.camera.updateMatrixWorld(true);
+  this.root.traverse(obj=>{
+   if(!obj.userData.surfaceLabel)return;
+   const point=obj.getWorldPosition(new THREE.Vector3());
+   const projected=point.clone().project(this.camera);
+   const facing=obj.getWorldDirection(new THREE.Vector3())
+    .dot(this.camera.position.clone().sub(point))>0;
+   const visible=facing&&projected.z>=-1&&projected.z<=1&&
+    Math.abs(projected.x)<1&&Math.abs(projected.y)<1;
+   records.push({text:obj.userData.dialText,anchor:obj.userData.visualAnchor,
+    visible,left:(projected.x+1)*50,top:(1-projected.y)*50,
+    physical:true});
+  });
+  return records;
+ }
  projectOverlay(item){
   if(!item.anchor)return {x:item.x,y:item.y,visible:true};
   const node=this.nodes.get(item.anchor);
