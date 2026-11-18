@@ -1,7 +1,7 @@
 # MARK 3D Studio — Release 0 / verified source audit
 
 **Source audited:** `develop/visual-engine-v2` @ `e4a93262ecb44970a4bdb77a9735c95b4d46749b`  
-**Specification:** `MARK_3D_STUDIO_FULL_BLENDER_REPLACEMENT_TZ.md` (owner, version 1.0, 2026-11-18), sections 0, 2–4, 17–20, 24–28, 32.  
+**Specification:** `MARK_3D_STUDIO_FULL_BLENDER_REPLACEMENT_TZ.md` (owner, version 1.0, 2026-11-18; SHA-256 `b83d2c08515077960dd7846d69508fb99cfce6678bebc9569ee32f69feb9988d`), sections 0, 2–4, 17–20, 24–28, 32.  
 **Status:** AS-IS source inspection, **not** proof of current-HEAD end-to-end QA, renderer, device performance or v3 implementation.  
 **Scope:** Release 0 audit only. No changes to Visual Engine v2 sources, no merge into `main`.
 
@@ -39,6 +39,17 @@
 ### Source-level coverage (audited revision)
 
 `tests/visual-engine-v2.test.mjs` contains 18 source-level test declarations, including checks for deterministic scenes, isolated stereo PCM and static GLB rejection of incompatible animation. **Presence of tests ≠ results for the audited revision.**
+
+### Isolated current-source check (NOT Node CI or WebGL2)
+
+The audited GitHub revision was evaluated using the code of `instrument-factory.js` and `scene-model.js` inside an isolated JavaScript V8 runtime. Two existing recipes were executed twice and JSON save/reopen was checked:
+
+| Recipe | Objects | Materials | Bindings | Overlays | Deterministic | JSON reopen |
+|---|---:|---:|---:|---:|---|---|
+| Analog Studio | 161 | 24 | 8 | 21 | yes | 161 objects |
+| Spectrum Matrix | 166 | 24 | 6 | 12 | yes | 166 objects |
+
+This narrowly validates deterministic v2 scene construction for the audited SHA. It is **not** a full `node --test` pass, not a GLB export/import regression, not a Chromium render and not a physical Huawei device test.
 
 ### Historical M2 artifact inspection (NOT the current HEAD)
 
@@ -85,6 +96,7 @@ The owner’s approved Neon Boy images and reference GLB must be stored with pro
 
 - Machine-readable audit: [`release0-capabilities.json`](./release0-capabilities.json) validated by [its schema](../../schemas/mark-professional-capabilities-v1.schema.json).
 - [Architecture decision](./ADR-0001-scene-core-and-backends.md) separating scene core from GPU backend.
+- [Draft-only v3 container manifest schema](../../schemas/mark-professional-scene-v3-proposal.schema.json) — intentionally NOT implemented.
 - [v2 → v3 migration/compatibility contract](./V2-TO-V3-MIGRATION-PLAN.md).
 - Regression test [`tests/pro-studio-release0.test.mjs`](../../tests/pro-studio-release0.test.mjs).
 - No unsupported feature is marked `passed`.
