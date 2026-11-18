@@ -90,6 +90,42 @@ async function testPreset(preset,viewport){
  const reloaded=await page.evaluate(async s=>window.MARK_VISUAL_API.loadScene(s),saved);
  if(reloaded.objects!==saved.objects.length)throw Error('Editable .markscene reload lost objects');
  if(device==='desktop'){
+  // Failed imports must never destroy unsaved project edits or selection.
+  const negative=await page.evaluate(async()=>{
+   const api=window.MARK_VISUAL_API;
+   const baseline=api.scene();
+   const select=document.querySelector('#objectSelect');
+   select.value='case.main';select.dispatchEvent(new Event('change'));
+   const selected=select.value;
+   const samples=[
+    {name:'broken-attachment',change:s=>{
+      s.attachments=[{name:'broken.glb',data:'data:model/gltf-binary;base64,AAAA'}];
+    }},
+    {name:'nonexistent-node',change:s=>{
+      s.attachments=[{name:'broken.glb',data:'data:model/gltf-binary;base64,AAAA'}];
+      s.objects.push({id:'imported.bad',name:'Missing mesh',parent:null,
+       geometry:{type:'imported',asset:0,node:800},material:null,
+       position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],visible:true,meta:{}});
+    }},
+    {name:'invalid-texture',change:s=>{
+      s.materials.enclosure.maps={baseColor:'data:image/png;base64,AAAA'};
+    }}
+   ];
+   const results=[];
+   for(const sample of samples){
+    const attempt=structuredClone(baseline);sample.change(attempt);
+    let rejected=false,message='';
+    try{await api.loadScene(attempt);}
+    catch(error){rejected=true;message=String(error.message);}
+    if(!rejected||JSON.stringify(api.scene())!==JSON.stringify(baseline)||
+       select.value!==selected)throw Error('Non-atomic '+sample.name+': '+message);
+    results.push({name:sample.name,rejected,projectRetained:true,
+     selectionRetained:true,error:message});
+   }
+   return results;
+  });
+  report.tests.push({preset:kind+'-atomic-import-errors',
+   status:'pass',cases:negative});
   const edited=structuredClone(saved);
   const chassis=edited.objects.find(o=>o.id==='case.main');
   chassis.position[0]+=.18;
