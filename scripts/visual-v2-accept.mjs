@@ -62,6 +62,9 @@ async function testPreset(preset,viewport){
  await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
  const front=await capture(page,kind+'-'+device+'-front.png');
  const frontLabels=await page.evaluate(()=>window.MARK_VISUAL_API.overlayPositions());
+ await page.evaluate(()=>window.MARK_VISUAL_API.view('detail'));
+ await capture(page,kind+'-'+device+'-detail.png');
+ await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
  await page.evaluate(()=>window.MARK_VISUAL_API.view('left30'));
  await capture(page,kind+'-'+device+'-left30.png');
  await page.evaluate(()=>window.MARK_VISUAL_API.view('right30'));
