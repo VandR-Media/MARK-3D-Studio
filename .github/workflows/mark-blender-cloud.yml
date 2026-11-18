@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/mark-blender-cloud.yml'
       - 'tools/neon_boy_builder.py'
+      - 'tools/neon_boy_polish.py'
 
 permissions:
   contents: read
