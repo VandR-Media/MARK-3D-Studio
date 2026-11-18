@@ -395,7 +395,7 @@ function installEvents(){
    const loaded=await importEditableGlb(bytes,file.name);
    $('objectSelect').value=loaded.ids.find(id=>viewer.nodes.get(id)?.isMesh)||loaded.ids[0];
    fillObject();
-   status('Импортировано '+loaded.meshes+' редактируемых GLB-мешей; текстур: '+safe.textures+'.');
+   status('Импортировано '+loaded.meshes+' мешей; можно менять детали и материалы. Редактирование вершин GLB пока не поддерживается.');
   }catch(err){status('GLB: '+err.message,true);}
   e.target.value='';
  });
