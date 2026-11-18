@@ -89,7 +89,9 @@ export function validateVisualScene(s){
  check(Array.isArray(s.bindings)&&s.bindings.length<=3600,'invalid binding count');
  for(const b of s.bindings)check(ids.has(b.target)&&SIGNALS.includes(b.signal)&&
   !b.signal.endsWith('.waveform')&&responses.has(b.response)&&
-  (b.gain===undefined||range(b.gain,0,10)),'invalid numeric binding '+JSON.stringify(b));
+  (b.gain===undefined||range(b.gain,0,10))&&
+  ['attackMs','releaseMs','peakHoldMs'].every(k=>b[k]===undefined||range(b[k],0,5000)),
+  'invalid numeric binding '+JSON.stringify(b));
  check(Array.isArray(s.overlays)&&s.overlays.length<=120,'too many 2D labels');
  for(const o of s.overlays){
   check(typeof o.text==='string'&&o.text.length<=80&&
