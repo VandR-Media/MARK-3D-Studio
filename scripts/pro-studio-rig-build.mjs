@@ -44,6 +44,14 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <section><label class="file">Открыть другой GLB <input id="picker" type="file" accept=".glb,model/gltf-binary"></label>
 <label>Клип <select id="clip" aria-label="Анимационный клип"></select></label>
 <button id="play">▶ Play</button><button id="export">Экспорт анимированного GLB</button></section>
+<section aria-label="Экспериментальный редактируемый проект">
+<button id="project-save">Сохранить .markscene v3-preview</button>
+<label class="file">Открыть .markscene
+<input id="project-open" type="file" accept=".markscene,application/zip"></label>
+<button id="project-export">Экспорт изменённого GLB</button></section>
+<section aria-label="Минимальные редактируемые параметры">
+<label>Положение X <input id="rig-x" type="range" min="-.7" max=".7" step=".02" value="0"></label>
+<label>PBR шероховатость <input id="rig-rough" type="range" min=".05" max="1" step=".01" value=".6"></label></section>
 <section><label for="timeline">Таймлайн</label><input type="range" id="timeline" min="0" max="12000" step="10" value="0">
 <output id="readout">0.00 s</output></section>
 <section class="views" aria-label="Проверка ракурсов">
@@ -52,7 +60,9 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="view-threequarter">¾</button><button id="view-top">Сверху</button></section>
 <p id="message" role="status">Загрузка реального бинарного rigged GLB…</p>
 <footer>Демонстрационный QUAD с 70 костями, 2 морфами и 3 анимациями — технический тест, не Neon Boy.
-HTML полностью автономный, без внешних загрузок. Не редактирует вершины, веса или UV.
+HTML полностью автономный, без внешних загрузок. Экспериментальный .markscene v3-preview
+сохраняет исходный GLB отдельно от изменений TRS/PBR и выбранного клипа. Не редактирует вершины,
+веса, кости, морф-геометрию или UV. Не является production .markscene v3.
 Проверки WebGL2/GLTFExporter и устройство Huawei должны подтверждаться отдельными отчётами.
 Статический Visual Engine v2 и его запрет импорта анимированных GLB не изменены.</footer>
 </main>
