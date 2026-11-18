@@ -134,136 +134,159 @@ export class VisualRenderer{
  }
  async setScene(scene){
   validateVisualScene(scene);
-  // Parse and validate ALL external dependencies before touching the active
-  // renderer or disposing a single old resource. A corrupt attachment, missing
-  // node or malformed texture must not destroy the user's working scene.
-  const importedGraphs=await Promise.all((scene.attachments||[]).map(async asset=>{
-   const binary=Uint8Array.from(atob(asset.data.split(',')[1]),c=>c.charCodeAt(0));
-   inspectVisualImport(binary);
-   const gltf=await new GLTFLoader().parseAsync(binary.buffer,'');
-   const nodes=[];gltf.scene.traverse(node=>nodes.push(node));
-   return nodes;
-  }));
-  for(const object of scene.objects)if(object.geometry.type==='imported'){
-   const graph=importedGraphs[object.geometry.asset];
-   if(!graph?.[object.geometry.node])
-    throw Error('Missing GLB node '+object.id+' at asset '+object.geometry.asset);
-   const parent=graph[object.geometry.node].parent;
-   const expectedParent=parent?.isScene?null:graph.indexOf(parent);
-   const actualParent=object.parent?
-    scene.objects.find(x=>x.id===object.parent):null;
-   if(expectedParent!==null&&expectedParent>=0&&
-      (!actualParent||actualParent.geometry.type!=='imported'||
-       actualParent.geometry.asset!==object.geometry.asset||
-       actualParent.geometry.node!==expectedParent))
-    throw Error('GLB hierarchy mismatch '+object.id);
-  }
-  const preparedTextures=new Map();
-  for(const [id,record] of Object.entries(scene.materials)){
-   const maps=new Map();
-   for(const [slot,data] of Object.entries(record.maps||{}))
-    maps.set(slot,await loadTextureData(data,slot));
-   preparedTextures.set(id,maps);
-  }
-  const previous=this.root;
-  this.root=new THREE.Group();this.root.name=scene.name;this.world.add(this.root);
-  this.world.remove(previous);
-  const oldGeometry=new Set(),oldMaterials=new Set();
-  previous.traverse(o=>{if(o.isMesh){
-   oldGeometry.add(o.geometry);
-   for(const m of Array.isArray(o.material)?o.material:[o.material])oldMaterials.add(m);
-  }});
-  oldGeometry.forEach(g=>g.dispose());
-  oldMaterials.forEach(m=>m?.dispose());
-  this.nodes=new Map();this.boundScene=structuredClone(scene);
-  this.renderer.toneMappingExposure=scene.environment.exposure??1.14;
-  this.world.background=new THREE.Color(scene.environment.color);
-  this.world.environment=null;
-  this.environmentTexture?.dispose();this.environmentTexture=null;
-  for(const object of [...this.world.children])if(object.userData.visualLight)this.world.remove(object);
-  const q=dimensions[this.profile];
-  if(q.env){
-   const generator=this.pmrem||(this.pmrem=new THREE.PMREMGenerator(this.renderer));
-   try{
-    if(scene.environment.hdri){
-     // Embeddable HDRI supplied as a data URI; no CDN or network required.
-     const hdr=await new RGBELoader().loadAsync(scene.environment.hdri);
-     this.environmentTexture=generator.fromEquirectangular(hdr).texture;
-     hdr.dispose?.();
-    }else{
-     const room=new RoomEnvironment();
-     this.environmentTexture=generator.fromScene(room).texture;
-     room.dispose();
-    }
-    this.world.environment=this.environmentTexture;
-    this.world.environmentIntensity=scene.environment.intensity;
-   }catch(error){
-    console.warn('MARK Visual Engine: environment fallback to three direct PBR lights',error);
+  // Phase 1: all asynchronous GLB/image/IBL work and geometry construction
+  // happen in a DETACHED graph. Active scene, camera and GPU materials remain
+  // usable until every component is ready.
+  const stagedRoot=new THREE.Group();
+  stagedRoot.name=scene.name;
+  const stagedNodes=new Map();
+  const stagedLights=[];
+  const stagedGeometries=new Set(),stagedMaterials=new Set(),stagedTextures=new Set();
+  let stagedEnvironment=null,committed=false;
+  try{
+   const importedGraphs=await Promise.all((scene.attachments||[]).map(async asset=>{
+    const binary=Uint8Array.from(atob(asset.data.split(',')[1]),c=>c.charCodeAt(0));
+    inspectVisualImport(binary);
+    const gltf=await new GLTFLoader().parseAsync(binary.buffer,'');
+    const nodes=[];gltf.scene.traverse(node=>nodes.push(node));
+    return nodes;
+   }));
+   for(const obj of scene.objects)if(obj.geometry.type==='imported'){
+    const graph=importedGraphs[obj.geometry.asset];
+    const source=graph?.[obj.geometry.node];
+    if(!source)throw Error('Missing GLB node '+obj.id);
+    const parent=source.parent;
+    const index=parent?graph.indexOf(parent):-1;
+    const expected=index<0?null:scene.objects.find(x=>x.geometry.type==='imported'&&
+     x.geometry.asset===obj.geometry.asset&&x.geometry.node===index)?.id;
+    if(index>=0&&obj.parent!==expected)
+     throw Error('GLB hierarchy mismatch '+obj.id);
    }
-  }
-  for(const l of scene.lights){
-   let light;
-   if(l.type==='ambient')light=new THREE.AmbientLight(l.color,l.intensity);
-   else if(l.type==='point')light=new THREE.PointLight(l.color,l.intensity,40);
-   else if(l.type==='spot')light=new THREE.SpotLight(l.color,l.intensity,40);
-   else light=new THREE.DirectionalLight(l.color,l.intensity);
-   light.position.set(...l.position);light.castShadow=Boolean(l.castShadow&&q.shadows);
-   if(light.castShadow){light.shadow.mapSize.set(this.profile==='high'?2048:1024,
-    this.profile==='high'?2048:1024);light.shadow.bias=-.0002;light.shadow.camera.near=.1;
-    light.shadow.camera.far=40;}
-   light.userData.visualLight=true;this.world.add(light);
-  }
-  this.camera.position.set(...scene.camera.position);
-  this.camera.near=scene.camera.near;this.camera.far=scene.camera.far;this.camera.fov=scene.camera.fov;
-  this.controls.target.set(...scene.camera.target);this.camera.updateProjectionMatrix();this.controls.update();
-  const mats=new Map();
-  for(const [id,record] of Object.entries(scene.materials)){
-   const material=makeMaterial(record);
-   for(const [slot,texture] of preparedTextures.get(id))
-    applyMap(material,slot,texture);
-   mats.set(id,material);
-  }
-  for(const object of scene.objects){
-   const source=object.geometry.type==='imported'?
-    importedGraphs[object.geometry.asset]?.[object.geometry.node]:null;
-   if(object.geometry.type==='imported'&&!source)
-    throw Error('Missing GLB node '+object.id);
-   const geo=source?.isMesh?source.geometry:makeVisualGeometry(object.geometry,this.profile);
-   const mat=mats.get(object.material);
-   if(geo&&mat?.aoMap&&geo.attributes.uv&&!geo.attributes.uv2)
-    geo.setAttribute('uv2',geo.attributes.uv.clone());
-   const target=source?source.clone(false):
-    geo?new THREE.Mesh(geo,mat||new THREE.MeshBasicMaterial({color:'#ffffff'})):new THREE.Group();
-   if(source?.isMesh&&mat)target.material=mat;
-   target.name='mark_'+Array.from(object.id,c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
-   target.userData.displayName=object.name;
-   target.userData.markId=object.id;target.userData.meta=structuredClone(object.meta||{});
-   target.position.set(...object.position);target.rotation.set(...object.rotation);
-   target.scale.set(...object.scale);target.visible=object.visible;
-   if(target.isMesh){
-    const transmissive=target.material.transmission>0;
-    target.castShadow=!transmissive;target.receiveShadow=!transmissive;
-    if(target.userData.meta.role==='led'){
-     // Separate material per lens: independent real emission per frequency band.
-     target.material=mat.clone();target.userData.onColor=mat.color.clone();
-     target.material.emissiveIntensity=0;target.material.color.set('#15212b');
+   const mats=new Map();
+   for(const [id,record] of Object.entries(scene.materials)){
+    const material=makeMaterial(record);
+    stagedMaterials.add(material);
+    for(const [slot,data] of Object.entries(record.maps||{})){
+     const texture=await loadTextureData(data,slot);
+     stagedTextures.add(texture);applyMap(material,slot,texture);
+    }
+    mats.set(id,material);
+   }
+   const q=dimensions[this.profile];
+   if(q.env){
+    const generator=this.pmrem||(this.pmrem=new THREE.PMREMGenerator(this.renderer));
+    try{
+     if(scene.environment.hdri){
+      const hdr=await new RGBELoader().loadAsync(scene.environment.hdri);
+      try{stagedEnvironment=generator.fromEquirectangular(hdr).texture;}
+      finally{hdr.dispose?.();}
+     }else{
+      const room=new RoomEnvironment();
+      try{stagedEnvironment=generator.fromScene(room).texture;}
+      finally{room.dispose();}
+     }
+    }catch(error){
+     if(scene.environment.hdri)throw Error('HDRI preparation failed: '+error.message);
+     console.warn('MARK Visual Engine: using direct PBR lights',error);
     }
    }
-   this.nodes.set(object.id,target);
+   for(const light of scene.lights){
+    let target;
+    if(light.type==='ambient')target=new THREE.AmbientLight(light.color,light.intensity);
+    else if(light.type==='point')target=new THREE.PointLight(light.color,light.intensity,40);
+    else if(light.type==='spot')target=new THREE.SpotLight(light.color,light.intensity,40);
+    else target=new THREE.DirectionalLight(light.color,light.intensity);
+    target.position.set(...light.position);
+    target.castShadow=Boolean(light.castShadow&&q.shadows);
+    if(target.castShadow){
+     target.shadow.mapSize.set(this.profile==='high'?2048:1024,
+      this.profile==='high'?2048:1024);
+     target.shadow.bias=-.0002;target.shadow.camera.near=.1;
+     target.shadow.camera.far=40;
+    }
+    target.userData.visualLight=true;
+    stagedLights.push(target);
+   }
+   for(const obj of scene.objects){
+    const source=obj.geometry.type==='imported'?
+     importedGraphs[obj.geometry.asset]?.[obj.geometry.node]:null;
+    const geo=source?.isMesh?source.geometry:makeVisualGeometry(obj.geometry,this.profile);
+    const mat=mats.get(obj.material);
+    if(geo&&!source)stagedGeometries.add(geo);
+    if(source?.isMesh)stagedGeometries.add(source.geometry);
+    if(geo&&mat?.aoMap&&geo.attributes.uv&&!geo.attributes.uv2)
+     geo.setAttribute('uv2',geo.attributes.uv.clone());
+    const target=source?source.clone(false):
+     geo?new THREE.Mesh(geo,mat||new THREE.MeshBasicMaterial({color:'#ffffff'})):new THREE.Group();
+    if(source?.isMesh&&mat)target.material=mat;
+    target.name='mark_'+Array.from(obj.id,c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
+    target.userData.displayName=obj.name;target.userData.markId=obj.id;
+    target.userData.meta=structuredClone(obj.meta||{});
+    target.position.set(...obj.position);target.rotation.set(...obj.rotation);
+    target.scale.set(...obj.scale);target.visible=obj.visible;
+    if(target.isMesh){
+     const materials=Array.isArray(target.material)?target.material:[target.material];
+     materials.forEach(m=>stagedMaterials.add(m));
+     const transmissive=materials.some(m=>m?.transmission>0);
+     target.castShadow=!transmissive;target.receiveShadow=!transmissive;
+     if(target.userData.meta.role==='led'){
+      target.material=mat.clone();stagedMaterials.add(target.material);
+      target.userData.onColor=mat.color.clone();
+      target.material.emissiveIntensity=0;target.material.color.set('#15212b');
+     }
+    }
+    stagedNodes.set(obj.id,target);
+   }
+   for(const obj of scene.objects)
+    (obj.parent?stagedNodes.get(obj.parent):stagedRoot).add(stagedNodes.get(obj.id));
+   stagedRoot.updateMatrixWorld(true);
+   const occluders=[...stagedNodes.values()].filter(o=>
+    o.isMesh&&o.material?.opacity>=1&&!o.material.transparent&&
+    !(o.material?.transmission>0));
+   // Phase 2: commit. No asynchronous operations or creation of materials/meshes.
+   const oldRoot=this.root,oldEnvironment=this.environmentTexture;
+   const oldLights=this.world.children.filter(o=>o.userData.visualLight);
+   this.world.remove(oldRoot,...oldLights);
+   this.root=stagedRoot;this.world.add(stagedRoot,...stagedLights);
+   this.world.background=new THREE.Color(scene.environment.color);
+   this.world.environment=stagedEnvironment;
+   this.environmentTexture=stagedEnvironment;
+   this.world.environmentIntensity=scene.environment.intensity;
+   this.renderer.toneMappingExposure=scene.environment.exposure??1.14;
+   this.camera.position.set(...scene.camera.position);
+   this.camera.near=scene.camera.near;this.camera.far=scene.camera.far;
+   this.camera.fov=scene.camera.fov;this.camera.updateProjectionMatrix();
+   this.controls.target.set(...scene.camera.target);
+   this.nodes=stagedNodes;this.occluders=occluders;
+   this.boundScene=structuredClone(scene);
+   this.motionLevels.clear();this.lastMotionAt=null;
+   committed=true;
+   // Cleanup is after the successful switch: the previous project is still
+   // fully rendered until this point. Dispose distinct owned GPU resources.
+   const oldGeo=new Set(),oldMat=new Set(),oldTx=new Set();
+   oldRoot.traverse(o=>{if(o.isMesh){
+    oldGeo.add(o.geometry);
+    for(const m of Array.isArray(o.material)?o.material:[o.material]){
+     if(!m)continue;
+     oldMat.add(m);
+     for(const slot of ['map','normalMap','metalnessMap','roughnessMap','emissiveMap','aoMap'])
+      if(m[slot])oldTx.add(m[slot]);
+    }
+   }});
+   oldGeo.forEach(g=>g.dispose());
+   oldMat.forEach(m=>m.dispose());
+   oldTx.forEach(t=>t.dispose());
+   if(oldEnvironment&&oldEnvironment!==stagedEnvironment)oldEnvironment.dispose();
+   this.controls.update();this.resize();
+   return {objects:this.nodes.size,meshes:[...this.nodes.values()].filter(o=>o.isMesh).length};
+  }finally{
+   if(!committed){
+    stagedGeometries.forEach(g=>g.dispose());
+    stagedMaterials.forEach(m=>m.dispose());
+    stagedTextures.forEach(t=>t.dispose());
+    stagedEnvironment?.dispose();
+   }
   }
-  for(const o of scene.objects){
-   const target=this.nodes.get(o.id),parent=o.parent?this.nodes.get(o.parent):this.root;
-   parent.add(target);
-  }
-  // Rebuild occluder set once per scene, never per rendered frame.
-  // Protective transmissive glass is transparent to the text ray test,
-  // while actual metal and mechanical parts occlude labels naturally.
-  this.motionLevels.clear();this.lastMotionAt=null;
-  this.occluders=[...this.nodes.values()].filter(x=>
-   x.isMesh&&x.material?.opacity>=1&&!x.material.transparent&&
-   !(x.material?.transmission>0));
-  this.resize();
-  return {objects:this.nodes.size,meshes:[...this.nodes.values()].filter(x=>x.isMesh).length};
  }
  applyFrame(frame){
   validateStereoFrame(frame);
