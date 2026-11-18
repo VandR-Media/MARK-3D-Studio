@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import Ajv2020 from 'ajv/dist/2020.js';
+import {PNG} from 'pngjs';
 import {runVisualRecipe,validateVisualScene,deserializeVisualScene,SIGNALS} from '../src/visual-engine/scene-model.js';
 import {StereoPcmAnalyzer,zeroStereoFrame,validateStereoFrame} from '../src/visual-engine/audio-frame.js';
 import {inspectVisualImport} from '../src/visual-engine/glb-guard.js';
@@ -206,6 +207,41 @@ test('GLB numeric fidelity checker catches vertex and PBR losses even with match
  assert.throws(()=>compareGlbFidelity(original,bytes(material,bin)),/roughness/);
  const transform=structuredClone(doc);transform.nodes[0].translation[0]=4;
  assert.throws(()=>compareGlbFidelity(original,bytes(transform,bin)),/worldMatrix/);
+});
+
+test('GLB fidelity checks actual embedded PNG pixels, UV selectors and texture samplers',()=>{
+ const png=new PNG({width:1,height:1});
+ png.data.set([100,120,140,255]);
+ const image=PNG.sync.write(png);
+ const padded=Math.ceil(image.length/4)*4;
+ const bin=Buffer.alloc(36+padded);
+ image.copy(bin,36);
+ const doc={asset:{version:'2.0'},scene:0,scenes:[{nodes:[0]}],
+  nodes:[{mesh:0}],meshes:[{primitives:[{attributes:{POSITION:0},material:0}]}],
+  materials:[{pbrMetallicRoughness:{baseColorTexture:{index:0,texCoord:0}}}],
+  textures:[{sampler:0,source:0}],samplers:[{wrapS:33071,wrapT:10497}],
+  images:[{bufferView:1,mimeType:'image/png'}],
+  buffers:[{byteLength:bin.length}],
+  bufferViews:[{buffer:0,byteOffset:0,byteLength:36},
+   {buffer:0,byteOffset:36,byteLength:image.length}],
+  accessors:[{bufferView:0,componentType:5126,count:3,type:'VEC3'}]};
+ const glb=(d,b=bin)=>writeGlb({chunks:[
+  {type:0x4e4f534a,data:new Uint8Array()},
+  {type:0x004e4942,data:b}]},d);
+ const original=glb(doc);
+ assert.equal(compareGlbFidelity(original,original).imagesCompared,1);
+ const sampler=structuredClone(doc);sampler.samplers[0].wrapS=10497;
+ assert.throws(()=>compareGlbFidelity(original,glb(sampler)),/sampler.wrapS/);
+ const channel=structuredClone(doc);
+ channel.materials[0].pbrMetallicRoughness.baseColorTexture.texCoord=1;
+ assert.throws(()=>compareGlbFidelity(original,glb(channel)),/textures.baseColor.uv/);
+ const recolor=new PNG({width:1,height:1});recolor.data.set([0,120,140,255]);
+ const png2=PNG.sync.write(recolor),bin2=Buffer.alloc(36+Math.ceil(png2.length/4)*4);
+ png2.copy(bin2,36);
+ const changedImage=structuredClone(doc);changedImage.images[0].bufferView=1;
+ changedImage.bufferViews[1].byteLength=png2.length;
+ changedImage.buffers[0].byteLength=bin2.length;
+ assert.throws(()=>compareGlbFidelity(original,glb(changedImage,bin2)),/pixel data changed/);
 });
 
 test('safe JSON keyframe track targets a real GLB mesh, persists and rejects invalid ordering',()=>{
