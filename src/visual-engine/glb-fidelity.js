@@ -173,7 +173,7 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
  const a=parseGlb(before),b=parseGlb(after),A=a.json,B=b.json;
  const allowed=new Set(allowChangedMeshes);
  const findings={epsilon,meshesCompared:0,accessorValuesCompared:0,materialsCompared:0,
-  nodesCompared:0,imagesCompared:0,ignoredChanges:allowChangedMeshes};
+  nodesCompared:0,identitiesCompared:0,imagesCompared:0,ignoredChanges:allowChangedMeshes};
  assertEqual(A.meshes?.length||0,B.meshes?.length||0,'meshes.length');
  const ab=binData(a),bb=binData(b);
  for(let i=0;i<(A.meshes||[]).length;i++){
@@ -214,7 +214,15 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
  const worldA=nodeWorlds(A),worldB=nodeWorlds(B);
  for(let i=0;i<am.length;i++){
   assertEqual(am[i].n.mesh,bm[i].n.mesh,'meshNode['+i+'].geometry');
+  const identity=n=>n.extras?.visualOriginId??n.extras?.markId??null;
+  const oldId=identity(am[i].n),newId=identity(bm[i].n);
+  if(oldId!==null||newId!==null){
+   assertEqual(oldId,newId,'meshNode['+i+'].stableIdentity');
+   findings.identitiesCompared++;
+  }
   if(!allowed.has(am[i].n.mesh)){
+   assertEqual(matrix(am[i].n),matrix(bm[i].n),
+    'meshNode['+i+'].localMatrix',epsilon);
    assertEqual(worldA[am[i].index],worldB[bm[i].index],
     'meshNode['+i+'].worldMatrix',epsilon);
   }
