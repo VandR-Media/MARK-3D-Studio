@@ -9,6 +9,8 @@ import {spawnSync} from 'node:child_process';
 import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {inspectRiggedGlb} from '../src/pro-studio/rigged-glb-audit.js';
+import {compareGlbSemantics} from '../src/pro-studio/glb-semantic-diff.js';
+import {openPreviewMarkscene} from '../src/pro-studio/markscene-v3-preview.js';
 import {buildRiggedFixture} from './pro-studio-glb-fixtures.mjs';
 
 const sourceSha=process.env.MARK_SOURCE_SHA||'local-unverified';
@@ -17,7 +19,7 @@ mkdirSync(root,{recursive:true});
 const SHA=data=>createHash('sha256').update(data).digest('hex');
 const json={schema:'mark.rig-webgl2-acceptance/1',sourceSha,
  status:'in_progress',backend:'Chromium WebGL2 / software-backed SwiftShader',
- deviceTested:false,tests:[],screenshots:[],errors:[],exports:[]};
+ deviceTested:false,tests:[],screenshots:[],errors:[],exports:[],nativeProjects:[],numericalDiagnostics:[]};
 const put=(name,bytes)=>{const path=join(root,name);writeFileSync(path,bytes);return{path:name,sha256:SHA(bytes),bytes:bytes.length};};
 const fail=(id,message)=>{json.tests.push({testId:id,status:'fail',reason:message});throw Error(id+': '+message)};
 function assertTest(id,predicate,metrics,reason){
@@ -126,6 +128,107 @@ try{
   examined.animations.length===3&&examined.morphs[0]?.targets===2,
   json.exports[0],
   'Exported GLB lost 70 bones, 2 morph targets or 3 animation clips');
+ // Numerical cross-export diagnostics: compare actual GLTFExporter bytes
+ // against original source, not just 70/2/3 headline counts. Record mismatches
+ // explicitly, even when current experimental export is not lossless.
+ const gltfComparison=compareGlbSemantics(buildRiggedFixture().bytes,exportBytes);
+ json.numericalDiagnostics.push({profile:'independent-threejs-exporter',
+  ...gltfComparison});
+ const baseline=await page.evaluate(async()=>{
+  window.MARK_RIG_VIEWER_API.selectClip(2);
+  window.MARK_RIG_VIEWER_API.seek(6);
+  window.MARK_RIG_VIEWER_API.centerView('front');
+  const result=await window.MARK_RIG_VIEWER_API.saveNativeProject();
+  return {archive:Array.from(result.archive),sourceSha256:result.sourceSha256,
+   schema:result.manifest.schema,sceneNodes:result.manifest.sceneGraph.length};
+ });
+ const baselineNative=Buffer.from(baseline.archive);
+ const inputRig=buildRiggedFixture();
+ const reopenedNative=await openPreviewMarkscene(baselineNative);
+ assertTest('RIG-V3-NATIVE-010',
+  baseline.schema==='mark.professional-scene/3-preview'&&baseline.sceneNodes===72&&
+  reopenedNative.sourceSha256===SHA(inputRig.bytes)&&
+  reopenedNative.manifest.sourceSummary.skinJoints[0]===70,
+  {schema:baseline.schema,nodes:baseline.sceneNodes,sourceHash:baseline.sourceSha256},
+  'Browser native project cannot preserve exact 70-bone input GLB');
+ const beforeEdit=await canvasShot(page,'rig-v3-before-edit.png',
+  {view:'front',clip:2,seconds:6,nativeEditing:'before'});
+ const editedPose=await page.evaluate(()=>{
+  return window.MARK_RIG_VIEWER_API.applyProjectEdit({
+   translationX:.36,roughnessFactor:.23});
+ });
+ const afterEdit=await canvasShot(page,'rig-v3-after-edit.png',
+  {view:'front',clip:2,seconds:6,nativeEditing:'after'});
+ assertTest('RIG-V3-EDIT-011',
+  beforeEdit!==afterEdit&&Math.abs(editedPose.skinnedX-.36)<1e-6&&
+  Math.abs(editedPose.roughness-.23)<1e-6,
+  {beforeEdit,afterEdit,meshX:editedPose.skinnedX,roughness:editedPose.roughness},
+  'Editing did not actually change WebGL2 mesh position and PBR appearance');
+ const savedEdit=await page.evaluate(async()=>{
+  const result=await window.MARK_RIG_VIEWER_API.saveNativeProject();
+  return{archive:Array.from(result.archive),sha256:result.sha256,
+   sourceSha256:result.sourceSha256};
+ });
+ const readAfterEdit=await openPreviewMarkscene(Buffer.from(savedEdit.archive));
+ const savedNative=put('rig-v3-preview-edited.markscene',Buffer.from(savedEdit.archive));
+ json.nativeProjects.push({...savedNative,format:'mark.professional-scene/3-preview',
+  originalSourceHash:savedEdit.sourceSha256,
+  nativeSha256:savedEdit.sha256,
+  edition:'TRS+PBR+clip selection; not full edit mesh'});
+ const reload=await page.evaluate(async bytes=>{
+  return window.MARK_RIG_VIEWER_API.openNativeProject(new Uint8Array(bytes));
+ },savedEdit.archive);
+ const restored=await page.evaluate(()=>window.MARK_RIG_VIEWER_API.applyProjectEdit({}));
+ assertTest('RIG-V3-REOPEN-012',
+  Math.abs(restored.skinnedX-.36)<1e-6&&Math.abs(restored.roughness-.23)<1e-6&&
+  reload.sourceSha256===SHA(inputRig.bytes)&&reload.pose.clips.length===3&&
+  readAfterEdit.edits.selection.clipIndex===2,
+  {skinnedX:restored.skinnedX,roughness:restored.roughness,
+   sourceSha256:reload.sourceSha256,clips:reload.pose.clips.length},
+  'Native project save → reopen lost edits, 70-bone source or clip selection');
+ const exportEdited=await page.evaluate(async()=>{
+  const result=await window.MARK_RIG_VIEWER_API.exportNativeEditedGLB();
+  return{glb:Array.from(result.glb),preservesOriginalBinary:result.preservesOriginalBinary};
+ });
+ const editedGlb=Buffer.from(exportEdited.glb);
+ const editedGlbFile=put('rig-v3-preview-edited-export.glb',editedGlb);
+ const editedInspection=inspectRiggedGlb(editedGlb);
+ const editsNumeric=compareGlbSemantics(inputRig.bytes,editedGlb,{
+  allowEditedNodes:['SkinnedQuad'],allowEditedMaterials:[0]});
+ json.numericalDiagnostics.push({profile:'v3-preview-edits-only',...editsNumeric});
+ json.exports.push({...editedGlbFile,origin:'experimental-v3-preview-edited-project',
+  numericProfile:editsNumeric.status});
+ assertTest('RIG-V3-EXPORT-013',
+  editedInspection.skins[0].joints===70&&editedInspection.animations.length===3&&
+  editedInspection.morphs[0].targets===2&&
+  exportEdited.preservesOriginalBinary&&editsNumeric.status==='pass_partial_profile',
+  {inspection:{skins:editedInspection.skins.length,
+   morphs:editedInspection.morphs.length,clips:editedInspection.animations.length},
+   numericalErrors:editsNumeric.errors,compared:editsNumeric.numericComparisons},
+  'Edited project GLB changed unedited rig, morph, animation or vertex/UV attributes');
+ // The project-open path must refuse a corrupted ZIP and leave the last
+ // working pose in the renderer intact, never silently clearing the scene.
+ const badArchive=savedEdit.archive.slice();
+ badArchive[Math.floor(badArchive.length/2)]^=1;
+ const rejected=await page.evaluate(async bytes=>{
+  const before=window.MARK_RIG_VIEWER_API.pose();
+  try{await window.MARK_RIG_VIEWER_API.openNativeProject(new Uint8Array(bytes));
+   return{rejected:false};}
+  catch(e){
+   const after=window.MARK_RIG_VIEWER_API.pose();
+   return{rejected:true,error:String(e),
+    posePreserved:after.skins[0]?.joints===before.skins[0]?.joints};
+  }
+ },badArchive);
+ assertTest('RIG-V3-SECURE-014',
+  rejected.rejected&&rejected.posePreserved,
+  rejected,'Corrupt native archive replaced the working scene');
+ await canvasShot(page,'rig-v3-reopened-edit.png',
+  {view:'front',clip:2,seconds:6,nativeEditing:'reopened'});
+ // Restore the original fixture for independently reproducible MP4 frames.
+ await page.evaluate(async bytes=>{
+  await window.MARK_RIG_VIEWER_API.loadBinary(new Uint8Array(bytes));
+ },Array.from(inputRig.bytes));
  // Deterministic 8fps frame sequence from genuine WebGL2 canvas, not a CGI concept.
  const frames=join(root,'video-frames');mkdirSync(frames,{recursive:true});
  await page.evaluate(()=>window.MARK_RIG_VIEWER_API.selectClip(2));
