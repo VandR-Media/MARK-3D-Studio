@@ -135,14 +135,17 @@ try{
   const image=toBytes(await page.evaluate(()=>window.MARK_RIG_VIEWER_API.canvas()));
   writeFileSync(join(frames,`frame-${String(i).padStart(3,'0')}.png`),image);
  }
+ const movie=join(root,'rig-dance-real-webgl.mp4');
  const ffmpeg=spawnSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-framerate','8',
-  '-i',join(frames,'frame-%03d.png'),'-c:v','libvpx-vp9','-pix_fmt','yuv420p',
-  join(root,'rig-dance-real-webgl.webm')],{timeout:120000});
- if(ffmpeg.status===0){
-  const bytes=readFileSync(join(root,'rig-dance-real-webgl.webm'));
-  assertTest('RIG-VIDEO-008',bytes.length>2000,put('rig-dance-real-webgl.webm',bytes));
- }else json.tests.push({testId:'RIG-VIDEO-008',status:'skip',
-  reason:'ffmpeg unavailable or encode failed: '+String(ffmpeg.stderr||'').slice(0,500)});
+  '-i',join(frames,'frame-%03d.png'),
+  '-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2',
+  '-c:v','libx264','-preset','ultrafast','-movflags','+faststart',
+  '-pix_fmt','yuv420p',movie],{timeout:120000});
+ if(ffmpeg.error||ffmpeg.status!==0)
+  fail('RIG-VIDEO-008','Actual WebGL frame sequence could not be encoded: '+
+   String(ffmpeg.error||ffmpeg.stderr||ffmpeg.signal||'unknown').slice(0,600));
+ const movieBytes=readFileSync(movie);
+ assertTest('RIG-VIDEO-008',movieBytes.length>2000,put('rig-dance-real-webgl.mp4',movieBytes));
  assertTest('RIG-PAGE-ERRORS-009',consoleErrors.length===0,{consoleErrors},
   'Browser errors during real animation '+JSON.stringify(consoleErrors));
  json.status='pass';
