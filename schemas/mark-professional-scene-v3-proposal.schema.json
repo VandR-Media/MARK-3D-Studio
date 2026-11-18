@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mark.studio/schema/mark-professional-scene-v3-draft",
+  "title": "DRAFT only: future portable MARK Professional Studio scene manifest — NOT IMPLEMENTED",
+  "description": "Architecture proposal. No v3 parser, mesh/rig system, file extension or SDK exists just because this schema is present.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "specStatus",
+    "schemaVersion",
+    "appVersion",
+    "minReaderVersion",
+    "units",
+    "upAxis",
+    "fps",
+    "colorManagement",
+    "assetManifest",
+    "sceneGraph",
+    "collections",
+    "dependencies",
+    "checksums"
+  ],
+  "properties": {
+    "schema": {
+      "const": "mark.professional-scene/3-draft"
+    },
+    "specStatus": {
+      "const": "DRAFT_NOT_IMPLEMENTED"
+    },
+    "schemaVersion": {
+      "const": 3
+    },
+    "appVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "minReaderVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "units": {
+      "enum": [
+        "meters",
+        "centimeters",
+        "millimeters",
+        "inches"
+      ]
+    },
+    "upAxis": {
+      "enum": [
+        "Y",
+        "Z"
+      ]
+    },
+    "fps": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 240
+    },
+    "colorManagement": {
+      "type": "object",
+      "required": [
+        "workingSpace",
+        "displaySpace"
+      ],
+      "properties": {
+        "workingSpace": {
+          "type": "string"
+        },
+        "displaySpace": {
+          "type": "string"
+        }
+      }
+    },
+    "sourceV2": {
+      "type": "object",
+      "required": [
+        "originalSchema",
+        "originalHash",
+        "idMapping"
+      ],
+      "properties": {
+        "originalSchema": {
+          "const": "mark.visual-scene/2"
+        },
+        "originalHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "idMapping": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assetManifest": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "uuid",
+          "kind",
+          "hash",
+          "byteLength",
+          "uri"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "mesh",
+              "material",
+              "texture",
+              "rig",
+              "animation",
+              "audio",
+              "source",
+              "reference",
+              "cache",
+              "misc"
+            ]
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uri": {
+            "type": "string",
+            "minLength": 1
+          },
+          "license": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "sceneGraph": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "uuid",
+          "displayName",
+          "type",
+          "parentUUID"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "mesh",
+              "curve",
+              "text",
+              "rig",
+              "camera",
+              "light",
+              "group",
+              "volume",
+              "reference",
+              "physics",
+              "procedural"
+            ]
+          },
+          "parentUUID": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dataAssetUUID": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "legacyId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "collections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "uuid",
+          "name",
+          "nodeUUIDs"
+        ],
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nodeUUIDs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "assetUUID",
+          "dependentUUID"
+        ],
+        "properties": {
+          "assetUUID": {
+            "type": "string"
+          },
+          "dependentUUID": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "checksums": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "audioBindings": {
+      "type": "array",
+      "description": "Conceptual slots; semantics await v3 spec",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  }
+}
