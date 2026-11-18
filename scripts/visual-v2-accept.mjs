@@ -56,6 +56,8 @@ async function testPreset(preset,viewport){
  await page.locator('#mode').selectOption(preset);
  await page.waitForFunction(target=>window.MARK_VISUAL_API?.scene()?.id===target,
   preset==='analog-studio'?'analog-studio-v2':'spectrum-matrix-v2',{timeout:40000,polling:200});
+ const gpu=await page.evaluate(()=>window.MARK_VISUAL_API.gpuInfo());
+ if(!gpu.webgl2)throw Error('Renderer is not a real WebGL2 context: '+JSON.stringify(gpu));
  const info=await page.evaluate(()=>window.MARK_VISUAL_API.renderStats());
  if(info.meshCount<(kind==='analog'?100:110)||info.ledCount!==(kind==='analog'?48:108))
   throw Error('Wrong real physical object count '+JSON.stringify(info));
@@ -279,14 +281,16 @@ async function testPreset(preset,viewport){
   const t0=Date.now();
   await page.evaluate(async x=>window.MARK_VISUAL_API.setQuality(x),profile);
   const durationMs=Date.now()-t0;
-  profileStats.push({profile,firstRenderWithRebuildMs:durationMs});
+  const throughput=await page.evaluate(()=>window.MARK_VISUAL_API.benchmarkFrames(8));
+  profileStats.push({profile,firstRenderWithRebuildMs:durationMs,throughput});
   if(device==='desktop')await capture(page,kind+'-'+profile+'.png');
  }
  if(jsErrors.length)throw Error('Browser JavaScript exceptions: '+jsErrors.join(' | '));
  const summary={preset,device,viewport,meshCount:info.meshCount,ledCount:info.ledCount,
   glbBytes:glb.length,glbSha256:sha(glb),sceneNodes:parsed.nodes.length,
   materialCount:parsed.materials.length,parallaxVerified:true,
-  physicalLabelsFollowCamera:true,rearLabelsOccluded:true,profiles:profileStats,status:'pass'};
+  physicalLabelsFollowCamera:true,rearLabelsOccluded:true,
+  webgl2Verified:true,gpu,profiles:profileStats,status:'pass'};
  report.tests.push(summary);console.log('VISUAL V2 WEBGL PASS '+JSON.stringify(summary));
  await page.close();
 }
