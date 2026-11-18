@@ -12,6 +12,7 @@ const script=new TextDecoder().decode(bundle.outputFiles[0].contents);
 if(script.includes('</script>'))throw new Error('JavaScript contains closing script tag.');
 let html=read('index.html')
  .replace(/<link rel="stylesheet" href="\.\/src\/styles\.css"\s*\/?>/, () => '<style>\n'+read('src/styles.css')+'\n</style>')
+ .replace('href="./visual-engine/Visual-Engine-v2.html"','href="./MARK-Visual-Engine-v2.html"')
  .replace(/<script type="importmap">[\s\S]*?<\/script>/,'')
  .replace(/<script type="module" src="\.\/src\/app\.js"><\/script>/,'')
  .replace('</body>', () => '<script>\n'+script+'\n</script>\n</body>');

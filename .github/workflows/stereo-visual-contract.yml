@@ -1,0 +1,18 @@
+name: MARK Stereo Visual — six hybrid preset contracts
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate all six stereo 2D/3D presets
+        run: node --test tests/stereo-visual-presets.test.mjs

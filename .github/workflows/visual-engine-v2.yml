@@ -1,0 +1,65 @@
+name: MARK Visual Engine v2 — manual true 3D acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mark-visual-v2-manual
+  cancel-in-progress: true
+jobs:
+  visual-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked MIT/BSD dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate source syntax and strict JSON/audio tests
+        run: |
+          node --check src/visual-engine/scene-model.js
+          node --check src/visual-engine/instrument-factory.js
+          node --check src/visual-engine/visual-renderer.js
+          node --check src/visual-engine/audio-frame.js
+          node --check src/visual-engine/ui.js
+          npm run test:visual-v2
+      - name: Existing MARK Studio GLB compatibility
+        run: |
+          npm test
+          npm run test:mesh
+          npm run test:topology
+          npm run test:scene
+      - name: Compile two physical 3D scene recipes and their full editable .markscene files
+        run: |
+          npm run visual:v2:recipe -- --recipe recipes/visual-v2-analog-studio.json
+          npm run visual:v2:recipe -- --recipe recipes/visual-v2-spectrum-matrix.json
+      - name: Build both standalone offline editors
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+          npm run visual:v2:build
+      - name: Install Chromium SwiftShader WebGL2 (no GPU cloud billing)
+        run: npx playwright install --with-deps chromium
+      - name: Real 3D GLB exports, WebGL mobile/desktop screenshots and decoded 2-channel WAV tests
+        run: npm run visual:v2:accept
+      - name: Verify real screenshot and independent signal reports
+        run: |
+          node -e "const fs=require('fs'),r=require('./dist/visual-v2/acceptance/browser-report.json');if(r.status!=='pass'||r.tests.length<7||r.screenshots.length<12)throw Error('Real browser proofs incomplete');for(const t of r.tests.filter(x=>x.device))if(!t.parallaxVerified||t.meshCount<100)throw Error('3D not verified');"
+      - name: Publish verified multi-mesh GLB, .markscene, JSON recipe, real PNG and timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-visual-v2-analog-matrix-true-webgl-evidence
+          path: dist/visual-v2/
+          if-no-files-found: error
+      - name: Publish two fully offline Huawei HTML files together
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-visual-v2-Huawei-offline-editors
+          path: |
+            dist/MARK-Visual-Engine-v2.html
+            dist/visual-v2-build-info.json
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json
+          if-no-files-found: error

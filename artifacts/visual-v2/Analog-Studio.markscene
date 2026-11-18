@@ -1,0 +1,4086 @@
+{
+  "schema": "mark.visual-scene/2",
+  "id": "analog-studio-v2",
+  "name": "MARK Analog Studio — physical 3D stereo VU",
+  "quality": "normal",
+  "camera": {
+    "position": [
+      0,
+      0,
+      13.4
+    ],
+    "target": [
+      0,
+      0,
+      0
+    ],
+    "fov": 37,
+    "near": 0.05,
+    "far": 100
+  },
+  "environment": {
+    "color": "#07101d",
+    "intensity": 0.68,
+    "hdri": null
+  },
+  "lights": [
+    {
+      "id": "key",
+      "type": "directional",
+      "position": [
+        -4,
+        7,
+        8
+      ],
+      "color": "#d6efff",
+      "intensity": 3.3,
+      "castShadow": true
+    },
+    {
+      "id": "fill",
+      "type": "directional",
+      "position": [
+        6,
+        1,
+        5
+      ],
+      "color": "#77a5ff",
+      "intensity": 1.3,
+      "castShadow": false
+    },
+    {
+      "id": "rim",
+      "type": "directional",
+      "position": [
+        0,
+        5,
+        -6
+      ],
+      "color": "#cf5bdb",
+      "intensity": 2.1,
+      "castShadow": false
+    }
+  ],
+  "materials": {
+    "enclosure": {
+      "type": "standard",
+      "color": "#172131",
+      "metalness": 0.77,
+      "roughness": 0.29,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "bodyface": {
+      "type": "standard",
+      "color": "#101a27",
+      "metalness": 0.7,
+      "roughness": 0.39,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "bezel": {
+      "type": "standard",
+      "color": "#536579",
+      "metalness": 0.9,
+      "roughness": 0.19,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "bezeledge": {
+      "type": "standard",
+      "color": "#9bbed2",
+      "metalness": 0.92,
+      "roughness": 0.22,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "dial": {
+      "type": "standard",
+      "color": "#e4cf9a",
+      "metalness": 0.13,
+      "roughness": 0.65,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "dialdark": {
+      "type": "standard",
+      "color": "#0f1927",
+      "metalness": 0.25,
+      "roughness": 0.5,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "amber": {
+      "type": "standard",
+      "color": "#ffae52",
+      "metalness": 0.1,
+      "roughness": 0.35,
+      "emissive": "#ff9519",
+      "emissiveIntensity": 0.54,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "glass": {
+      "type": "physical",
+      "color": "#9ac8ed",
+      "metalness": 0.05,
+      "roughness": 0.08,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0.75,
+      "thickness": 0.12,
+      "ior": 1.47
+    },
+    "screw": {
+      "type": "standard",
+      "color": "#a2b2bd",
+      "metalness": 0.94,
+      "roughness": 0.21,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "needle": {
+      "type": "standard",
+      "color": "#ff904b",
+      "metalness": 0.4,
+      "roughness": 0.28,
+      "emissive": "#f45620",
+      "emissiveIntensity": 0.17,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "darkled": {
+      "type": "standard",
+      "color": "#16212a",
+      "metalness": 0.17,
+      "roughness": 0.45,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "greenled": {
+      "type": "standard",
+      "color": "#19ef9c",
+      "metalness": 0.1,
+      "roughness": 0.28,
+      "emissive": "#16d677",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "yellowled": {
+      "type": "standard",
+      "color": "#f6df49",
+      "metalness": 0.1,
+      "roughness": 0.28,
+      "emissive": "#ffb61e",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "redled": {
+      "type": "standard",
+      "color": "#ff5d55",
+      "metalness": 0.1,
+      "roughness": 0.24,
+      "emissive": "#ff202e",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "cyanled": {
+      "type": "standard",
+      "color": "#53e3ff",
+      "metalness": 0.1,
+      "roughness": 0.28,
+      "emissive": "#27bfff",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "magentaled": {
+      "type": "standard",
+      "color": "#fa6dff",
+      "metalness": 0.1,
+      "roughness": 0.28,
+      "emissive": "#e92cfa",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "black": {
+      "type": "standard",
+      "color": "#03060d",
+      "metalness": 0.13,
+      "roughness": 0.73,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "rubber": {
+      "type": "standard",
+      "color": "#111319",
+      "metalness": 0.05,
+      "roughness": 0.83,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    },
+    "marker": {
+      "type": "standard",
+      "color": "#d3ecff",
+      "metalness": 0.63,
+      "roughness": 0.21,
+      "emissive": "#000000",
+      "emissiveIntensity": 0,
+      "opacity": 1,
+      "transmission": 0
+    }
+  },
+  "objects": [
+    {
+      "id": "instrument.root",
+      "name": "Instrument root",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": null,
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "case.main",
+      "name": "Milled aluminium outer body",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 9.15,
+        "height": 5.2,
+        "depth": 0.8,
+        "radius": 0.16,
+        "bevel": 0.105
+      },
+      "material": "enclosure",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "case.front",
+      "name": "Brushed front anodized panel",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 8.92,
+        "height": 4.98,
+        "depth": 0.13,
+        "radius": 0.12,
+        "bevel": 0.045
+      },
+      "material": "bodyface",
+      "position": [
+        0,
+        0,
+        0.43000000000000005
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "case.lowerline",
+      "name": "Lower chrome edge",
+      "geometry": {
+        "type": "box",
+        "width": 8.700000000000001,
+        "height": 0.022,
+        "depth": 0.018
+      },
+      "material": "bezeledge",
+      "position": [
+        0,
+        -2.3200000000000003,
+        0.525
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "case.upperline",
+      "name": "Upper chrome edge",
+      "geometry": {
+        "type": "box",
+        "width": 8.700000000000001,
+        "height": 0.024,
+        "depth": 0.018
+      },
+      "material": "bezeledge",
+      "position": [
+        0,
+        2.3200000000000003,
+        0.525
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.l.b",
+      "name": "Recessed machined steel screw",
+      "geometry": {
+        "type": "cylinder",
+        "radiusTop": 0.085,
+        "radiusBottom": 0.085,
+        "height": 0.048,
+        "radialSegments": 24
+      },
+      "material": "screw",
+      "position": [
+        -4.245,
+        -2.2600000000000002,
+        0.55
+      ],
+      "rotation": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.l.b.slot",
+      "name": "Screwdriver slot",
+      "geometry": {
+        "type": "box",
+        "width": 0.1,
+        "height": 0.013,
+        "depth": 0.008
+      },
+      "material": "black",
+      "position": [
+        -4.245,
+        -2.2600000000000002,
+        0.577
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.48
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.l.t",
+      "name": "Recessed machined steel screw",
+      "geometry": {
+        "type": "cylinder",
+        "radiusTop": 0.085,
+        "radiusBottom": 0.085,
+        "height": 0.048,
+        "radialSegments": 24
+      },
+      "material": "screw",
+      "position": [
+        -4.245,
+        2.2600000000000002,
+        0.55
+      ],
+      "rotation": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.l.t.slot",
+      "name": "Screwdriver slot",
+      "geometry": {
+        "type": "box",
+        "width": 0.1,
+        "height": 0.013,
+        "depth": 0.008
+      },
+      "material": "black",
+      "position": [
+        -4.245,
+        2.2600000000000002,
+        0.577
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.48
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.r.b",
+      "name": "Recessed machined steel screw",
+      "geometry": {
+        "type": "cylinder",
+        "radiusTop": 0.085,
+        "radiusBottom": 0.085,
+        "height": 0.048,
+        "radialSegments": 24
+      },
+      "material": "screw",
+      "position": [
+        4.245,
+        -2.2600000000000002,
+        0.55
+      ],
+      "rotation": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.r.b.slot",
+      "name": "Screwdriver slot",
+      "geometry": {
+        "type": "box",
+        "width": 0.1,
+        "height": 0.013,
+        "depth": 0.008
+      },
+      "material": "black",
+      "position": [
+        4.245,
+        -2.2600000000000002,
+        0.577
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.48
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.r.t",
+      "name": "Recessed machined steel screw",
+      "geometry": {
+        "type": "cylinder",
+        "radiusTop": 0.085,
+        "radiusBottom": 0.085,
+        "height": 0.048,
+        "radialSegments": 24
+      },
+      "material": "screw",
+      "position": [
+        4.245,
+        2.2600000000000002,
+        0.55
+      ],
+      "rotation": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "screw.r.t.slot",
+      "name": "Screwdriver slot",
+      "geometry": {
+        "type": "box",
+        "width": 0.1,
+        "height": 0.013,
+        "depth": 0.008
+      },
+      "material": "black",
+      "position": [
+        4.245,
+        2.2600000000000002,
+        0.577
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.48
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "analog.header",
+      "name": "Header inlaid strip",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 7.7,
+        "height": 0.34,
+        "depth": 0.07,
+        "radius": 0.04,
+        "bevel": 0.012
+      },
+      "material": "black",
+      "position": [
+        0,
+        2.05,
+        0.54
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left",
+      "name": "LEFT physical VU gauge",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        -2.13,
+        0.53,
+        0.55
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.back",
+      "name": "Deep recessed inset",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 3.67,
+        "height": 2.72,
+        "depth": 0.29,
+        "radius": 0.12,
+        "bevel": 0.08
+      },
+      "material": "black",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.dial",
+      "name": "Warm ivory physical dial face",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 3.3,
+        "height": 2.38,
+        "depth": 0.025,
+        "radius": 0.06,
+        "bevel": 0.019
+      },
+      "material": "dial",
+      "position": [
+        0,
+        0,
+        0.17
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.glass",
+      "name": "Transmissive curved safety cover",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 3.43,
+        "height": 2.46,
+        "depth": 0.065,
+        "radius": 0.055,
+        "bevel": 0.031
+      },
+      "material": "glass",
+      "position": [
+        0,
+        0,
+        0.32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick0",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.4219394362223274,
+        -0.023138506567340178,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        1.06
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick1",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.3042002494509688,
+        0.1577329437694277,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.9275
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick2",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.16359767604411,
+        0.32146416864689475,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.795
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick3",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.0025965606443594,
+        0.46518486475063237,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.6625000000000001
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick4",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.8240193461639005,
+        0.5863755249390604,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.53
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick5",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.6309965947236013,
+        0.6829116066646165,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.39749999999999996
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick6",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.4269121070837248,
+        0.7531007764365684,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.265
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick7",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.21534360265444805,
+        0.7957125774084334,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.13250000000000006
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick8",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0,
+        0.8099999999999999,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick9",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.21534360265444805,
+        0.7957125774084334,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.13250000000000006
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick10",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.42691210708372496,
+        0.7531007764365684,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.2650000000000001
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick11",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.6309965947236013,
+        0.6829116066646165,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.39749999999999996
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick12",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.8240193461639005,
+        0.5863755249390604,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.53
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick13",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.0025965606443594,
+        0.46518486475063237,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.6625000000000001
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick14",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.1635976760441098,
+        0.32146416864689475,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.7949999999999999
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick15",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.3042002494509688,
+        0.1577329437694277,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.9275
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.tick16",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.4219394362223274,
+        -0.023138506567340178,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -1.06
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.left.pivot",
+      "name": "Needle axis (mechanical)",
+      "geometry": {
+        "type": "cylinder",
+        "radiusTop": 0.12,
+        "radiusBottom": 0.13,
+        "height": 0.115,
+        "radialSegments": 32
+      },
+      "material": "bezel",
+      "position": [
+        0,
+        -0.82,
+        0.217
+      ],
+      "rotation": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "needle.left",
+      "name": "3D tapered needle",
+      "geometry": {
+        "type": "needle",
+        "length": 1.6,
+        "width": 0.055,
+        "depth": 0.028
+      },
+      "material": "needle",
+      "position": [
+        0,
+        -0.82,
+        0.239
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.97
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.left",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right",
+      "name": "RIGHT physical VU gauge",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        2.13,
+        0.53,
+        0.55
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.back",
+      "name": "Deep recessed inset",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 3.67,
+        "height": 2.72,
+        "depth": 0.29,
+        "radius": 0.12,
+        "bevel": 0.08
+      },
+      "material": "black",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.dial",
+      "name": "Warm ivory physical dial face",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 3.3,
+        "height": 2.38,
+        "depth": 0.025,
+        "radius": 0.06,
+        "bevel": 0.019
+      },
+      "material": "dial",
+      "position": [
+        0,
+        0,
+        0.17
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.glass",
+      "name": "Transmissive curved safety cover",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 3.43,
+        "height": 2.46,
+        "depth": 0.065,
+        "radius": 0.055,
+        "bevel": 0.031
+      },
+      "material": "glass",
+      "position": [
+        0,
+        0,
+        0.32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick0",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.4219394362223274,
+        -0.023138506567340178,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        1.06
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick1",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.3042002494509688,
+        0.1577329437694277,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.9275
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick2",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.16359767604411,
+        0.32146416864689475,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.795
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick3",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -1.0025965606443594,
+        0.46518486475063237,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.6625000000000001
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick4",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.8240193461639005,
+        0.5863755249390604,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.53
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick5",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.6309965947236013,
+        0.6829116066646165,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.39749999999999996
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick6",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.4269121070837248,
+        0.7531007764365684,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.265
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick7",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        -0.21534360265444805,
+        0.7957125774084334,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0.13250000000000006
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick8",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0,
+        0.8099999999999999,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick9",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.21534360265444805,
+        0.7957125774084334,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.13250000000000006
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick10",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.42691210708372496,
+        0.7531007764365684,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.2650000000000001
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick11",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.6309965947236013,
+        0.6829116066646165,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.39749999999999996
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick12",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        0.8240193461639005,
+        0.5863755249390604,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.53
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick13",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.0025965606443594,
+        0.46518486475063237,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.6625000000000001
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick14",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.1635976760441098,
+        0.32146416864689475,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.7949999999999999
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick15",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.12,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.3042002494509688,
+        0.1577329437694277,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.9275
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.tick16",
+      "name": "Engraved radial VU tick",
+      "geometry": {
+        "type": "box",
+        "width": 0.021,
+        "height": 0.2,
+        "depth": 0.011
+      },
+      "material": "black",
+      "position": [
+        1.4219394362223274,
+        -0.023138506567340178,
+        0.199
+      ],
+      "rotation": [
+        0,
+        0,
+        -1.06
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "gauge.right.pivot",
+      "name": "Needle axis (mechanical)",
+      "geometry": {
+        "type": "cylinder",
+        "radiusTop": 0.12,
+        "radiusBottom": 0.13,
+        "height": 0.115,
+        "radialSegments": 32
+      },
+      "material": "bezel",
+      "position": [
+        0,
+        -0.82,
+        0.217
+      ],
+      "rotation": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "needle.right",
+      "name": "3D tapered needle",
+      "geometry": {
+        "type": "needle",
+        "length": 1.6,
+        "width": 0.055,
+        "depth": 0.028
+      },
+      "material": "needle",
+      "position": [
+        0,
+        -0.82,
+        0.239
+      ],
+      "rotation": [
+        0,
+        0,
+        -0.97
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "gauge.right",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "analog.bottom.bay",
+      "name": "Six-band window",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 8,
+        "height": 1.02,
+        "depth": 0.085,
+        "radius": 0.08,
+        "bevel": 0.04
+      },
+      "material": "black",
+      "position": [
+        0,
+        -1.61,
+        0.52
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "meter.left.low",
+      "name": "Real LED left low",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        -3.12,
+        -1.99,
+        0.65
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "meter.left.low.seg0",
+      "name": "Physical luminous lens 0",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.125,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.low.seg1",
+      "name": "Physical luminous lens 1",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.083,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.25,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.low.seg2",
+      "name": "Physical luminous lens 2",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.166,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.375,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.low.seg3",
+      "name": "Physical luminous lens 3",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.249,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.5,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.low.seg4",
+      "name": "Physical luminous lens 4",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.332,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.625,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.low.seg5",
+      "name": "Physical luminous lens 5",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.41500000000000004,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.75,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.low.seg6",
+      "name": "Physical luminous lens 6",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "yellowled",
+      "position": [
+        0,
+        0.498,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.875,
+        "shade": "yellowled"
+      }
+    },
+    {
+      "id": "meter.left.low.seg7",
+      "name": "Physical luminous lens 7",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "redled",
+      "position": [
+        0,
+        0.5810000000000001,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 1,
+        "shade": "redled"
+      }
+    },
+    {
+      "id": "meter.left.mid",
+      "name": "Real LED left mid",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        -2.2,
+        -1.99,
+        0.65
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "meter.left.mid.seg0",
+      "name": "Physical luminous lens 0",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.125,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.mid.seg1",
+      "name": "Physical luminous lens 1",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.083,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.25,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.mid.seg2",
+      "name": "Physical luminous lens 2",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.166,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.375,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.mid.seg3",
+      "name": "Physical luminous lens 3",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.249,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.5,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.mid.seg4",
+      "name": "Physical luminous lens 4",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.332,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.625,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.mid.seg5",
+      "name": "Physical luminous lens 5",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.41500000000000004,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.75,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.mid.seg6",
+      "name": "Physical luminous lens 6",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "yellowled",
+      "position": [
+        0,
+        0.498,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.875,
+        "shade": "yellowled"
+      }
+    },
+    {
+      "id": "meter.left.mid.seg7",
+      "name": "Physical luminous lens 7",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "redled",
+      "position": [
+        0,
+        0.5810000000000001,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 1,
+        "shade": "redled"
+      }
+    },
+    {
+      "id": "meter.left.high",
+      "name": "Real LED left high",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        -1.2800000000000002,
+        -1.99,
+        0.65
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "meter.left.high.seg0",
+      "name": "Physical luminous lens 0",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.125,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.high.seg1",
+      "name": "Physical luminous lens 1",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.083,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.25,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.high.seg2",
+      "name": "Physical luminous lens 2",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.166,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.375,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.high.seg3",
+      "name": "Physical luminous lens 3",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.249,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.5,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.high.seg4",
+      "name": "Physical luminous lens 4",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.332,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.625,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.high.seg5",
+      "name": "Physical luminous lens 5",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.41500000000000004,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.75,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.left.high.seg6",
+      "name": "Physical luminous lens 6",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "yellowled",
+      "position": [
+        0,
+        0.498,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.875,
+        "shade": "yellowled"
+      }
+    },
+    {
+      "id": "meter.left.high.seg7",
+      "name": "Physical luminous lens 7",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "redled",
+      "position": [
+        0,
+        0.5810000000000001,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.left.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 1,
+        "shade": "redled"
+      }
+    },
+    {
+      "id": "meter.right.low",
+      "name": "Real LED right low",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        1.2800000000000002,
+        -1.99,
+        0.65
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "meter.right.low.seg0",
+      "name": "Physical luminous lens 0",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.125,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.low.seg1",
+      "name": "Physical luminous lens 1",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.083,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.25,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.low.seg2",
+      "name": "Physical luminous lens 2",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.166,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.375,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.low.seg3",
+      "name": "Physical luminous lens 3",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.249,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.5,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.low.seg4",
+      "name": "Physical luminous lens 4",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.332,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.625,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.low.seg5",
+      "name": "Physical luminous lens 5",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.41500000000000004,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.75,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.low.seg6",
+      "name": "Physical luminous lens 6",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "yellowled",
+      "position": [
+        0,
+        0.498,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.875,
+        "shade": "yellowled"
+      }
+    },
+    {
+      "id": "meter.right.low.seg7",
+      "name": "Physical luminous lens 7",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "redled",
+      "position": [
+        0,
+        0.5810000000000001,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.low",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 1,
+        "shade": "redled"
+      }
+    },
+    {
+      "id": "meter.right.mid",
+      "name": "Real LED right mid",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        2.2,
+        -1.99,
+        0.65
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "meter.right.mid.seg0",
+      "name": "Physical luminous lens 0",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.125,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.mid.seg1",
+      "name": "Physical luminous lens 1",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.083,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.25,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.mid.seg2",
+      "name": "Physical luminous lens 2",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.166,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.375,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.mid.seg3",
+      "name": "Physical luminous lens 3",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.249,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.5,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.mid.seg4",
+      "name": "Physical luminous lens 4",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.332,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.625,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.mid.seg5",
+      "name": "Physical luminous lens 5",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.41500000000000004,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.75,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.mid.seg6",
+      "name": "Physical luminous lens 6",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "yellowled",
+      "position": [
+        0,
+        0.498,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.875,
+        "shade": "yellowled"
+      }
+    },
+    {
+      "id": "meter.right.mid.seg7",
+      "name": "Physical luminous lens 7",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "redled",
+      "position": [
+        0,
+        0.5810000000000001,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.mid",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 1,
+        "shade": "redled"
+      }
+    },
+    {
+      "id": "meter.right.high",
+      "name": "Real LED right high",
+      "geometry": {
+        "type": "group"
+      },
+      "material": null,
+      "position": [
+        3.12,
+        -1.99,
+        0.65
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "instrument.root",
+      "visible": true,
+      "meta": {}
+    },
+    {
+      "id": "meter.right.high.seg0",
+      "name": "Physical luminous lens 0",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.125,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.high.seg1",
+      "name": "Physical luminous lens 1",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.083,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.25,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.high.seg2",
+      "name": "Physical luminous lens 2",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.166,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.375,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.high.seg3",
+      "name": "Physical luminous lens 3",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.249,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.5,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.high.seg4",
+      "name": "Physical luminous lens 4",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.332,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.625,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.high.seg5",
+      "name": "Physical luminous lens 5",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "greenled",
+      "position": [
+        0,
+        0.41500000000000004,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.75,
+        "shade": "greenled"
+      }
+    },
+    {
+      "id": "meter.right.high.seg6",
+      "name": "Physical luminous lens 6",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "yellowled",
+      "position": [
+        0,
+        0.498,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 0.875,
+        "shade": "yellowled"
+      }
+    },
+    {
+      "id": "meter.right.high.seg7",
+      "name": "Physical luminous lens 7",
+      "geometry": {
+        "type": "bevel-box",
+        "width": 0.27,
+        "height": 0.053950000000000005,
+        "depth": 0.075,
+        "radius": 0.018,
+        "bevel": 0.012
+      },
+      "material": "redled",
+      "position": [
+        0,
+        0.5810000000000001,
+        0.01
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "parent": "meter.right.high",
+      "visible": true,
+      "meta": {
+        "role": "led",
+        "threshold": 1,
+        "shade": "redled"
+      }
+    }
+  ],
+  "overlays": [
+    {
+      "text": "MARK  •  ANALOG STUDIO",
+      "x": 0.5,
+      "y": 0.14,
+      "color": "#d7f4ff",
+      "size": 14,
+      "anchor": "analog.header",
+      "offset": [
+        0,
+        0,
+        0.083
+      ]
+    },
+    {
+      "text": "LEFT",
+      "x": 0.275,
+      "y": 0.365,
+      "color": "#243142",
+      "size": 14,
+      "anchor": "gauge.left",
+      "offset": [
+        0,
+        0.43,
+        0.238
+      ]
+    },
+    {
+      "text": "VU",
+      "x": 0.275,
+      "y": 0.42,
+      "color": "#283747",
+      "size": 17,
+      "anchor": "gauge.left",
+      "offset": [
+        0,
+        0.17,
+        0.238
+      ]
+    },
+    {
+      "text": "RIGHT",
+      "x": 0.725,
+      "y": 0.365,
+      "color": "#243142",
+      "size": 14,
+      "anchor": "gauge.right",
+      "offset": [
+        0,
+        0.43,
+        0.238
+      ]
+    },
+    {
+      "text": "VU",
+      "x": 0.725,
+      "y": 0.42,
+      "color": "#283747",
+      "size": 17,
+      "anchor": "gauge.right",
+      "offset": [
+        0,
+        0.17,
+        0.238
+      ]
+    },
+    {
+      "text": "L LOW",
+      "x": 0.15901639344262297,
+      "y": 0.82,
+      "color": "#a6ddff",
+      "size": 10,
+      "anchor": "analog.bottom.bay",
+      "offset": [
+        -3.12,
+        0.365,
+        0.12
+      ]
+    },
+    {
+      "text": "L MID",
+      "x": 0.2595628415300546,
+      "y": 0.82,
+      "color": "#a6ddff",
+      "size": 10,
+      "anchor": "analog.bottom.bay",
+      "offset": [
+        -2.2,
+        0.365,
+        0.12
+      ]
+    },
+    {
+      "text": "L HIGH",
+      "x": 0.36010928961748634,
+      "y": 0.82,
+      "color": "#a6ddff",
+      "size": 10,
+      "anchor": "analog.bottom.bay",
+      "offset": [
+        -1.2800000000000002,
+        0.365,
+        0.12
+      ]
+    },
+    {
+      "text": "R LOW",
+      "x": 0.6398907103825137,
+      "y": 0.82,
+      "color": "#ffc0e8",
+      "size": 10,
+      "anchor": "analog.bottom.bay",
+      "offset": [
+        1.2800000000000002,
+        0.365,
+        0.12
+      ]
+    },
+    {
+      "text": "R MID",
+      "x": 0.7404371584699454,
+      "y": 0.82,
+      "color": "#ffc0e8",
+      "size": 10,
+      "anchor": "analog.bottom.bay",
+      "offset": [
+        2.2,
+        0.365,
+        0.12
+      ]
+    },
+    {
+      "text": "R HIGH",
+      "x": 0.840983606557377,
+      "y": 0.82,
+      "color": "#ffc0e8",
+      "size": 10,
+      "anchor": "analog.bottom.bay",
+      "offset": [
+        3.12,
+        0.365,
+        0.12
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "target": "needle.left",
+      "signal": "left.rms",
+      "response": "needle",
+      "gain": 1.85,
+      "offset": -0.97
+    },
+    {
+      "target": "needle.right",
+      "signal": "right.rms",
+      "response": "needle",
+      "gain": 1.85,
+      "offset": -0.97
+    },
+    {
+      "target": "meter.left.low",
+      "signal": "left.low",
+      "response": "led-column",
+      "gain": 1
+    },
+    {
+      "target": "meter.left.mid",
+      "signal": "left.mid",
+      "response": "led-column",
+      "gain": 1
+    },
+    {
+      "target": "meter.left.high",
+      "signal": "left.high",
+      "response": "led-column",
+      "gain": 1
+    },
+    {
+      "target": "meter.right.low",
+      "signal": "right.low",
+      "response": "led-column",
+      "gain": 1
+    },
+    {
+      "target": "meter.right.mid",
+      "signal": "right.mid",
+      "response": "led-column",
+      "gain": 1
+    },
+    {
+      "target": "meter.right.high",
+      "signal": "right.high",
+      "response": "led-column",
+      "gain": 1
+    }
+  ],
+  "animation": {
+    "clips": []
+  },
+  "metadata": {
+    "createdBy": "MARK Visual Engine v2",
+    "signalContract": "mark.audio.stereo/1"
+  }
+}

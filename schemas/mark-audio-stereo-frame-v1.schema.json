@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mark.studio/schema/mark-audio-stereo-v1",
+  "title": "MARK Audio decoded PCM stereo frame v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "timestampMs",
+    "source",
+    "playing",
+    "left",
+    "right",
+    "bass",
+    "beat"
+  ],
+  "properties": {
+    "schema": {
+      "const": "mark.audio.stereo/1"
+    },
+    "timestampMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "source": {
+      "enum": [
+        "pcm",
+        "demo",
+        "silence"
+      ]
+    },
+    "playing": {
+      "type": "boolean"
+    },
+    "left": {
+      "$ref": "#/$defs/channel"
+    },
+    "right": {
+      "$ref": "#/$defs/channel"
+    },
+    "bass": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "beat": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "$defs": {
+    "channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rms",
+        "peak",
+        "low",
+        "mid",
+        "high",
+        "waveform"
+      ],
+      "properties": {
+        "rms": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "peak": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "low": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "mid": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "high": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "waveform": {
+          "type": "array",
+          "minItems": 128,
+          "maxItems": 128,
+          "items": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          }
+        }
+      }
+    }
+  }
+}

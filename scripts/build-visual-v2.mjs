@@ -1,0 +1,62 @@
+/**
+ * Build a fully offline file:// Huawei preview.
+ * Three.js, OrbitControls, GLTFExporter and HDR loader are bundled by esbuild.
+ */
+import {build} from 'esbuild';
+import {readFileSync,writeFileSync,mkdirSync,statSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {Script} from 'node:vm';
+const root=new URL('../',import.meta.url),read=f=>readFileSync(new URL(f,root),'utf8');
+const source=read('visual-engine/Visual-Engine-v2.html'),
+ css=read('visual-engine/visual-v2.css');
+const bundleOptions={entryPoints:[new URL('src/visual-engine/ui.js',root).pathname],
+ bundle:true,format:'iife',platform:'browser',target:['es2020'],
+ write:false,logLevel:'warning',legalComments:'none'};
+const bundle=async(minify)=>{
+ const result=await build({...bundleOptions,minify});
+ const javascript=new TextDecoder().decode(result.outputFiles[0].contents);
+ if(javascript.includes('</script>'))throw Error('Bundled JS contains unsafe HTML script closer');
+ // Validate the actual inline JavaScript before writing a preview and before
+ // allowing CI to claim it is ready for a browser acceptance run.
+ new Script(javascript,{filename:'mark-visual-v2.bundle.js'});
+ return javascript;
+};
+let javascript;
+try {
+ javascript=await bundle(true);
+} catch(error) {
+ // If minification emits invalid JavaScript, preserve functionality using
+ // the readable build. Still fail closed if its syntax cannot be parsed.
+ console.warn('Minified bundle failed integrity check; retrying unminified:',error.message);
+ javascript=await bundle(false);
+}
+const checkedOutSha=process.env.MARK_SOURCE_SHA||process.env.GITHUB_SHA||'';
+const sha=/^[0-9a-f]{40}$/.test(checkedOutSha)?checkedOutSha:'local-unverified';
+const html=source
+ .replace('<link rel="stylesheet" href="./visual-v2.css">','<style>\n'+css+'\n</style>')
+ .replace(/<script type="importmap">[\s\S]*?<\/script>/,'')
+ .replace('<script type="module" src="../src/visual-engine/ui.js"></script>','')
+ .replace('<a class="small-link" href="../index.html">← Основная Studio</a>',
+  '<span class="small-link">MARK Studio · offline</span>')
+ .replace('</head>','<meta name="mark-visual-source-sha" content="'+sha+'"></head>')
+ // Use a callback so the literal $& sequence in minified Three.js is preserved.
+ // A plain replacement string would substitute the HTML closing tag for $&.
+ .replace('</body>',()=>'<script>\n'+javascript+'\n</script>\n</body>');
+const inlineStart=html.lastIndexOf('<script>\n');
+const inlineEnd=html.lastIndexOf('\n</script>');
+if(inlineStart<0||inlineEnd<=inlineStart)throw Error('Offline visual HTML inline script not found');
+new Script(html.slice(inlineStart+'<script>\n'.length,inlineEnd),
+ {filename:'MARK-Visual-Engine-v2.html:inline.js'});
+if(/<script[^>]+src=["']https?:|<link[^>]+href=["']https?:|type="importmap"|src="\.\.\/src\/visual-engine/.test(html))
+ throw Error('Offline visual HTML still references a remote runtime');
+mkdirSync(new URL('dist/',root),{recursive:true});
+const target=new URL('dist/MARK-Visual-Engine-v2.html',root);
+writeFileSync(target,html);
+const bytes=statSync(target).size;
+if(bytes<200000)throw Error('Visual HTML unexpectedly too small');
+const sha256=createHash('sha256').update(readFileSync(target)).digest('hex');
+writeFileSync(new URL('dist/visual-v2-build-info.json',root),JSON.stringify({
+ sourceCommit:sha,sha256,bytes,offline:true,engine:'Visual Engine v2',
+ requiredAssets:[],sourceRecipeRefs:['recipes/visual-v2-analog-studio.json','recipes/visual-v2-spectrum-matrix.json']
+},null,2)+'\n');
+console.log('MARK Visual Engine v2 OFFLINE HTML',bytes,'bytes SHA256',sha256);

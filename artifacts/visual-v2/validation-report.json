@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-18",
+  "type": "source-side isolated JS checks",
+  "sourceCommit": "18fc645710874a8d456322fc6e905011bc5613d6",
+  "browserWebGL2": "NOT_RUN",
+  "actualGLB": "NOT_EXPORTED",
+  "huaweiHardware": "NOT_TESTED",
+  "checks": [
+    {
+      "test": "deterministic_scene_recipe",
+      "recipe": "analog-studio-v2",
+      "status": "pass",
+      "objects": 115,
+      "materials": 19,
+      "bindings": 8
+    },
+    {
+      "test": "deterministic_scene_recipe",
+      "recipe": "spectrum-matrix-v2",
+      "status": "pass",
+      "objects": 131,
+      "materials": 19,
+      "bindings": 6
+    },
+    {
+      "test": "stereo_pcm_8x256",
+      "sampleRate": 44100,
+      "status": "pass",
+      "leftLow": 0.4001415915033826,
+      "leftHigh": 2.6995470045965763e-7,
+      "rightLow": 2.887725824122951e-8,
+      "rightHigh": 0.4001456938100765
+    },
+    {
+      "test": "stereo_pcm_8x256",
+      "sampleRate": 48000,
+      "status": "pass",
+      "leftLow": 0.40014357518922733,
+      "leftHigh": 5.034536478812132e-7,
+      "rightLow": 5.163797237077039e-9,
+      "rightHigh": 0.4001457066189705
+    },
+    {
+      "test": "glb_semantic_comparator_synthetic_fixture",
+      "status": "pass",
+      "note": "No exported browser GLB was compared"
+    }
+  ]
+}

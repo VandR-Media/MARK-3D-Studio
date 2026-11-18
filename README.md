@@ -1,3 +1,16 @@
+# MARK Visual Engine v2 — P0 (экспериментальная ветка)
+
+Новый **настоящий 3D-редактор стереоприборов** находится в ветке `develop/visual-engine-v2`, [черновой PR № 13](https://github.com/VandR-Media/MARK-3D-Studio/pull/13).
+
+**Документация:** [docs/VISUAL-ENGINE-V2.md](docs/VISUAL-ENGINE-V2.md).  
+**Веб-интерфейс:** [visual-engine/Visual-Engine-v2.html](visual-engine/Visual-Engine-v2.html) (исходник; полностью офлайн-версию собирает `npm run visual:v2:build`).
+
+Реализованы технические заготовки двух первых настоящих 3D-приборов: Analog Studio и Spectrum Matrix, с физическими GLB-мешами, PBR, стеклом, отдельными каналами FFT LEFT/RIGHT, сенсорным управлением и строгими JSON-рецептами. **Это не художественно утверждённый релиз и ещё не Android APK.** Другие четыре режима ожидают визуальной приёмки первых двух.
+
+**Автоматические GitHub Actions отключены.** По разрешению владельца PR №14 объединён 18.11.2026: в `main` зарегистрирован исключительно ручной workflow [`MARK Visual Engine v2 — manual acceptance only`](https://github.com/VandR-Media/MARK-3D-Studio/actions/workflows/mark-visual-v2-manual.yml). Он выполняет checkout `develop/visual-engine-v2` и не сливает экспериментальный код в `main`. До успешного запуска на конкретном SHA настоящие PNG/GLB и художественное качество **не подтверждены**. Ветка PR №13 остаётся DRAFT.
+
+---
+
 # MARK 3D Studio — v0.3 Character Modeling & Face Studio (experimental)
 
 **Разрабатывается в ветке `develop/character-modeling-v0.3`, [черновой PR № 3](https://github.com/VandR-Media/MARK-3D-Studio/pull/3). Главная ветка `main` не изменяется. Не выпускается стабильный релиз.**
