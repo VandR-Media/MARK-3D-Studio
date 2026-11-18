@@ -46,7 +46,7 @@ jobs:
         run: npm run visual:v2:accept
       - name: Verify real screenshot and independent signal reports
         run: |
-          node -e "const fs=require('fs'),r=require('./dist/visual-v2/acceptance/browser-report.json');if(r.status!=='pass'||r.tests.length!==5||r.screenshots.length<12)throw Error('Real browser proofs incomplete');for(const t of r.tests.filter(x=>x.device))if(!t.parallaxVerified||t.meshCount<100)throw Error('3D not verified');"
+          node -e "const fs=require('fs'),r=require('./dist/visual-v2/acceptance/browser-report.json');if(r.status!=='pass'||r.tests.length<7||r.screenshots.length<12)throw Error('Real browser proofs incomplete');for(const t of r.tests.filter(x=>x.device))if(!t.parallaxVerified||t.meshCount<100)throw Error('3D not verified');"
       - name: Publish verified multi-mesh GLB, .markscene, JSON recipe, real PNG and timings
         uses: actions/upload-artifact@v4
         with:
