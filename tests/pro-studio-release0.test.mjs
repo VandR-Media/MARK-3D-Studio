@@ -47,7 +47,7 @@ test('Release 0 legacy v2 scene/recipe contract survives deterministic re-evalua
   const b=runVisualRecipe(recipe).scene;
   assert.equal(a.schema,'mark.visual-scene/2');
   assert.deepEqual(a,b);
-  assert.deepEqual(deserializeVisualScene(JSON.stringify(a)),a);
+  assert.equal(JSON.stringify(deserializeVisualScene(JSON.stringify(a))),JSON.stringify(a)); // JSON normalizes signed negative zero
   assert.ok(validateVisualScene(a));
   assert.ok(a.objects.length>100);
  }
