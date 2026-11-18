@@ -4,6 +4,7 @@
  * This is a strict regression gate, not a promise of generic extension fidelity.
  */
 import {parseGlb} from '../glb.js';
+import {PNG} from 'pngjs';
 const TYPES={SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16};
 const COMPONENT={5120:['getInt8',1],5121:['getUint8',1],5122:['getInt16',2],
  5123:['getUint16',2],5125:['getUint32',4],5126:['getFloat32',4]};
@@ -62,6 +63,34 @@ function semanticMaterial(m){
 }
 function binData(parsed){
  return parsed.chunks.find(c=>c.type===0x004e4942)?.data||new Uint8Array();
+}
+function imageBytes(doc,bin,image){
+ if(image.bufferView!==undefined){
+  const v=doc.bufferViews[image.bufferView];
+  if(!v||v.buffer!==0)throw Error('Missing embedded image buffer view');
+  return bin.slice(v.byteOffset||0,(v.byteOffset||0)+v.byteLength);
+ }
+ if(image.uri?.startsWith('data:')){
+  const encoded=image.uri.split(',')[1];
+  return image.uri.includes(';base64,')?
+   Uint8Array.from(Buffer.from(encoded,'base64')):new TextEncoder().encode(decodeURIComponent(encoded));
+ }
+ throw Error('GLB image is not embedded');
+}
+function compareImages(A,ab,B,bb,epsilon){
+ if((A.images?.length||0)!==(B.images?.length||0))throw Error('Embedded image count changed');
+ for(let i=0;i<(A.images||[]).length;i++){
+  const x=A.images[i],y=B.images[i];
+  const left=imageBytes(A,ab,x),right=imageBytes(B,bb,y);
+  if((x.mimeType==='image/png'||left[0]===137)&&
+     (y.mimeType==='image/png'||right[0]===137)){
+   const a=PNG.sync.read(Buffer.from(left)),b=PNG.sync.read(Buffer.from(right));
+   if(a.width!==b.width||a.height!==b.height)throw Error('Texture dimensions changed '+i);
+   if(!Buffer.from(a.data).equals(Buffer.from(b.data)))
+    throw Error('Embedded texture pixel data changed '+i);
+  }else if(!Buffer.from(left).equals(Buffer.from(right)))
+   throw Error('Embedded non-PNG image bytes changed '+i+'; manual decoding required');
+ }
 }
 function localTRS(n){
  if(n.matrix)return {matrix:n.matrix};
@@ -122,6 +151,7 @@ export function compareGlbFidelity(before,after,{epsilon=1e-5,allowChangedMeshes
  // Do not silently lose embedded textures, even if their PNG encoding changes.
  assertEqual(A.images?.length||0,B.images?.length||0,'image count');
  assertEqual(A.textures?.length||0,B.textures?.length||0,'texture count');
+ compareImages(A,ab,B,bb,epsilon);
  findings.imagesCompared=A.images?.length||0;
  return {status:'pass',...findings};
 }
