@@ -204,12 +204,20 @@ async function testPreset(preset,viewport){
   if(!importedMesh)throw Error('Imported meshes not available in editable inspector');
   const before=importedMesh.position[0];
   importedMesh.position[0]+=.27;
-  importedMesh.material='enclosure';
+  importedMesh.material='amber';
   await page.evaluate(x=>window.MARK_VISUAL_API.loadScene(x),importedScene);
   const altered=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
   writeFileSync(join(output,kind+'-desktop-imported-edited.markscene'),JSON.stringify(altered,null,2)+'\n');
+  // Simulate reopening the exact persisted editor project, not only exporting
+  // from the current live Three.js graph.
+  await page.evaluate(x=>window.MARK_VISUAL_API.loadScene(x),altered);
+  const reopened=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
+  const reopenedPart=reopened.objects.find(o=>o.id===importedMesh.id);
+  if(!reopenedPart||reopenedPart.material!=='amber'||
+     reopenedPart.position[0]!==before+.27)
+   throw Error('Edited GLB material/position lost on .markscene reopening');
   const part=altered.objects.find(o=>o.id===importedMesh.id);
-  if(part.position[0]!==before+.27||part.material!=='enclosure')
+  if(part.position[0]!==before+.27||part.material!=='amber')
    throw Error('GLB per-part editing not retained in .markscene');
   const editedGlb=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
   const editedDoc=parseGlb(editedGlb).json;
