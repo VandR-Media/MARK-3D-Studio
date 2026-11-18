@@ -72,7 +72,14 @@ function brushedAluminiumNormal(){
   bytes[p]=128;bytes[p+1]=Math.round(128+groove*12);
   bytes[p+2]=255;bytes[p+3]=255;
  }
- const texture=new THREE.DataTexture(bytes,width,height,THREE.RGBAFormat);
+ const canvas=document.createElement('canvas');
+ canvas.width=width;canvas.height=height;
+ const context=canvas.getContext('2d');
+ const pixels=context.createImageData(width,height);
+ pixels.data.set(bytes);context.putImageData(pixels,0,0);
+ // CanvasTexture is a GLTFExporter-supported image source: unlike DataTexture
+ // it survives binary GLB export and the clean glTF import/edit roundtrip.
+ const texture=new THREE.CanvasTexture(canvas);
  texture.wrapS=THREE.RepeatWrapping;texture.wrapT=THREE.RepeatWrapping;
  texture.repeat.set(3,2);texture.needsUpdate=true;
  sharedBrushedNormal=texture;
