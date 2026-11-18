@@ -61,16 +61,40 @@ export function makeVisualGeometry(g,quality='normal'){
   default:throw Error('Visual Engine geometry not implemented '+g.type);
  }
 }
+let sharedBrushedNormal=null;
+function brushedAluminiumNormal(){
+ if(sharedBrushedNormal)return sharedBrushedNormal;
+ // Generated normal microstructure, not a photographic plate or network asset.
+ const width=128,height=128,bytes=new Uint8Array(width*height*4);
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+  const p=(y*width+x)*4;
+  const groove=(Math.sin(y*2.37)+.48*Math.sin(y*6.11+x*.03))*.5;
+  bytes[p]=128;bytes[p+1]=Math.round(128+groove*12);
+  bytes[p+2]=255;bytes[p+3]=255;
+ }
+ const texture=new THREE.DataTexture(bytes,width,height,THREE.RGBAFormat);
+ texture.wrapS=THREE.RepeatWrapping;texture.wrapT=THREE.RepeatWrapping;
+ texture.repeat.set(3,2);texture.needsUpdate=true;
+ sharedBrushedNormal=texture;
+ return texture;
+}
 function makeMaterial(m){
  const props={color:m.color,metalness:m.metalness,roughness:m.roughness,
   emissive:m.emissive||'#000000',emissiveIntensity:m.emissiveIntensity||0,
   opacity:m.opacity??1,transparent:(m.opacity??1)<1,
   side:THREE.FrontSide,depthWrite:(m.opacity??1)===1};
  if(m.type==='physical')return new THREE.MeshPhysicalMaterial({...props,
-  transmission:m.transmission??0,thickness:m.thickness??.08,ior:m.ior??1.48,
-  envMapIntensity:1.3,clearcoat:.12,clearcoatRoughness:.12});
+  transmission:m.transmission??0,thickness:m.thickness??.02,ior:m.ior??1.45,
+  envMapIntensity:m.transmission>.5?.48:1.05,
+  clearcoat:m.transmission>.5?.03:.12,clearcoatRoughness:.18});
  if(m.type==='basic')return new THREE.MeshBasicMaterial(props);
- return new THREE.MeshStandardMaterial(props);
+ const material=new THREE.MeshStandardMaterial(props);
+ if(m.metalness>.65&&m.roughness>.19){
+  material.normalMap=brushedAluminiumNormal();
+  material.normalScale.set(.11,.11);
+  material.envMapIntensity=1.15;
+ }
+ return material;
 }
 async function loadTextureData(data,slot){
  const tx=await new THREE.TextureLoader().loadAsync(data);
@@ -93,7 +117,7 @@ export class VisualRenderer{
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,preserveDrawingBuffer:true,powerPreference:'high-performance'});
   this.renderer.outputColorSpace=THREE.SRGBColorSpace;
   this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  this.renderer.toneMappingExposure=1.14;
+  this.renderer.toneMappingExposure=1.04;
   this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   this.world=new THREE.Scene();
   this.camera=new THREE.PerspectiveCamera(37,1,.05,100);
@@ -124,7 +148,7 @@ export class VisualRenderer{
   this.composer=new EffectComposer(this.renderer);
   this.composer.addPass(new RenderPass(this.world,this.camera));
   this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(512,512),
-    this.profile==='high'?.48:.29,.48,.79));
+    this.profile==='high'?.31:.20,.30,.91));
   this.composer.addPass(new OutputPass());
  }
  resize(width=this.canvas.clientWidth,height=this.canvas.clientHeight){
