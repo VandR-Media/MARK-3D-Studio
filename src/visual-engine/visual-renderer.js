@@ -14,6 +14,7 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {validateVisualScene} from './scene-model.js';
 import {inspectVisualImport} from './glb-guard.js';
+import {createSurfaceLabel} from './surface-labels.js';
 import {validateStereoFrame} from './audio-frame.js';
 const clamp=x=>Math.max(0,Math.min(1,x));
 function shapeRect(w,h,r){
@@ -330,6 +331,18 @@ export class VisualRenderer{
    }
    for(const obj of scene.objects)
     (obj.parent?stagedNodes.get(obj.parent):stagedRoot).add(stagedNodes.get(obj.id));
+   // All world-anchored text is a real, depth-tested textured 3D plane.
+   // This prevents fixed-size HTML glyphs from crossing the VU face at 3/4 yaw.
+   for(const item of scene.overlays){
+    if(!item.anchor||item.anchor==='hud')continue;
+    const physicalAnchor=stagedNodes.get(item.anchor);
+    if(!physicalAnchor)throw Error('Missing surface-label 3D anchor '+item.anchor);
+    const label=createSurfaceLabel(item);
+    physicalAnchor.add(label);
+    stagedGeometries.add(label.geometry);
+    stagedMaterials.add(label.material);
+    stagedTextures.add(label.material.map);
+   }
    stagedRoot.updateMatrixWorld(true);
    const occluders=[...stagedNodes.values()].filter(o=>
     o.isMesh&&o.material?.opacity>=1&&!o.material.transparent&&
