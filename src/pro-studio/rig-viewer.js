@@ -247,7 +247,9 @@ if(window.MARK_EMBEDDED_RIG_BASE64){
  try{
   const base64=atob(window.MARK_EMBEDDED_RIG_BASE64);
   const data=Uint8Array.from(base64,c=>c.charCodeAt(0));
-  await loadBinary(data,'rig70-morph2-clips3.glb');
+  loadBinary(data,'rig70-morph2-clips3.glb')
+   .then(()=>{window.__MARK_RIG_VIEWER_READY__=true;})
+   .catch(error=>{errorDisplay(error);window.__MARK_RIG_VIEWER_READY__=false;});
  }catch(error){errorDisplay(error);}
 }
-window.__MARK_RIG_VIEWER_READY__=Boolean(parsed);
+
