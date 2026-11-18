@@ -271,10 +271,13 @@ async function testPreset(preset,viewport){
        audio.channels['right.high']>audio.channels['right.low']))
    throw Error('Six real stereo channels do not show test PCM selectivity '+JSON.stringify(audio));
   await capture(page,kind+'-real-stereo-pcm.png');
+  await page.waitForTimeout(450);
+  await capture(page,kind+'-real-stereo-pcm-late.png');
   await page.locator('#pause').click();
   await page.waitForFunction(()=>window.MARK_VISUAL_API.audioState().source==='silence',null,{timeout:3000});
   const silence=await page.evaluate(()=>window.MARK_VISUAL_API.activeSegments());
   if(Object.values(silence).some(n=>n!==0))throw Error('Silence/pause did not clear active segments');
+  await capture(page,kind+'-paused-silence.png');
  }
  const profileStats=[];
  for(const profile of ['eco','normal','high']){
