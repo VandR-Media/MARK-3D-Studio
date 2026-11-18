@@ -283,15 +283,46 @@
                   "needle",
                   "plane",
                   "tube",
-                  "disk"
+                  "disk",
+                  "imported"
                 ]
+              },
+              "asset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 11
+              },
+              "node": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3999
               }
             },
             "additionalProperties": {
               "type": "number",
               "minimum": 0,
-              "maximum": 200
-            }
+              "maximum": 4000
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "imported"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "asset",
+                    "node"
+                  ]
+                }
+              }
+            ]
           },
           "position": {
             "type": "array",
