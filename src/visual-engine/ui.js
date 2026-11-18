@@ -98,11 +98,31 @@ function fillObject(){
  const props=[...obj.position,...obj.rotation,...obj.scale];
  ['px','py','pz','rx','ry','rz','sx','sy','sz'].forEach((key,i)=>$(key).value=String(props[i]));
 }
-async function setScene(next,{restoreImported=true}={}){
- scene=deserializeVisualScene(next);viewer.setProfile(scene.quality);
- await viewer.setScene(scene);
- // Embedded GLB nodes are reconstructed through scene.objects by the renderer.
- overlays();inspector();viewer.render();
+async function setScene(next){
+ // Commit UI state only after the renderer finishes. Preserve the inspector
+ // selection, unsaved project and previous scene on every failure path.
+ const candidate=deserializeVisualScene(next);
+ const previous=scene,previousProfile=viewer.profile;
+ const selection=$('objectSelect').value;
+ try{
+  viewer.setProfile(candidate.quality);
+  await viewer.setScene(candidate);
+ }catch(error){
+  viewer.setProfile(previousProfile);
+  // Preflight failures have not mutated renderer state. Restore only when
+  // construction actually advanced to the candidate scene.
+  if(previous&&viewer.boundScene?.id===candidate.id&&
+     viewer.boundScene!==previous){
+   try{await viewer.setScene(previous);}
+   catch(rollback){throw new AggregateError([error,rollback],
+    'GLB failed; renderer rollback also failed. Project data remains intact.');}
+  }
+  throw error;
+ }
+ scene=candidate;
+ overlays();inspector();
+ if(scene.objects.some(o=>o.id===selection))$('objectSelect').value=selection;
+ fillObject();viewer.render();
  status('Настоящая 3D-сцена: '+scene.objects.length+' объектов. Профиль '+scene.quality.toUpperCase()+'.');
 }
 async function importEditableGlb(bytes,name='imported.glb'){
@@ -135,9 +155,9 @@ async function importEditableGlb(bytes,name='imported.glb'){
 }
 async function changeMode(name){
  if(!['analog-studio','spectrum-matrix'].includes(name))throw Error('Другие режимы пока не готовы');
- mode=name;$('mode').value=name;
  const {scene:newScene}=runVisualRecipe(recipeFor(name));
- await setScene(newScene,{restoreImported:false});
+ await setScene(newScene);
+ mode=name;$('mode').value=name;
  renderFrame(lastFrame);
 }
 function renderFrame(frame){
