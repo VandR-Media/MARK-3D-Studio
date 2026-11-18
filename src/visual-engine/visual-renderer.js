@@ -427,7 +427,11 @@ export class VisualRenderer{
    else if(value>=peak){peak=value;holdUntil=now+(b.peakHoldMs??260);}
    else if(now>holdUntil){peak=Math.max(value,peak-dt*.8);}
    this.motionLevels.set(b.target,{value,peak,holdUntil});
-   if(b.response==='needle')target.rotation.z=(b.offset??-.95)+effective;
+   if(b.response==='needle'){
+    // +Y points up on the physical needle: +Z is LEFT and -Z is RIGHT.
+    // Keep exact rest orientation at silence; apply a signed sweep otherwise.
+    target.rotation.z=(b.offset??.97)+(b.sweep??-1.94)*effective;
+   }
    else if(b.response==='led-column'){
     const segments=target.children.filter(led=>led.isMesh&&led.userData.meta?.role==='led');
     const heldIndex=Math.min(segments.length-1,
