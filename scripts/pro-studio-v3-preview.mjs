@@ -54,7 +54,7 @@ try{
  const status=tests.every(t=>t.status==='pass')?'pass':'fail';
  const report={
   schema:'mark.experimental-native-scene-proof/1',status,
-  sourceCommit:process.env.MARK_SOURCE_SHA||'local-unverified',
+  sourceCommit:process.env.MARK_SOURCE_SHA||process.env.GITHUB_SHA||'local-unverified',
   backend:'headless Node.js, NOT physical Huawei and NOT WebGL',
   format:'mark.professional-scene/3-preview',
   artifactStatus:'experimental editable subset; no mesh/rig weight authoring',
