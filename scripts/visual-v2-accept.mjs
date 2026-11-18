@@ -137,6 +137,12 @@ async function testPreset(preset,viewport){
     }},
     {name:'invalid-texture',change:s=>{
       s.materials.enclosure.maps={baseColor:'data:image/png;base64,AAAA'};
+    }},
+    {name:'late-geometry-construction',change:s=>{
+      s.objects.push({id:'test.fail.led',name:'Invalid LED material',parent:null,
+       geometry:{type:'box',width:1,height:1,depth:1},material:null,
+       position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],
+       visible:true,meta:{role:'led'}});
     }}
    ];
    const results=[];
