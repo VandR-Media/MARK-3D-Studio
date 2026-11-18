@@ -112,7 +112,7 @@ async function testPreset(preset,viewport){
   if(imported.meshes!==parsed.meshes.length)
    throw Error('GLB mesh count lost on clean import: '+imported.meshes+' vs '+parsed.meshes.length);
   const importedScene=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
-  const importedMesh=importedScene.objects.find(o=>o.geometry.type==='imported'&&
+  const importedMesh=importedScene.objects.find(o=>o.geometry.type==='imported'&&o.meta?.mesh===true&&
    imported.ids.includes(o.id)&&o.material===null&&o.name);
   if(!importedMesh)throw Error('Imported meshes not available in editable inspector');
   const before=importedMesh.position[0];
