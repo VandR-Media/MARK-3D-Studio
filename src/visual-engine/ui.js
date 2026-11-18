@@ -102,7 +102,7 @@ async function setScene(next){
  // Commit UI state only after the renderer finishes. Preserve the inspector
  // selection, unsaved project and previous scene on every failure path.
  const candidate=deserializeVisualScene(next);
- const previous=scene,previousProfile=viewer.profile;
+ const previous=scene,previousProfile=viewer.profile,previousRoot=viewer.root;
  const selection=$('objectSelect').value;
  try{
   viewer.setProfile(candidate.quality);
@@ -111,8 +111,7 @@ async function setScene(next){
   viewer.setProfile(previousProfile);
   // Preflight failures have not mutated renderer state. Restore only when
   // construction actually advanced to the candidate scene.
-  if(previous&&viewer.boundScene?.id===candidate.id&&
-     viewer.boundScene!==previous){
+  if(previous&&viewer.root!==previousRoot){
    try{await viewer.setScene(previous);}
    catch(rollback){throw new AggregateError([error,rollback],
     'GLB failed; renderer rollback also failed. Project data remains intact.');}
