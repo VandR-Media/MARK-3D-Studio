@@ -50,7 +50,22 @@ async function testPreset(preset,viewport){
  const page=await browser.newPage({viewport,acceptDownloads:true,deviceScaleFactor:1});
  const jsErrors=[];page.on('pageerror',e=>jsErrors.push(e.message));
  await page.goto(renderUrl,{waitUntil:'load'});
- await page.waitForFunction(()=>window.__MARK_VISUAL_READY__===true||Boolean(window.__MARK_VISUAL_ERROR__),null,{timeout:40000});
+ try {
+  await page.waitForFunction(()=>window.__MARK_VISUAL_READY__===true||Boolean(window.__MARK_VISUAL_ERROR__),null,{timeout:40000});
+ } catch(waitError) {
+  // Preserve page exceptions rather than reporting only the generic timeout.
+  const state=await page.evaluate(()=>({
+   ready:window.__MARK_VISUAL_READY__===true,
+   error:window.__MARK_VISUAL_ERROR__||null,
+   canvasPresent:Boolean(document.querySelector('#visualCanvas')),
+   statusText:document.querySelector('#signalState')?.textContent||null
+  })).catch(error=>({inspectionError:error.message}));
+  const diagnostic={preset,viewport,state,pageErrors:jsErrors,waitError:waitError.message};
+  report.errors.push(diagnostic);
+  await page.screenshot({path:join(output,'startup-failure-'+kind+'-'+device+'.png'),fullPage:true}).catch(()=>{});
+  writeFileSync(join(output,'startup-diagnostics.json'),JSON.stringify(diagnostic,null,2)+'\\n');
+  throw Error('Visual renderer startup failure: '+JSON.stringify(diagnostic));
+ }
  const error=await page.evaluate(()=>window.__MARK_VISUAL_ERROR__);
  if(error)throw Error('Visual renderer initialization: '+error);
  await page.locator('#mode').selectOption(preset);
