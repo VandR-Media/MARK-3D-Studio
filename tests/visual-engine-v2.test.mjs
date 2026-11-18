@@ -79,6 +79,27 @@ test('rejects dangling texture URLs, scene cycles, invalid PCM data and unsuppor
  const f=zeroStereoFrame();f.left.waveform[0]=NaN;
  assert.throws(()=>validateStereoFrame(f));
 });
+test('embedded GLB node references are editable, versioned, and validated on reload',()=>{
+ const baseline=runVisualRecipe(recipes[0]).scene;
+ baseline.attachments=[{name:'fixture.glb',data:'data:model/gltf-binary;base64,AAAA'}];
+ const imported={
+  id:'glb0.node0',name:'Imported screw',parent:null,
+  geometry:{type:'imported',asset:0,node:7},material:'bezel',
+  position:[.15,-.2,.4],rotation:[0,.3,0],scale:[1,1,1],
+  visible:true,meta:{imported:true,mesh:true}
+ };
+ baseline.objects.push(imported);
+ assert.equal(validateVisualScene(baseline),baseline);
+ const replay=deserializeVisualScene(JSON.stringify(baseline));
+ assert.deepEqual(replay.objects.find(x=>x.id===imported.id),imported);
+ const missing=structuredClone(baseline);
+ missing.objects.at(-1).geometry.asset=1;
+ assert.throws(()=>validateVisualScene(missing),/missing GLB attachment/);
+ const malformed=structuredClone(baseline);
+ malformed.objects.at(-1).geometry.node=-1;
+ assert.throws(()=>validateVisualScene(malformed),/invalid GLB reference/);
+});
+
 test('actual decoded PCM FFT isolates LEFT low, RIGHT high and mono duplicated channels',()=>{
  const sr=48000,n=2048,an=new StereoPcmAnalyzer({sampleRate:sr,fftSize:n});
  const sine=f=>Float32Array.from({length:n},(_,i)=>.8*Math.sin(2*Math.PI*f*i/sr));
