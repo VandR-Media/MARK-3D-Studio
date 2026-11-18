@@ -9,7 +9,7 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import {parseGlb} from '../src/glb.js';
+import {parseGlb,writeGlb} from '../src/glb.js';
 import {compareGlbFidelity} from '../src/visual-engine/glb-fidelity.js';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const output=resolve('dist/visual-v2/acceptance');
@@ -92,6 +92,30 @@ async function testPreset(preset,viewport){
  if(reloaded.objects!==saved.objects.length)throw Error('Editable .markscene reload lost objects');
  if(device==='desktop'){
   // Failed imports must never destroy unsaved project edits or selection.
+  const parsedInput=parseGlb(glb);
+  const external=structuredClone(parsedInput.json);
+  if(external.buffers?.[0])external.buffers[0].uri='missing-file.bin';
+  const extension=structuredClone(parsedInput.json);
+  extension.extensionsUsed=[...(extension.extensionsUsed||[]),'KHR_not_supported_test'];
+  const badImports=[
+   {name:'damaged-binary',bytes:Buffer.from([0,1,2,3])},
+   {name:'missing-external-file',bytes:Buffer.from(writeGlb(parsedInput,external))},
+   {name:'unsupported-extension',bytes:Buffer.from(writeGlb(parsedInput,extension))}
+  ];
+  for(const sample of badImports){
+   const check=await page.evaluate(async bytes=>{
+    const api=window.MARK_VISUAL_API;
+    const scene=JSON.stringify(api.scene()),select=document.querySelector('#objectSelect').value;
+    let rejected=false,error='';
+    try{await api.importGlb(bytes,'corrupt-test.glb');}
+    catch(e){rejected=true;error=e.message;}
+    return {rejected,error,unchanged:scene===JSON.stringify(api.scene())&&
+     select===document.querySelector('#objectSelect').value};
+   },sample.bytes.toString('base64'));
+   if(!check.rejected||!check.unchanged)
+    throw Error('Non-atomic '+sample.name+': '+JSON.stringify(check));
+   report.tests.push({preset:kind+'-'+sample.name,status:'pass',...check});
+  }
   const negative=await page.evaluate(async()=>{
    const api=window.MARK_VISUAL_API;
    const baseline=api.scene();
