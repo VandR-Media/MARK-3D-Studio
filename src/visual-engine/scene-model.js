@@ -15,9 +15,9 @@ export function newVisualScene({id='visual-scene',name='MARK Visual Scene'}={}){
   camera:{position:[0,0,13],target:[0,0,0],fov:37,near:.05,far:100},
   environment:{color:'#07101d',intensity:.6,hdri:null},
   lights:[
-   {id:'key',type:'directional',position:[-4,7,8],color:'#d6efff',intensity:3.3,castShadow:true},
-   {id:'fill',type:'directional',position:[6,1,5],color:'#77a5ff',intensity:1.3,castShadow:false},
-   {id:'rim',type:'directional',position:[0,5,-6],color:'#cf5bdb',intensity:2.1,castShadow:false}
+   {id:'key',type:'directional',position:[-4,7,8],color:'#d6efff',intensity:2.15,castShadow:true},
+   {id:'fill',type:'directional',position:[6,1,5],color:'#77a5ff',intensity:.82,castShadow:false},
+   {id:'rim',type:'directional',position:[0,5,-6],color:'#cf5bdb',intensity:1.16,castShadow:false}
   ],materials:{},objects:[],overlays:[],bindings:[],animation:{clips:[]},
   metadata:{createdBy:'MARK Visual Engine v2',signalContract:'mark.audio.stereo/1'}};
 }
