@@ -1,0 +1,62 @@
+name: MARK Professional Studio R1 experimental rig playback QA
+on:
+  push:
+    branches:
+      - develop/pro-studio-release0-audit
+    paths:
+      - 'src/pro-studio/**'
+      - 'scripts/pro-studio-*.mjs'
+      - 'tests/pro-studio-*.mjs'
+      - 'package.json'
+      - '.github/workflows/pro-rig-release1-experimental.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mark-pro-rig-r1-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  rig-playback:
+    name: Actual WebGL2 rigs and animated GLB round-trip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked JS library versions
+        run: npm install --no-audit --no-fund
+      - name: Validate source syntax
+        run: |
+          node --check src/pro-studio/rig-viewer.js
+          node --check scripts/pro-studio-rig-build.mjs
+          node --check scripts/pro-studio-rig-accept.mjs
+          node --check tests/pro-studio-release1.test.mjs
+      - name: Old v2 compatibility and rigged transport regression
+        run: |
+          npm run test:pro-rig
+          npm run test:visual-v2
+      - name: Build genuine fixture, secure archive and offline Three.js viewer
+        run: |
+          npm run pro:rig:fixtures
+          npm run pro:rig:qa
+          npm run pro:rig:viewer
+      - name: Install Chromium for software-backed real WebGL2 playback
+        run: npx playwright install --with-deps chromium
+      - name: Capture real skinned poses, morphs, 3 clips, viewpoints, animated GLB export and frames
+        run: npm run pro:rig:accept
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Upload source-matched audit evidence regardless of test outcome
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pro-rig-r1-real-webgl
+          path: |
+            dist/pro-studio/fixtures/*.glb
+            dist/pro-studio/release1-preview/**
+            dist/pro-studio/rig-viewer-offline.html
+            dist/pro-studio/acceptance/**
+          if-no-files-found: warn
+          retention-days: 14
