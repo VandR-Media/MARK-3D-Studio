@@ -1,0 +1,325 @@
+{
+  "schema": "mark.professional-capabilities/1",
+  "scope": "audit_not_runtime_proof",
+  "auditedSourceCommit": "e4a93262ecb44970a4bdb77a9735c95b4d46749b",
+  "sourceBranch": "develop/visual-engine-v2",
+  "date": "2026-11-18",
+  "sourceOfTruth": "GitHub source inspected; historical artifacts separately distinguished",
+  "dependencies": {
+    "three": "0.187.0",
+    "ajv": "8.17.1",
+    "fflate": "0.8.2",
+    "esbuild": "0.28.2",
+    "playwright": "1.56.0",
+    "pngjs": "7.0.0"
+  },
+  "v2Limits": {
+    "sceneObjects": 3500,
+    "materials": 128,
+    "animationClips": 50,
+    "recipeCommands": 1000,
+    "glbAttachments": 12,
+    "lights": 12
+  },
+  "staticGltfAcceptedExtensions": [
+    "KHR_materials_transmission",
+    "KHR_materials_ior",
+    "KHR_materials_clearcoat",
+    "KHR_materials_volume",
+    "KHR_materials_emissive_strength",
+    "KHR_texture_transform",
+    "KHR_lights_punctual",
+    "KHR_materials_unlit"
+  ],
+  "historicalEvidence": {
+    "sourceCommit": "96d0efd0dde597a01c6f04fe64d53861818188b4",
+    "status": "historical_pass_not_current_HEAD",
+    "browserTestRecords": 27,
+    "claimedRenderer": "Chromium WebGL2",
+    "deviceMeasured": false,
+    "analogGlbSha256": "47385ffb06fe72866a89baff69702076439ea1efd5d2252a2d764d0a3ba0d77a",
+    "matrixGlbSha256": "90a758da2420cbb57a3f342604b6d88013cb87c7a81845dc0804e4cc0d6d5d22"
+  },
+  "capabilities": [
+    {
+      "id": "SCENE-V2",
+      "category": "scene",
+      "description": "mark.visual-scene/2 full editable parametric scene graph",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/scene-model.js",
+        "schemas/mark-visual-scene-v2.schema.json"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "No arbitrary mesh datablock edit; v2 .markscene is JSON, not v3 asset container"
+    },
+    {
+      "id": "RECIPE-V2",
+      "category": "automation",
+      "description": "deterministic, whitelisted mark.visual-recipe/2 commands",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/scene-model.js",
+        "schemas/mark-visual-recipe-v2.schema.json"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "No general transactions, undo journal, headless AI Bridge or mutable mesh editing"
+    },
+    {
+      "id": "GEOMETRY-PRIMITIVES",
+      "category": "mesh",
+      "description": "group/box/bevel-box/cylinder/sphere/torus/needle/plane/tube/disk",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/scene-model.js",
+        "src/visual-engine/visual-renderer.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Only parametric geometry; no editable vertices, normals, UV seams or polygons"
+    },
+    {
+      "id": "GLB-STATIC",
+      "category": "exchange",
+      "description": "static self-contained glTF2 multi-mesh PBR import/export",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/glb-guard.js",
+        "src/visual-engine/visual-renderer.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Unsupported extension, skin, animation and morph causes explicit preflight rejection"
+    },
+    {
+      "id": "GLB-PBR-TEXTURES",
+      "category": "exchange",
+      "description": "static PBR and embedded texture binding comparison",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/glb-fidelity.js",
+        "src/visual-engine/visual-renderer.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Not a lossless guarantee for arbitrary glTF materials/extensions"
+    },
+    {
+      "id": "GLB-SKINNING",
+      "category": "rig",
+      "description": "SkinnedMesh JOINTS/WEIGHTS and inverse bind matrices",
+      "status": "unsupported",
+      "evidence": [
+        "src/visual-engine/glb-guard.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Guard rejects every glTF skins[] array"
+    },
+    {
+      "id": "GLB-MORPHS",
+      "category": "rig",
+      "description": "morph targets / facial blendshapes",
+      "status": "unsupported",
+      "evidence": [
+        "src/visual-engine/glb-guard.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Guard rejects mesh primitive.targets"
+    },
+    {
+      "id": "GLB-ANIMATIONS",
+      "category": "animation",
+      "description": "glTF animations/samplers/channels import-export",
+      "status": "unsupported",
+      "evidence": [
+        "src/visual-engine/glb-guard.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Guard rejects all glTF animations[]"
+    },
+    {
+      "id": "TRANSFORM-KEYFRAMES",
+      "category": "animation",
+      "description": "keyframe clips on position, rotation and scale",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/scene-model.js",
+        "src/visual-engine/visual-renderer.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Does not animate bones, morphs, material graphs, cameras or NLA"
+    },
+    {
+      "id": "PBR-MATERIALS",
+      "category": "materials",
+      "description": "standard/physical/basic, color/metallic/roughness/transmission, embedded maps",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/scene-model.js",
+        "src/visual-engine/visual-renderer.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "No node editor, UV unwrap, texture paint or advanced baking"
+    },
+    {
+      "id": "SURFACE-LABELS",
+      "category": "viewport",
+      "description": "depth-tested perspective-aware labels on real 3D surfaces",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/surface-labels.js",
+        "src/visual-engine/visual-renderer.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "2D text glyph rasterized into textured planes; not arbitrary extruded typography"
+    },
+    {
+      "id": "REAL-STEREO-PCM",
+      "category": "audio",
+      "description": "decoded file stereo RMS/peak and LOW/MID/HIGH, separate demo",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/audio-frame.js",
+        "src/visual-engine/ui.js"
+      ],
+      "tests": [
+        "tests/visual-engine-v2.test.mjs"
+      ],
+      "limitations": "Native MARK Audio ExoPlayer integration and real device performance require separate acceptance"
+    },
+    {
+      "id": "WEBGL2-VIEWPORT",
+      "category": "render",
+      "description": "Three.js WebGL2, PBR lighting, orbit, HDRI/IBL, quality/bloom",
+      "status": "partial",
+      "evidence": [
+        "src/visual-engine/visual-renderer.js",
+        "scripts/visual-v2-accept.mjs"
+      ],
+      "tests": [
+        "scripts/visual-v2-accept.mjs"
+      ],
+      "limitations": "No path traced production offline renderer or WebGPU backend"
+    },
+    {
+      "id": "BROWSER-CAPTURE",
+      "category": "qa",
+      "description": "Playwright Chromium screenshots and GLB fidelity checks",
+      "status": "partial",
+      "evidence": [
+        "scripts/visual-v2-accept.mjs"
+      ],
+      "tests": [
+        "scripts/visual-v2-accept.mjs"
+      ],
+      "limitations": "No general purpose CLI render.capture API or hardware Huawei benchmark"
+    },
+    {
+      "id": "EDIT-MODE",
+      "category": "mesh",
+      "description": "edit vertex/edge/face mesh datablocks",
+      "status": "unsupported",
+      "evidence": [
+        "src/visual-engine/scene-model.js"
+      ],
+      "tests": [],
+      "limitations": "No arbitrary topology editing or undo-safe mesh edit model"
+    },
+    {
+      "id": "UV-PAINT-BAKE",
+      "category": "materials",
+      "description": "UV unwrap/texture paint and texture baking",
+      "status": "unsupported",
+      "evidence": [
+        "src/visual-engine/scene-model.js"
+      ],
+      "tests": [],
+      "limitations": "P0/P1 new implementation required"
+    },
+    {
+      "id": "RIG-IK-WEIGHTS",
+      "category": "rig",
+      "description": "armature, skin weights and FK/IK",
+      "status": "unsupported",
+      "evidence": [
+        "src/visual-engine/glb-guard.js"
+      ],
+      "tests": [],
+      "limitations": "P0 new implementation required"
+    },
+    {
+      "id": "SCULPT",
+      "category": "modeling",
+      "description": "sculpt, retopology, multires",
+      "status": "unsupported",
+      "evidence": [
+        "src/visual-engine/scene-model.js"
+      ],
+      "tests": [],
+      "limitations": "P1 new implementation required"
+    },
+    {
+      "id": "PRO-SCENE-V3",
+      "category": "core",
+      "description": "container-based markscene with stable asset manifest and migrations",
+      "status": "not_started",
+      "evidence": [
+        "src/visual-engine/scene-model.js"
+      ],
+      "tests": [],
+      "limitations": "Proposed. Must not replace or reinterpret v2"
+    },
+    {
+      "id": "MARK-AI-BRIDGE",
+      "category": "ai",
+      "description": "authenticated capabilities, command transactions, snapshots and render.capture",
+      "status": "not_started",
+      "evidence": [
+        "src/visual-engine/scene-model.js"
+      ],
+      "tests": [],
+      "limitations": "API names in RFC are design proposals, not existing endpoints"
+    },
+    {
+      "id": "DESKTOP-CORE",
+      "category": "platform",
+      "description": "independent reusable scene/mesh/rig/material native or WASM engine",
+      "status": "not_started",
+      "evidence": [
+        "src/visual-engine/visual-renderer.js"
+      ],
+      "tests": [],
+      "limitations": "Technology not selected; first ADR and prototypes required"
+    },
+    {
+      "id": "HUAWEI-PROFILER",
+      "category": "qa",
+      "description": "measured hardware GPU/CPU frame/memory and stability",
+      "status": "not_tested",
+      "evidence": [
+        "scripts/visual-v2-accept.mjs"
+      ],
+      "tests": [],
+      "limitations": "SwiftShader/Chromium CI is not Huawei FPS or thermals"
+    }
+  ]
+}
