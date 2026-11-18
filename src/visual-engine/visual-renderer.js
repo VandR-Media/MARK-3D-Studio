@@ -222,6 +222,7 @@ export class VisualRenderer{
     target.name='mark_'+Array.from(obj.id,c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
     target.userData.displayName=obj.name;target.userData.markId=obj.id;
     target.userData.meta=structuredClone(obj.meta||{});
+    if(obj.meta?.sourceMarkId)target.userData.visualOriginId=obj.meta.sourceMarkId;
     target.position.set(...obj.position);target.rotation.set(...obj.rotation);
     target.scale.set(...obj.scale);target.visible=obj.visible;
     if(target.isMesh){
@@ -415,7 +416,7 @@ export class VisualRenderer{
   const nodes=[],parents=[];
   const walk=(o,parent)=>{
    const index=nodes.length;
-   nodes.push({name:o.name||('GLB part '+index),parent,sourceMarkId:o.userData?.markId||null,
+   nodes.push({name:o.name||('GLB part '+index),parent,sourceMarkId:o.userData?.visualOriginId||o.userData?.markId||null,
     position:o.position.toArray(),rotation:[o.rotation.x,o.rotation.y,o.rotation.z],
     scale:o.scale.toArray(),visible:o.visible,isMesh:Boolean(o.isMesh)});
    for(const child of o.children)walk(child,index);
