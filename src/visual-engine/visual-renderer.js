@@ -168,7 +168,8 @@ export class VisualRenderer{
   const bounds=new THREE.Box3().setFromObject(this.root,true);
   return bounds.isEmpty()?null:bounds;
  }
- fitCameraToScene({fillX,fillY=.82,zoom=1}={}){
+ fitCameraToScene({fillX,fillY,zoom=1}={}){
+  fillY??=this.camera.aspect>1.4?.92:.82;
   const bounds=this.sceneBounds();
   if(!bounds)return null;
   const size=bounds.getSize(new THREE.Vector3());
