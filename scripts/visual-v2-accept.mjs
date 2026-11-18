@@ -10,6 +10,7 @@ import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {parseGlb} from '../src/glb.js';
+import {compareGlbFidelity} from '../src/visual-engine/glb-fidelity.js';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const output=resolve('dist/visual-v2/acceptance');
 mkdirSync(output,{recursive:true});
@@ -160,6 +161,10 @@ async function testPreset(preset,viewport){
    return failed&&before===JSON.stringify(window.MARK_VISUAL_API.scene());
   },glb.toString('base64'));
   if(!duplicateRejected)throw Error('Duplicate import was not rejected atomically');
+  const firstRoundtrip=Buffer.from(await page.evaluate(()=>
+   window.MARK_VISUAL_API.exportGlb()),'base64');
+  const fidelity=compareGlbFidelity(glb,firstRoundtrip,{epsilon:1e-4});
+  report.tests.push({preset:kind+'-GLB-semantic-fidelity',status:'pass',...fidelity});
   const importedScene=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
   const importedMesh=importedScene.objects.find(o=>o.geometry.type==='imported'&&o.meta?.mesh===true&&
    imported.ids.includes(o.id)&&o.material===null&&o.name);
@@ -186,6 +191,8 @@ async function testPreset(preset,viewport){
   const finalGlb=Buffer.from(await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb()),'base64');
   if(parseGlb(finalGlb).json.meshes.length!==parsed.meshes.length)
    throw Error('GLB second export changed mesh count');
+  const editedFidelity=compareGlbFidelity(editedGlb,finalGlb,{epsilon:1e-4});
+  report.tests.push({preset:kind+'-GLB-edited-fidelity',status:'pass',...editedFidelity});
   report.tests.push({preset:kind+'-GLB-edit-roundtrip',status:'pass',
    originalMeshes:parsed.meshes.length,firstImportMeshes:imported.meshes,
    secondImportMeshes:second.meshes,editorObjectId:part.id,
