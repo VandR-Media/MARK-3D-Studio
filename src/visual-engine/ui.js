@@ -31,23 +31,24 @@ function recipeFor(kind){
 }
 function status(msg,error=false){$('status').textContent=msg;$('status').dataset.error=error?'yes':'no';}
 function positionOverlays(){
+ // The HTML layer is reserved for optional screen-space HUD. Scale markings
+ // are actual textured 3D planes and never receive fixed-size CSS fonts.
  if(!scene||!viewer)return;
- const elements=$('overlay').children;
- for(const [i,item] of scene.overlays.entries()){
-  const element=elements[i];if(!element)continue;
+ for(const [i,item] of scene.overlays.filter(x=>!x.anchor||x.anchor==='hud').entries()){
+  const element=$('overlay').children[i];if(!element)continue;
   const projected=viewer.projectOverlay(item);
   element.style.display=projected.visible?'':'none';
   element.style.left=(projected.x*100)+'%';
   element.style.top=(projected.y*100)+'%';
-  element.dataset.anchor=item.anchor||'hud';
  }
 }
 function overlays(){
  const layer=$('overlay');layer.replaceChildren();
- for(const item of scene.overlays){
+ for(const item of scene.overlays.filter(x=>!x.anchor||x.anchor==='hud')){
   const el=document.createElement('span');el.className='mark-label';
   el.textContent=item.text;
-  el.style.color=item.color;el.style.fontSize=(item.size||12)+'px';layer.append(el);
+  el.style.color=item.color;el.style.fontSize=(item.size||12)+'px';
+  el.dataset.anchor=item.anchor||'hud';layer.append(el);
  }
  positionOverlays();
 }
@@ -459,10 +460,13 @@ async function start(){
     pcmSource:lastFrame.source}),
    modelInfo,renderFrame,zero:()=>silence(),
    view:x=>viewer.setView(x),setQuality:async x=>{scene.quality=x;await setScene(scene);},
-   overlayPositions:()=>Array.from($('overlay').children).map(e=>({
-    text:e.textContent,anchor:e.dataset.anchor,visible:e.style.display!=='none',
-    left:parseFloat(e.style.left),top:parseFloat(e.style.top)
-   })),
+   overlayPositions:()=>[
+    ...viewer.surfaceLabelPositions(),
+    ...Array.from($('overlay').children).map(e=>({
+     text:e.textContent,anchor:e.dataset.anchor,visible:e.style.display!=='none',
+     left:parseFloat(e.style.left),top:parseFloat(e.style.top),physical:false
+    }))
+   ],
    visualResponse:()=>{
     const needles={},leds={};
     for(const ch of ['left','right']){
