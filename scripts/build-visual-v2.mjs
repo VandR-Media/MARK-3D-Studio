@@ -39,7 +39,14 @@ const html=source
  .replace('<a class="small-link" href="../index.html">← Основная Studio</a>',
   '<span class="small-link">MARK Studio · offline</span>')
  .replace('</head>','<meta name="mark-visual-source-sha" content="'+sha+'"></head>')
- .replace('</body>','<script>\n'+javascript+'\n</script>\n</body>');
+ // Use a callback: JS strings contain  .replace('</body>','<script>\n'+javascript+'\n</script>\n</body>'); (e.g. in minified Three.js), which
+ // String.replace would otherwise expand to the matched '</body>' HTML tag.
+ .replace('</body>',()=>'<script>\n'+javascript+'\n</script>\n</body>');
+const inlineStart=html.lastIndexOf('<script>\n');
+const inlineEnd=html.lastIndexOf('\n</script>');
+if(inlineStart<0||inlineEnd<=inlineStart)throw Error('Offline visual HTML inline script not found');
+new Script(html.slice(inlineStart+'<script>\n'.length,inlineEnd),
+ {filename:'MARK-Visual-Engine-v2.html:inline.js'});
 if(/<script[^>]+src=["']https?:|<link[^>]+href=["']https?:|type="importmap"|src="\.\.\/src\/visual-engine/.test(html))
  throw Error('Offline visual HTML still references a remote runtime');
 mkdirSync(new URL('dist/',root),{recursive:true});
