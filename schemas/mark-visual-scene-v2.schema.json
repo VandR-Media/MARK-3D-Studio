@@ -468,6 +468,21 @@
           },
           "offset": {
             "type": "number"
+          },
+          "attackMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5000
+          },
+          "releaseMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5000
+          },
+          "peakHoldMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5000
           }
         }
       }
