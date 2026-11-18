@@ -483,8 +483,8 @@ for ob in objects: ob["mark_part_id"]=ob.name
 # Lighting and presentation cameras.
 world=bpy.context.scene.world
 world.use_nodes=True
-world.node_tree.nodes["Background"].inputs["Color"].default_value=(.07,.08,.14,1)
-world.node_tree.nodes["Background"].inputs["Strength"].default_value=.32
+world.node_tree.nodes["Background"].inputs["Color"].default_value=(.16,.18,.25,1)
+world.node_tree.nodes["Background"].inputs["Strength"].default_value=.56
 def area(name,loc,energy,color,size,target=(0,0,2.6)):
     data=bpy.data.lights.new(name,"AREA")
     data.energy=energy;data.color=color;data.shape="DISK";data.size=size
@@ -535,7 +535,7 @@ bpy.ops.export_scene.gltf(
 
 for name,loc,frame in [
     ("front", (0,-11.7,5.0),1),
-    ("side", (11.8,0,4.8),1),
+    ("side", (-11.8,0,4.8),1),
     ("back", (0,11.7,5.0),1),
     ("dance", (7.5,-9.3,6.1),20),
     ("dance_mid", (5.5,-9.3,6.0),50),
