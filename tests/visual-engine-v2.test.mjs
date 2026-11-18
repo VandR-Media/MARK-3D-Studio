@@ -118,6 +118,34 @@ test('actual decoded PCM FFT isolates LEFT low, RIGHT high and mono duplicated c
  assert.equal(paused.left.low,0);assert.equal(paused.right.high,0);
  mono.reset();assert.equal(mono.measure({playing:false}).left.rms,0);
 });
+test('PCM 8x256 blocks isolate L-LOW/R-HIGH and MID at 44.1/48 kHz, pause/mono/silence',()=>{
+ for(const sr of [44100,48000]){
+  const n=2048;
+  const sine=(freq,amp=.8)=>Float32Array.from({length:n},(_,i)=>
+   amp*Math.sin(2*Math.PI*freq*i/sr));
+  const feed=(left,right)=>{
+   const a=new StereoPcmAnalyzer({sampleRate:sr,fftSize:n});
+   for(let i=0;i<8;i++)a.feed(left.subarray(i*256,(i+1)*256),
+    right.subarray(i*256,(i+1)*256),{timestampMs:(i+1)*256/sr*1000});
+   return {analyzer:a,frame:a.measure()};
+  };
+  const stereo=feed(sine(120),sine(6000));
+  assert.ok(stereo.frame.left.low>stereo.frame.left.high*20,'LEFT low bleed at '+sr);
+  assert.ok(stereo.frame.right.high>stereo.frame.right.low*20,'RIGHT high bleed at '+sr);
+  const mid=feed(sine(600),sine(950));
+  assert.ok(mid.frame.left.mid>mid.frame.left.low*10,'LEFT mid missing at '+sr);
+  assert.ok(mid.frame.right.mid>mid.frame.right.high*10,'RIGHT mid missing at '+sr);
+  const mono=feed(sine(700),sine(700));
+  assert.deepEqual(mono.frame.left,mono.frame.right);
+  assert.equal(mono.analyzer.measure({playing:false}).left.rms,0);
+  stereo.analyzer.reset();
+  assert.equal(stereo.analyzer.measure({playing:false}).right.high,0);
+  const empty=feed(new Float32Array(n),new Float32Array(n));
+  assert.equal(empty.frame.left.low,0);
+  assert.equal(empty.frame.right.high,0);
+ }
+});
+
 test('all six channels remain independent for one 6-band synthetic PCM test',()=>{
  const sr=48000,n=2048,an=new StereoPcmAnalyzer({sampleRate:sr});
  const tones=[90,650,5700];
