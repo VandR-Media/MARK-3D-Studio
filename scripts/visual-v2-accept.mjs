@@ -152,6 +152,14 @@ async function testPreset(preset,viewport){
    glb.toString('base64'));
   if(imported.meshes!==parsed.meshes.length)
    throw Error('GLB mesh count lost on clean import: '+imported.meshes+' vs '+parsed.meshes.length);
+  const duplicateRejected=await page.evaluate(async b64=>{
+   const before=JSON.stringify(window.MARK_VISUAL_API.scene());
+   let failed=false;
+   try{await window.MARK_VISUAL_API.importGlb(b64);}
+   catch(error){failed=/already|уже присутствует/.test(String(error.message));}
+   return failed&&before===JSON.stringify(window.MARK_VISUAL_API.scene());
+  },glb.toString('base64'));
+  if(!duplicateRejected)throw Error('Duplicate import was not rejected atomically');
   const importedScene=await page.evaluate(()=>window.MARK_VISUAL_API.scene());
   const importedMesh=importedScene.objects.find(o=>o.geometry.type==='imported'&&o.meta?.mesh===true&&
    imported.ids.includes(o.id)&&o.material===null&&o.name);
