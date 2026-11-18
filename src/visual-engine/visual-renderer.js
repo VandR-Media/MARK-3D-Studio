@@ -27,7 +27,7 @@ function shapeRect(w,h,r){
 export function makeVisualGeometry(g,quality='normal'){
  const radial=quality==='eco'?12:quality==='high'?36:24;
  switch(g.type){
-  case 'group':return null;
+  case 'group':case 'imported':return null;
   case 'box':return new THREE.BoxGeometry(g.width||1,g.height||1,g.depth||1);
   case 'bevel-box':{
    const w=g.width||1,h=g.height||1,d=g.depth||.15,bevel=Math.min(g.bevel||.015,d*.40);
@@ -135,11 +135,22 @@ export class VisualRenderer{
   const previous=this.root;
   this.root=new THREE.Group();this.root.name=scene.name;this.world.add(this.root);
   this.world.remove(previous);
+  const oldGeometry=new Set(),oldMaterials=new Set();
   previous.traverse(o=>{if(o.isMesh){
-   o.geometry.dispose();if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());
-   else o.material.dispose();
+   oldGeometry.add(o.geometry);
+   for(const m of Array.isArray(o.material)?o.material:[o.material])oldMaterials.add(m);
   }});
+  oldGeometry.forEach(g=>g.dispose());
+  oldMaterials.forEach(m=>m?.dispose());
   this.nodes=new Map();this.boundScene=structuredClone(scene);
+  // One parsed source graph per attachment. Imported objects are registered
+  // through scene.objects, never appended as a second invisible graph.
+  const importedGraphs=await Promise.all((scene.attachments||[]).map(async asset=>{
+   const binary=Uint8Array.from(atob(asset.data.split(',')[1]),c=>c.charCodeAt(0));
+   const gltf=await new GLTFLoader().parseAsync(binary.buffer,'');
+   const nodes=[];gltf.scene.traverse(node=>nodes.push(node));
+   return nodes;
+  }));
   this.renderer.toneMappingExposure=scene.environment.exposure??1.14;
   this.world.background=new THREE.Color(scene.environment.color);
   this.world.environment=null;
@@ -188,11 +199,17 @@ export class VisualRenderer{
    mats.set(id,material);
   }
   for(const object of scene.objects){
-   const geo=makeVisualGeometry(object.geometry,this.profile);
+   const source=object.geometry.type==='imported'?
+    importedGraphs[object.geometry.asset]?.[object.geometry.node]:null;
+   if(object.geometry.type==='imported'&&!source)
+    throw Error('Missing GLB node '+object.id);
+   const geo=source?.isMesh?source.geometry:makeVisualGeometry(object.geometry,this.profile);
    const mat=mats.get(object.material);
    if(geo&&mat?.aoMap&&geo.attributes.uv&&!geo.attributes.uv2)
     geo.setAttribute('uv2',geo.attributes.uv.clone());
-   const target=geo?new THREE.Mesh(geo,mat||new THREE.MeshBasicMaterial({color:'#ffffff'})):new THREE.Group();
+   const target=source?source.clone(false):
+    geo?new THREE.Mesh(geo,mat||new THREE.MeshBasicMaterial({color:'#ffffff'})):new THREE.Group();
+   if(source?.isMesh&&mat)target.material=mat;
    target.name='mark_'+Array.from(object.id,c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');
    target.userData.displayName=object.name;
    target.userData.markId=object.id;target.userData.meta=structuredClone(object.meta||{});
@@ -300,12 +317,20 @@ export class VisualRenderer{
   return {clip:clipId,time:t};
  }
  async importGlb(input){
+  // Describe the native hierarchy, retaining original PBR textures and geometry
+  // in its embedded attachment. The caller adds these editable references.
   const bytes=input instanceof ArrayBuffer?input:input.buffer.slice(input.byteOffset,input.byteOffset+input.byteLength);
   const gltf=await new GLTFLoader().parseAsync(bytes,'');
-  gltf.scene.userData.visualImported=true;
-  gltf.scene.name='Imported genuine glTF scene';
-  this.root.add(gltf.scene);this.render();
-  return {objects:gltf.scene.children.length,meshes:(()=>{let n=0;gltf.scene.traverse(o=>{if(o.isMesh)n++;});return n;})()};
+  const nodes=[],parents=[];
+  const walk=(o,parent)=>{
+   const index=nodes.length;
+   nodes.push({name:o.name||('GLB part '+index),parent,
+    position:o.position.toArray(),rotation:[o.rotation.x,o.rotation.y,o.rotation.z],
+    scale:o.scale.toArray(),visible:o.visible,isMesh:Boolean(o.isMesh)});
+   for(const child of o.children)walk(child,index);
+  };
+  walk(gltf.scene,null);
+  return {objects:nodes.length,meshes:nodes.filter(x=>x.isMesh).length,nodes};
  }
  async exportGlb(){
   const exporter=new GLTFExporter();
