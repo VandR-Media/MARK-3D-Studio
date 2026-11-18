@@ -35,10 +35,10 @@ for name,c,metal,rough in [
     ("eye_white","#FFF9F0",0,.2),("eye_dark","#1D1920",.05,.14),
     ("hoodie","#16192F",0,.86),("hoodie_top","#222441",0,.82),
     ("hoodie_seam","#333753",0,.86),("hoodie_black","#0D1020",0,.82),
-    ("cargo","#51515E",0,.88),("cargo_light","#656472",0,.83),
-    ("cargo_dark","#343640",0,.88),("shoe_white","#DEE1E8",0,.48),
+    ("cargo","#363944",0,.88),("cargo_light","#4B4D5C",0,.83),
+    ("cargo_dark","#2B2E38",0,.88),("shoe_white","#DEE1E8",0,.48),
     ("shoe_navy","#25283E",0,.49),("shoe_grey","#858995",0,.56),
-    ("shoe_rubber","#11192A",0,.65),("cap_red","#D81343",0,.67),
+    ("shoe_rubber","#11192A",0,.65),("cap_red","#B80D36",0,.67),
     ("cap_shadow","#951031",0,.73),("neon_blue","#00CFFF",.16,.28),
     ("neon_pink","#FF38D4",.13,.27),("headphone","#17182D",.25,.38),
     ("headphone_purple","#553D89",.32,.28),("cyan_print","#51E6FF",0,.5),
@@ -280,9 +280,9 @@ for side in (-1,1):
     seam=line("PocketEdge_"+str(side),(side*.48,-.497,2.83),(side*.37,-.50,2.63),.012,"hoodie_seam")
     skin(seam,"Spine")
 # Hood wrap and drawstrings
-hood=ball("Hood_Loose_Back",(0,.26,3.85),(.68,.45,.38),"hoodie_top",32,20)
+hood=ball("Hood_Loose_Back",(0,.25,3.84),(.55,.29,.24),"hoodie_top",32,20)
 skin(hood,"Chest")
-hoodhole=ball("Hood_Inset_Neck",(0,-.21,3.985),(.34,.17,.09),"hoodie_black")
+hoodhole=ball("Hood_Inset_Neck",(0,-.23,3.99),(.255,.10,.055),"hoodie_black")
 skin(hoodhole,"Chest")
 for x in (-.14,.14):
     skin(tube("Drawstring_"+str(x),[(x,-.39,3.88),(x,-.455,3.59),(x,-.48,3.32)],.014,"shoe_grey"),"Chest")
@@ -291,14 +291,14 @@ for x in (-.14,.14):
 # Sleeves with continuous tube-like geometry, weighted across elbow.
 def sleeve_mesh(letter,s):
     pts=[
-        (s*.66,0,3.70,.285),
-        (s*.80,-.005,3.63,.34),
-        (s*.90,-.01,3.46,.31),
-        (s*1.015,-.015,3.22,.31),
-        (s*1.08,-.015,3.02,.29),
-        (s*1.10,-.042,2.82,.29),
-        (s*1.15,-.060,2.64,.255),
-        (s*1.205,-.075,2.52,.19)]
+        (s*.66,0,3.70,.235),
+        (s*.80,-.005,3.63,.27),
+        (s*.90,-.01,3.46,.265),
+        (s*1.015,-.015,3.22,.26),
+        (s*1.08,-.015,3.02,.245),
+        (s*1.10,-.042,2.82,.24),
+        (s*1.15,-.060,2.64,.21),
+        (s*1.205,-.075,2.52,.17)]
     vs=[]; fs=[];steps=24
     for i,p in enumerate(pts):
         x,y,z,r=p
@@ -328,7 +328,7 @@ def sleeve_mesh(letter,s):
         coords=[(x+s*.22,y-.225,z) for x,y,z,r in selected]
         st=tube("RGB_Sleeve_"+letter+str(j),coords,.04,"neon_blue" if j==0 else "neon_pink")
         skin(st,"UpperArm."+letter if j==0 else "Forearm."+letter)
-    cuff=ball("Sleeve_Cuff_"+letter,(s*1.205,-.075,2.52),(.20,.21,.11),"hoodie_black")
+    cuff=ball("Sleeve_Cuff_"+letter,(s*1.205,-.075,2.52),(.18,.18,.10),"hoodie_black")
     skin(cuff,"Forearm."+letter)
 for s,letter in ((-1,"L"),(1,"R")):
     sleeve_mesh(letter,s)
@@ -354,18 +354,19 @@ skin(face,"Head")
 # Visible physical facial features
 for s,side in ((-1,"L"),(1,"R")):
     skin(ball("Ear_"+side,(s*.412,.02,4.45),(.115,.09,.19),"skin"),"Head")
-    skin(ball("Cheek_"+side,(s*.26,-.303,4.30),(.14,.035,.073),"cheek"),"Head")
-    skin(ball("EyeSclera_"+side,(s*.184,-.327,4.535),(.122,.06,.099),"eye_white"),"Head")
-    skin(ball("Iris_"+side,(s*.165,-.383,4.537),(.063,.026,.069),"eye_dark"),"Head")
-    skin(ball("EyeGlint_"+side,(s*.146,-.409,4.562),(.018,.012,.019),"white"),"Head")
+    skin(ball("Cheek_"+side,(s*.25,-.298,4.30),(.095,.020,.045),"cheek"),"Head")
+    skin(ball("EyeSclera_"+side,(s*.184,-.326,4.535),(.099,.038,.071),"eye_white"),"Head")
+    skin(ball("Iris_"+side,(s*.165,-.364,4.537),(.049,.019,.052),"eye_dark"),"Head")
+    skin(ball("EyeGlint_"+side,(s*.146,-.383,4.559),(.014,.009,.015),"white"),"Head")
     skin(tube("Eyebrow_"+side,[(s*.09,-.37,4.663),(s*.18,-.362,4.695),(s*.29,-.329,4.671)],.021,"hair"),"Head")
-skin(ball("NoseTip",(0,-.389,4.384),(.095,.08,.10),"skin"),"Head")
-skin(tube("SmileCurve",[(x,-.345-0.085*(1-(x/.24)**2),4.245+.035*(abs(x)/.24)) for x in [-.24,-.18,-.09,0,.09,.18,.24]],.015,"skin_shade"),"Head")
+skin(ball("NoseTip",(0,-.353,4.384),(.064,.047,.062),"skin"),"Head")
+skin(tube("SmileCurve",[(x,-.318-0.012*(1-(x/.22)**2),4.248+.022*(abs(x)/.22)) for x in [-.22,-.16,-.08,0,.08,.16,.22]],.011,"skin_shade"),"Head")
 # hair tufts by cap edge
 for i in range(7):
     x=-.31+i*.103
     z=4.824+.018*cos(i*1.2)
     skin(ball("Fringe_"+str(i),(x,-.277,z),(.095,.075,.065),"hair",16,10),"Head")
+skin(ball("Back_Hair_Nape",(0,.26,4.58),(.37,.12,.28),"hair"),"Head")
 # cap dome
 cap_rings=[
     (4.742,0,.01,.437,.355),
@@ -460,6 +461,12 @@ for k,f in enumerate(frames):
     rig.location.z=.055*(1-cos(2*q))
     rig.location.x=.09*sin(q)
     rig.keyframe_insert(data_path="location",frame=f,group="root")
+    if k in (0,8):
+        for pb in rig.pose.bones:
+            pb.rotation_euler=(0,0,0)
+            pb.keyframe_insert(data_path="rotation_euler",frame=f,group=pb.name)
+        rig.location=(0,0,0)
+        rig.keyframe_insert(data_path="location",frame=f,group="root")
 bpy.context.scene.frame_start=1
 bpy.context.scene.frame_end=121
 bpy.context.scene.render.fps=30
@@ -481,9 +488,9 @@ def area(name,loc,energy,color,size,target=(0,0,2.6)):
     ob.location=loc
     ob.rotation_euler=(Vector(target)-ob.location).to_track_quat("-Z","Y").to_euler()
     return ob
-area("KEY_softbox",(-3,-5,8),900,(.83,.90,1),5)
-area("FILL_cyan",(4,-3,5),510,(.15,.82,1),4)
-area("RIM_magenta",(2.7,3,5),800,(1,.16,.68),3)
+area("KEY_softbox",(-3,-5,8),760,(.83,.90,1),5)
+area("FILL_cyan",(4,-3,5),310,(.15,.82,1),4)
+area("RIM_magenta",(2.7,3,5),450,(1,.16,.68),3)
 def camera(name,loc,target):
     dat=bpy.data.cameras.new(name)
     ob=bpy.data.objects.new(name,dat);bpy.context.collection.objects.link(ob)
