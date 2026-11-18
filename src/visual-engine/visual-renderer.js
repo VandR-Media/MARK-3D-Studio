@@ -105,6 +105,7 @@ export class VisualRenderer{
   this.root=new THREE.Group();this.root.name='MARK Visual Scene';
   this.world.add(this.root);
   this.nodes=new Map();this.boundScene=null;this.ownedGeometry=[];this.ownedMaterials=[];
+  this.motionLevels=new Map();this.lastMotionAt=null;
   this.occluders=[];this.raycaster=new THREE.Raycaster();this.onRender=null;
   this.pmrem=null;this.composer=null;this.environmentTexture=null;this.setProfile(profile);
  }
@@ -257,6 +258,7 @@ export class VisualRenderer{
   // Rebuild occluder set once per scene, never per rendered frame.
   // Protective transmissive glass is transparent to the text ray test,
   // while actual metal and mechanical parts occlude labels naturally.
+  this.motionLevels.clear();this.lastMotionAt=null;
   this.occluders=[...this.nodes.values()].filter(x=>
    x.isMesh&&x.material?.opacity>=1&&!x.material.transparent&&
    !(x.material?.transmission>0));
@@ -266,23 +268,39 @@ export class VisualRenderer{
  applyFrame(frame){
   validateStereoFrame(frame);
   if(!this.boundScene)return;
+  const now=typeof performance==='object'?performance.now():Date.now();
+  const dt=this.lastMotionAt===null?1/30:
+   Math.min(.10,Math.max(.001,(now-this.lastMotionAt)/1000));
+  this.lastMotionAt=now;
   for(const b of this.boundScene.bindings){
    const target=this.nodes.get(b.target);if(!target)continue;
    const path=b.signal.split('.');
-   const value=frame.playing?(path.length===2?frame[path[0]]?.[path[1]]:frame[b.signal])||0:0;
-   const magnitude=clamp(value);
-   if(b.response==='needle')target.rotation.z=(b.offset??-.95)+magnitude*(b.gain??1);
+   const raw=frame.playing?(path.length===2?frame[path[0]]?.[path[1]]:frame[b.signal])||0:0;
+   const goal=clamp(raw);
+   const previous=this.motionLevels.get(b.target)||{value:0,peak:0,holdUntil:0};
+   const attack=(b.attackMs??(b.response==='needle'?85:40))/1000;
+   const release=(b.releaseMs??(b.response==='needle'?260:175))/1000;
+   const tau=goal>previous.value?Math.max(.001,attack):Math.max(.001,release);
+   const value=frame.playing?
+    previous.value+(goal-previous.value)*(1-Math.exp(-dt/tau)):0;
+   const effective=clamp(value*(b.gain??1));
+   let peak=previous.peak,holdUntil=previous.holdUntil;
+   if(!frame.playing){peak=0;holdUntil=0;}
+   else if(value>=peak){peak=value;holdUntil=now+(b.peakHoldMs??260);}
+   else if(now>holdUntil){peak=Math.max(value,peak-dt*.8);}
+   this.motionLevels.set(b.target,{value,peak,holdUntil});
+   if(b.response==='needle')target.rotation.z=(b.offset??-.95)+effective;
    else if(b.response==='led-column'){
     for(const led of target.children){
      if(!led.isMesh||led.userData.meta?.role!=='led')continue;
-     const isOn=clamp(magnitude*(b.gain??1))>=led.userData.meta.threshold;
+     const isOn=effective>=led.userData.meta.threshold;
      led.material.emissiveIntensity=isOn?2.2:0;
      led.material.color.copy(isOn?led.userData.onColor:new THREE.Color('#15212b'));
     }
-   }else if(b.response==='scale-y')target.scale.y=Math.max(.005,magnitude);
-   else if(b.response==='rotation-z')target.rotation.z=(b.offset??0)+magnitude;
-   else if(b.response==='position-y')target.position.y=(b.offset??0)+magnitude;
-   else if(b.response==='emissive'&&target.isMesh)target.material.emissiveIntensity=magnitude*4;
+   }else if(b.response==='scale-y')target.scale.y=Math.max(.005,effective);
+   else if(b.response==='rotation-z')target.rotation.z=(b.offset??0)+effective;
+   else if(b.response==='position-y')target.position.y=(b.offset??0)+effective;
+   else if(b.response==='emissive'&&target.isMesh)target.material.emissiveIntensity=effective*4;
   }
   this.render();
  }
