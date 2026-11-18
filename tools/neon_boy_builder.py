@@ -14,7 +14,10 @@ for obj in list(bpy.data.materials):
     bpy.data.materials.remove(obj)
 
 def mat(name, hexcolor, metal=0, rough=.6, emission=None, emission_strength=0):
-    rgb=tuple(int(hexcolor[i:i+2],16)/255 for i in (1,3,5))
+    def srgb_to_linear(v):
+        x=int(v,16)/255
+        return x/12.92 if x <= 0.04045 else ((x+0.055)/1.055)**2.4
+    rgb=tuple(srgb_to_linear(hexcolor[i:i+2]) for i in (1,3,5))
     m=bpy.data.materials.new(name)
     m.diffuse_color=(*rgb,1)
     m.use_nodes=True
@@ -23,7 +26,7 @@ def mat(name, hexcolor, metal=0, rough=.6, emission=None, emission_strength=0):
     bs.inputs["Metallic"].default_value=metal
     bs.inputs["Roughness"].default_value=rough
     if emission:
-        ec=tuple(int(emission[i:i+2],16)/255 for i in (1,3,5))
+        ec=tuple(srgb_to_linear(emission[i:i+2]) for i in (1,3,5))
         bs.inputs["Emission Color"].default_value=(*ec,1)
         bs.inputs["Emission Strength"].default_value=emission_strength
     return m
@@ -428,11 +431,12 @@ for j in range(len(wave)-1):
     ob=line("Equalizer_Wave_"+str(j),(a[0],-.438,a[1]),(b[0],-.438,b[1]),.012,material)
     skin(ob,"Spine")
 
+# Post-modeling artistic refinement: geometry, garment seams, facial features.
+exec(compile(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "neon_boy_polish.py"), encoding="utf-8").read(), "neon_boy_polish.py", "exec"))
+
 # Studio backdrop for renders (not included in GLB export)
-stage=cylinder("RENDER_STAGE",(0,0,-.095),2.7,.16,"headphone",vertices=80)
-ringpts=[(2.38*cos(2*pi*i/96),2.38*sin(2*pi*i/96),-.005) for i in range(97)]
-stage_ring=tube("RENDER_STAGE_NEON",ringpts,.02,"neon_blue")
-stage_objects={stage,stage_ring}
+stage=cube("RENDER_FLOOR",(0,0,-.19),(200,200,.25),"headphone",0.0)
+stage_objects={stage}
 for o in stage_objects:o["render_only"]=True
 
 # Skeletal choreography: 4 sec, 120 frames, 30 fps.
@@ -480,7 +484,7 @@ for ob in objects: ob["mark_part_id"]=ob.name
 world=bpy.context.scene.world
 world.use_nodes=True
 world.node_tree.nodes["Background"].inputs["Color"].default_value=(.07,.08,.14,1)
-world.node_tree.nodes["Background"].inputs["Strength"].default_value=.55
+world.node_tree.nodes["Background"].inputs["Strength"].default_value=.32
 def area(name,loc,energy,color,size,target=(0,0,2.6)):
     data=bpy.data.lights.new(name,"AREA")
     data.energy=energy;data.color=color;data.shape="DISK";data.size=size
@@ -488,9 +492,9 @@ def area(name,loc,energy,color,size,target=(0,0,2.6)):
     ob.location=loc
     ob.rotation_euler=(Vector(target)-ob.location).to_track_quat("-Z","Y").to_euler()
     return ob
-area("KEY_softbox",(-3,-5,8),760,(.83,.90,1),5)
-area("FILL_cyan",(4,-3,5),310,(.15,.82,1),4)
-area("RIM_magenta",(2.7,3,5),450,(1,.16,.68),3)
+area("KEY_softbox",(-3,-5,8),1020,(1.0,.96,.91),5)
+area("FILL_cyan",(4,-3,5),210,(.32,.79,1),4)
+area("RIM_magenta",(2.7,3,5),260,(1,.2,.66),3)
 def camera(name,loc,target):
     dat=bpy.data.cameras.new(name)
     ob=bpy.data.objects.new(name,dat);bpy.context.collection.objects.link(ob)
@@ -499,8 +503,10 @@ def camera(name,loc,target):
     dat.type="ORTHO";dat.ortho_scale=6.5
     bpy.context.scene.camera=ob
     return ob
+bpy.context.scene.view_settings.view_transform="AgX"
+bpy.context.scene.view_settings.look="Medium High Contrast"
 bpy.context.scene.render.engine="CYCLES"
-bpy.context.scene.cycles.samples=20
+bpy.context.scene.cycles.samples=28
 bpy.context.scene.render.resolution_x=600
 bpy.context.scene.render.resolution_y=760
 bpy.context.scene.render.resolution_percentage=100
@@ -531,7 +537,9 @@ for name,loc,frame in [
     ("front", (0,-11.7,5.0),1),
     ("side", (11.8,0,4.8),1),
     ("back", (0,11.7,5.0),1),
-    ("dance", (7.5,-9.3,6.1),20)]:
+    ("dance", (7.5,-9.3,6.1),20),
+    ("dance_mid", (5.5,-9.3,6.0),50),
+    ("dance_end", (-6.0,-9.3,6.0),83)]:
     bpy.context.scene.frame_set(frame)
     camera("CAM_"+name,loc,(0,0,2.55))
     bpy.context.scene.render.filepath=os.path.join(OUT,"preview_"+name+".png")
