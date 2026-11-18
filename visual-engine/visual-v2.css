@@ -26,5 +26,5 @@ button:active,.buttonlike:active{transform:translateY(1px)}
 #status{font-size:13px;min-height:34px;color:#a4e0f4;padding:10px 4px}
 #status[data-error=yes]{color:#ffb2aa}
 footer{color:#819db6;font-size:11px;line-height:1.5;margin:12px 0 24px}
-@media(max-width:650px){.studio{padding:9px}.top{align-items:flex-start}.canvas-frame{height:clamp(350px,51vh,560px)}.labels .mark-label{font-size:9px!important}.actions>*{flex:1 1 42%}.panel{padding:11px}.info-strip{font-size:11px}}
+@media(max-width:650px){.studio{padding:9px}.top{align-items:flex-start}.canvas-frame{height:clamp(252px,34vh,395px)}.labels .mark-label{font-size:9px!important}.actions>*{flex:1 1 42%}.panel{padding:11px}.info-strip{font-size:11px}}
 @media(orientation:landscape) and (max-height:600px){.canvas-frame{height:76vh}.studio{padding:6px}.panel{margin:6px 0}}
