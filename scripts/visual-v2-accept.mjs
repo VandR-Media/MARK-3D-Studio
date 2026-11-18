@@ -166,7 +166,7 @@ async function testPreset(preset,viewport){
   if(kind==='matrix'){
    for(const id of ['left.low','right.high']){
     const colors=poses.high.leds[id]?.colors||[];
-    if(!['#19ef9c','#f6df49','#ff5d55'].every(c=>colors.includes(c)))
+    if(!['#0abf63','#dfb019','#dd3230'].every(c=>colors.includes(c)))
      throw Error('M2 missing green-yellow-red physical LED ramp: '+id+' '+colors);
    }
   }
