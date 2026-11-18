@@ -5,6 +5,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import {runVisualRecipe,validateVisualScene,deserializeVisualScene,SIGNALS} from '../src/visual-engine/scene-model.js';
 import {StereoPcmAnalyzer,zeroStereoFrame,validateStereoFrame} from '../src/visual-engine/audio-frame.js';
 import {inspectVisualImport} from '../src/visual-engine/glb-guard.js';
+import {compareGlbFidelity} from '../src/visual-engine/glb-fidelity.js';
 import {writeGlb} from '../src/glb.js';
 const readJson=path=>JSON.parse(readFileSync(path,'utf8'));
 const schema=readJson('schemas/mark-visual-recipe-v2.schema.json');
@@ -154,6 +155,29 @@ test('GLB import accepts static self-contained textured multi-mesh scene, reject
  assert.throws(()=>inspectVisualImport(writeGlb(parsed,altered)),/неподдерживаемые расширения/);
  altered.extensionsUsed=[];altered.meshes[0].primitives[0].targets=[{POSITION:0}];
  assert.throws(()=>inspectVisualImport(writeGlb(parsed,altered)),/morph targets/);
+});
+
+test('GLB numeric fidelity checker catches vertex and PBR losses even with matching mesh counts',()=>{
+ const bin=new Uint8Array(36),v=new DataView(bin.buffer);
+ for(let i=0;i<9;i++)v.setFloat32(i*4,i*.125,true);
+ const doc={asset:{version:'2.0'},scene:0,scenes:[{nodes:[0]}],
+  nodes:[{mesh:0,translation:[1,2,3]}],meshes:[{primitives:[
+   {attributes:{POSITION:0},material:0}]}],
+  materials:[{pbrMetallicRoughness:{baseColorFactor:[.2,.3,.4,1],
+   metallicFactor:.7,roughnessFactor:.25}}],
+  buffers:[{byteLength:bin.length}],bufferViews:[{buffer:0,byteOffset:0,byteLength:bin.length}],
+  accessors:[{bufferView:0,componentType:5126,count:3,type:'VEC3'}]};
+ const bytes=(d,b)=>writeGlb({chunks:[{type:0x4e4f534a,data:new Uint8Array(0)},
+   {type:0x004e4942,data:b}]},d);
+ const original=bytes(doc,bin);
+ assert.equal(compareGlbFidelity(original,original).meshesCompared,1);
+ const changed=bin.slice();new DataView(changed.buffer).setFloat32(0,7,true);
+ assert.throws(()=>compareGlbFidelity(original,bytes(doc,changed)),/POSITION/);
+ const material=structuredClone(doc);
+ material.materials[0].pbrMetallicRoughness.roughnessFactor=.7;
+ assert.throws(()=>compareGlbFidelity(original,bytes(material,bin)),/roughness/);
+ const transform=structuredClone(doc);transform.nodes[0].translation[0]=4;
+ assert.throws(()=>compareGlbFidelity(original,bytes(transform,bin)),/translation/);
 });
 
 test('safe JSON keyframe track targets a real GLB mesh, persists and rejects invalid ordering',()=>{
