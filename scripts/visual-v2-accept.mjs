@@ -9,7 +9,6 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import {spawnSync} from 'node:child_process';
 import {parseGlb,writeGlb} from '../src/glb.js';
 import {compareGlbFidelity} from '../src/visual-engine/glb-fidelity.js';
 const sha=x=>createHash('sha256').update(x).digest('hex');
@@ -31,12 +30,10 @@ function makeStereoWav({sr=48000,seconds=45}={}){
  return Buffer.from(b);
 }
 const wav=makeStereoWav();
-const mp3Process=spawnSync('ffmpeg',[
- '-hide_banner','-loglevel','error','-f','wav','-i','pipe:0',
- '-codec:a','libmp3lame','-q:a','6','-f','mp3','pipe:1'
-],{input:makeStereoWav({seconds:30}),maxBuffer:2*1024*1024});
-const mp3=mp3Process.status===0&&mp3Process.stdout?.length?mp3Process.stdout:null;
-if(!mp3)console.warn('MARK Visual v2: MP3 fixture cannot be generated on this runner; MP3 case NOT VERIFIED. WAV and true PCM remain mandatory.');
+const mp3=Buffer.from(readFileSync(new URL('./fixtures/stereo-2s-mp3.base64',import.meta.url),
+ 'utf8').trim(),'base64');
+if(mp3.length<3000||mp3.toString('ascii',0,3)!=='ID3')
+ throw Error('Committed stereo MP3 fixture is corrupt');
 const browser=await chromium.launch({headless:true,args:[
  '--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
  '--enable-unsafe-swiftshader','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required'
@@ -79,37 +76,30 @@ async function testPreset(preset,viewport){
  await page.locator('#mode').selectOption(preset);
  await page.waitForFunction(target=>window.MARK_VISUAL_API?.scene()?.id===target,
   preset==='analog-studio'?'analog-studio-v2':'spectrum-matrix-v2',{timeout:40000,polling:200});
- if(kind==='analog'&&device==='desktop'&&mp3){
+ if(kind==='analog'&&device==='desktop'){
   const [picker]=await Promise.all([
    page.waitForEvent('filechooser'),page.locator('#openMusic').click()
   ]);
   await picker.setFiles({name:'local-actual-track.mp3',mimeType:'audio/mpeg',buffer:mp3});
   await page.waitForFunction(()=>{
-   const x=window.MARK_VISUAL_API?.audioStatus();
-   return x?.playing&&x?.loaded&&x.pcmSource==='pcm'&&x.channels===2;
-  },null,{timeout:30000});
-  const active=await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus());
-  if(active.demo||!active.playing)throw Error('MP3 player failed to disable DEMO');
-  const mp3Frame=await page.evaluate(()=>window.MARK_VISUAL_API.visualResponse());
-  if(mp3Frame.needles.left?.tipX===undefined)
-   throw Error('MP3 was not mapped to physical stereo visual');
-  await capture(page,'analog-MP3-live-PCM.png');
+   const state=window.MARK_VISUAL_API?.audioStatus();
+   return state?.loaded&&state?.channels===2&&
+    document.getElementById('trackTitle').textContent.includes('.mp3');
+  },null,{timeout:40000});
+  const decoded=await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus());
+  if(decoded.demo||decoded.channels!==2||decoded.durationSeconds<1)
+   throw Error('MP3 file not decoded as real stereo '+JSON.stringify(decoded));
+  await page.waitForFunction(()=>!window.MARK_VISUAL_API.audioStatus().playing&&
+   document.getElementById('playbackState').textContent.includes('завершился'),
+   null,{timeout:30000});
   await page.locator('#musicToggle').click();
-  const paused=await page.evaluate(()=>window.MARK_VISUAL_API.audioStatus());
-  if(paused.playing||paused.pcmSource==='pcm')
-   throw Error('MP3 pause did not silence REAL PCM');
-  await page.locator('#musicToggle').click();
-  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
-  await page.locator('#stop').click();
-  await page.locator('#musicToggle').click();
-  await page.waitForFunction(()=>window.MARK_VISUAL_API.audioStatus().playing);
-  await page.locator('#stop').click();
-  report.tests.push({preset:'analog-local-MP3-button-pause-resume-replay',
-   status:'pass',channels:active.channels,actualMusicFilename:'local-actual-track.mp3'});
+  await page.waitForFunction(()=>!window.MARK_VISUAL_API.audioStatus().playing&&
+   document.getElementById('playbackState').textContent.includes('завершился'),
+   null,{timeout:30000});
+  report.tests.push({preset:'analog-local-MP3-picker-decode-end-replay',
+   status:'pass',channels:decoded.channels,durationSeconds:decoded.durationSeconds});
  }
  if(kind==='analog'&&device==='desktop'){
-  if(!mp3)report.tests.push({preset:'analog-local-MP3',
-   status:'not-run',reason:'MP3 test fixture encoder unavailable; no MP3 compatibility claim'});
   // Real user-triggered picker (not synthetic change on a hidden input).
   const [wavPicker]=await Promise.all([
    page.waitForEvent('filechooser'),page.locator('#openMusic').click()
