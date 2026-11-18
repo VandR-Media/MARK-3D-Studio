@@ -155,7 +155,7 @@ export class VisualRenderer{
   this.composer=new EffectComposer(this.renderer);
   this.composer.addPass(new RenderPass(this.world,this.camera));
   this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(512,512),
-    this.profile==='high'?.31:.20,.30,.91));
+    this.profile==='high'?.22:.12,.25,.96));
   this.composer.addPass(new OutputPass());
  }
  resize(width=this.canvas.clientWidth,height=this.canvas.clientHeight){
@@ -439,7 +439,7 @@ export class VisualRenderer{
     for(const [index,led] of segments.entries()){
      const held=frame.playing&&peak>value+.02&&index===heldIndex;
      const isOn=effective>=led.userData.meta.threshold||held;
-     led.material.emissiveIntensity=isOn?(held?.65:1.25):0;
+     led.material.emissiveIntensity=isOn?(held?.45:.75):0;
      led.material.color.copy(isOn?led.userData.onColor:new THREE.Color('#15212b'));
     }
    }else if(b.response==='scale-y')target.scale.y=Math.max(.005,effective);
