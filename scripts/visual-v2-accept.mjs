@@ -109,6 +109,71 @@ async function testPreset(preset,viewport){
  const backVisible=backLabels.filter(x=>x.anchor!=='hud'&&x.visible).length;
  if(backVisible!==0)throw Error('P0 overlay: device-face labels should be occluded from rear ('+backVisible+' visible)');
  await page.evaluate(()=>window.MARK_VISUAL_API.view('front'));
+ if(device==='desktop'){
+  // Deliberately inject deterministic per-channel *measurement frames* to
+  // isolate renderer kinematics. The separate real decoded PCM WAV test below
+  // remains mandatory; these frames must never be presented as audio playback.
+  const states=[
+   {name:'silence',playing:false,left:[0,0,0,0],right:[0,0,0,0]},
+   {name:'left-medium',playing:true,left:[.36,.50,0,0],right:[0,0,0,0]},
+   {name:'right-medium',playing:true,left:[0,0,0,0],right:[.36,0,0,.5]},
+   {name:'high',playing:true,left:[.96,1,1,1],right:[.92,1,1,1]},
+   {name:'paused',playing:false,left:[0,0,0,0],right:[0,0,0,0]}
+  ];
+  const poses={};
+  for(const state of states){
+   for(let n=0;n<7;n++){
+    await page.evaluate(x=>{
+     const channel=values=>({
+      rms:values[0],peak:values[0],low:values[1],mid:values[2],
+      high:values[3],waveform:Array(128).fill(0)
+     });
+     window.MARK_VISUAL_API.renderFrame({schema:'mark.audio.stereo/1',
+      timestampMs:performance.now(),source:x.playing?'pcm':'silence',
+      playing:x.playing,left:channel(x.left),right:channel(x.right),
+      bass:0,beat:0});
+    },state);
+    await page.waitForTimeout(75);
+   }
+   poses[state.name]=await page.evaluate(()=>window.MARK_VISUAL_API.visualResponse());
+   await capture(page,kind+'-amplitude-'+state.name+'.png');
+  }
+  const needle=key=>poses[key].needles;
+  if(kind==='analog'){
+   const base=needle('silence'),left=needle('left-medium'),
+    right=needle('right-medium'),full=needle('high'),paused=needle('paused');
+   if(!(base.left.tipX<-.5&&base.right.tipX<-.5&&
+     left.left.tipX>base.left.tipX+.35&&
+     Math.abs(left.right.tipX-base.right.tipX)<.07&&
+     right.right.tipX>base.right.tipX+.35&&
+     Math.abs(right.left.tipX-base.left.tipX)<.07&&
+     full.left.tipX>left.left.tipX+.1&&full.right.tipX>right.right.tipX+.1&&
+     Math.abs(paused.left.tipX-base.left.tipX)<.07&&
+     Math.abs(paused.right.tipX-base.right.tipX)<.07))
+    throw Error('M2 physical stereo needle direction/inertia error: '+JSON.stringify(poses));
+  }
+  const lit=(pose,id)=>pose.leds[id]?.active??-1;
+  for(const id of ['left.low','right.high']){
+   if(!(lit(poses.silence,id)===0&&lit(poses.high,id)>lit(poses.silence,id)&&
+     lit(poses.paused,id)===0))
+    throw Error('M2 physical LED amplitude not responsive: '+id+' '+JSON.stringify(poses));
+  }
+  if(!(lit(poses['left-medium'],'left.low')>0&&
+       lit(poses['left-medium'],'right.high')===0&&
+       lit(poses['right-medium'],'right.high')>0&&
+       lit(poses['right-medium'],'left.low')===0))
+   throw Error('M2 stereo left/right LED cross-talk in physical meshes');
+  if(kind==='matrix'){
+   for(const id of ['left.low','right.high']){
+    const colors=poses.high.leds[id]?.colors||[];
+    if(!['#19ef9c','#f6df49','#ff5d55'].every(c=>colors.includes(c)))
+     throw Error('M2 missing green-yellow-red physical LED ramp: '+id+' '+colors);
+   }
+  }
+  report.tests.push({preset:kind+'-M2-3D-amplitude-sequence',status:'pass',
+   source:'deterministic visual signal injection (not a WAV)',
+   snapshots:poses});
+ }
  const b64=await page.evaluate(()=>window.MARK_VISUAL_API.exportGlb());
  const glb=Buffer.from(b64,'base64'),parsed=parseGlb(glb).json;
  if(parsed.meshes.length<70||parsed.materials.length<10||parsed.nodes.length<75)
