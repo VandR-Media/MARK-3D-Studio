@@ -11,7 +11,7 @@
 - `src/pro-studio/rigged-glb-audit.js` runs a strict headless semantic audit: buffer bounds, vertex/skin/morph attributes, weight sum, joint palette range, node cycles, invalid animations, embedded image sources and unsupported glTF extensions. Diagnostic errors have stable `code` values.
 - `src/pro-studio/rigpack-preview.js` makes and reopens a minimal two-file **ZIP STORE** archive with `manifest.json` plus unmodified `assets/source.glb`, SHA-256 and CRC32 checks, bounded sizes and exact path checks. Archive extension: **`.markrigpack`**. It is explicitly **not** the production `.markscene` v3 format.
 - `scripts/pro-studio-rig-roundtrip.mjs` runs headless source→pack→unpack→source-export and writes `qa-report.json` with separate `pass`, `skip` and `fail` statuses and hashes.
-- `tests/pro-studio-release1.test.mjs` exercises rigged/static fixtures, malformed rig data, unsupported extensions, archive tampering and the unchanged legacy v2 rejection policy.
+- `tests/pro-studio-release1.test.mjs` exercises rigged/static fixtures, malformed rig data, unsupported extensions, archive tampering, actual binary corruption of weights/joints/timestamps and the unchanged legacy v2 rejection policy.
 
 ## 2. How to reproduce locally
 
@@ -34,7 +34,7 @@ dist/pro-studio/release1-preview/source-roundtrip.glb
 dist/pro-studio/release1-preview/qa-report.json
 ```
 
-**Local isolated execution (18 November 2026):** 9/9 Node tests passed; a separate trimesh parser could open both generated GLBs; the rigged file's SHA-256 is `6dc4767967de98079ba0b102e5ef13f8eb93e5902a508de87cc4de78b402608a`. This is not a GitHub Actions pass for a committed branch until a CI run is executed at its current HEAD.
+**Local isolated execution (18 November 2026):** 10/10 Node tests passed; a separate trimesh parser could open both generated GLBs; the rigged file's SHA-256 is `6dc4767967de98079ba0b102e5ef13f8eb93e5902a508de87cc4de78b402608a`. This is not a GitHub Actions pass for a committed branch until a CI run is executed at its current HEAD.
 
 ## 3. Verified and not verified
 
