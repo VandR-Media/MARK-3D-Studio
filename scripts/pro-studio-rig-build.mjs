@@ -52,6 +52,11 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <section aria-label="Минимальные редактируемые параметры">
 <label>Положение X <input id="rig-x" type="range" min="-.7" max=".7" step=".02" value="0"></label>
 <label>PBR шероховатость <input id="rig-rough" type="range" min=".05" max="1" step=".01" value=".6"></label></section>
+<section aria-label="Экспериментальный локальный MARK AI Bridge">
+<label><input type="checkbox" id="bridge-write-grant"> Разрешить локальные изменения через AI Bridge</label>
+<button id="bridge-demo">Проверить AI Bridge: изменение → рендер → сохранение</button>
+</section>
+<p id="bridge-output" class="sub" role="status">AI Bridge работает только внутри этой страницы, без HTTP-сервера и доступа к сети.</p>
 <section><label for="timeline">Таймлайн</label><input type="range" id="timeline" min="0" max="12000" step="10" value="0">
 <output id="readout">0.00 s</output></section>
 <section class="views" aria-label="Проверка ракурсов">
@@ -62,7 +67,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <footer>Демонстрационный QUAD с 70 костями, 2 морфами и 3 анимациями — технический тест, не Neon Boy.
 HTML полностью автономный, без внешних загрузок. Экспериментальный .markscene v3-preview
 сохраняет исходный GLB отдельно от изменений TRS/PBR и выбранного клипа. Не редактирует вершины,
-веса, кости, морф-геометрию или UV. Не является production .markscene v3.
+веса, кости, морф-геометрию или UV. Не является production .markscene v3. AI Bridge здесь — in-process preview, без сетевого API и без возможности создания меша.
 Проверки WebGL2/GLTFExporter и устройство Huawei должны подтверждаться отдельными отчётами.
 Статический Visual Engine v2 и его запрет импорта анимированных GLB не изменены.</footer>
 </main>
