@@ -449,6 +449,89 @@ try{
   caveat:'experimental indexed triangles, NOT full sculpt or Blender'
  };
 
+ // P8 acceptance: actual user pointer gesture hits real SkinnedMesh / GLTF
+ // geometry, selects a vertex and then a triangle by geometry ID; normals
+ // are rewritten in BIN and reopen from native project.
+ await page.evaluate(async bytes=>{
+  await window.MARK_RIG_VIEWER_API.loadBinary(new Uint8Array(bytes));
+ },Array.from(inputRig.bytes));
+ await page.locator('#bridge-write-grant').check();
+ await page.locator('#mesh-open').click();
+ await page.locator('#mesh-pick-toggle').click();
+ const vertex=await page.evaluate(()=>
+  window.MARK_MESH_PICK_API.projectVertex(0,2));
+ const face=await page.evaluate(()=>
+  window.MARK_MESH_PICK_API.projectFace(0,0));
+ const box=await page.locator('#viewport').boundingBox();
+ const vx=vertex.x*.88+face.x*.12,vy=vertex.y*.88+face.y*.12;
+ await page.mouse.click(box.x+vx,box.y+vy);
+ const pickedVertex=await page.evaluate(()=>
+  window.MARK_MESH_PICK_API.selection());
+ assertTest('RIG-MESH-PICK-VERTEX-024',
+  pickedVertex?.mode==='vertex'&&
+  pickedVertex.meshId==='gltf-mesh-0'&&
+  Number.isInteger(pickedVertex.vertex)&&
+  Number(document.getElementById('mesh-a')?.value??-1)>=0,
+  {projected:vertex,hit:pickedVertex},
+  'Pointer click failed to select actual skinned glTF vertex');
+ await page.locator('#mesh-pick-mode').selectOption('face');
+ await page.mouse.click(box.x+face.x,box.y+face.y);
+ const pickedFace=await page.evaluate(()=>
+  window.MARK_MESH_PICK_API.selection());
+ assertTest('RIG-MESH-PICK-FACE-025',
+  pickedFace?.mode==='face'&&pickedFace.meshId==='gltf-mesh-0'&&
+  pickedFace.face===0,
+  {faceProjection:face,hit:pickedFace},
+  'Pointer click did not select actual indexed triangle face');
+ await canvasShot(page,'pass8-real-raycast-face-selection.png',
+  {purpose:'real WebGL2 picked triangle overlay',selection:pickedFace});
+ // Face flip followed by normal recomputation is an actual topology/winding
+ // + per-vertex Float32 NORMAL rewrite, both saved in the native archive.
+ await page.locator('#mesh-op').selectOption('face.flip');
+ await page.locator('#mesh-apply').click();
+ await page.locator('#mesh-op').selectOption('normal.recalculate');
+ await page.locator('#mesh-apply').click();
+ const nativeFromRealPicker=await page.evaluate(async()=>{
+  const api=window.MARK_AI_BRIDGE;
+  const req=async(method,params={})=>{
+   const r=await api.request({requestId:'pass8.'+method,method,params});
+   if(!r.ok)throw Error(method+': '+JSON.stringify(r.diagnostics));
+   return r.result;
+  };
+  const stats=await req('mesh.getStats',{meshId:'gltf-mesh-0'});
+  const saved=await req('scene.save');
+  const exported=await req('scene.export');
+  return{stats,project:Array.from(saved.data),glb:Array.from(exported.data),
+   revision:api.getSnapshot().revision};
+ });
+ const pass8Native=put('pass8-picked-normals.markscene',
+  Buffer.from(nativeFromRealPicker.project));
+ const pass8Export=put('pass8-picked-normals.glb',
+  Buffer.from(nativeFromRealPicker.glb));
+ const originalDoc=parseGlb(inputRig.bytes).json;
+ const p8Doc=parseGlb(Buffer.from(nativeFromRealPicker.glb)).json;
+ const oldNormal=originalDoc.meshes[0].primitives[0].attributes.NORMAL;
+ const newNormal=p8Doc.meshes[0].primitives[0].attributes.NORMAL;
+ const reopenedPass8=await openPreviewMarkscene(Buffer.from(nativeFromRealPicker.project));
+ assertTest('RIG-MESH-NORMAL-NATIVE-026',
+  newNormal!==oldNormal&&
+  reopenedPass8.sourceSha256===SHA(inputRig.bytes)&&
+  reopenedPass8.edits.meshOperations.map(x=>x.kind).join('|')===
+   'face.flip|normal.recalculate'&&
+  nativeFromRealPicker.stats.conflictingWindingEdges===1&&
+  inspectRiggedGlb(Buffer.from(nativeFromRealPicker.glb)).skins[0].joints===70,
+  {sourceSha:reopenedPass8.sourceSha256,sourceAccessor:oldNormal,
+   rewrittenNormalAccessor:newNormal,stats:nativeFromRealPicker.stats,
+   archive:pass8Native,glb:pass8Export},
+  'Normal recalc did not actually rewrite BIN and preserve native skeleton');
+ await canvasShot(page,'pass8-real-normal-recalculation.png',
+  {purpose:'real WebGL2 recalculated normals after selected face flip'});
+ json.meshPicking={source:'actual browser pointer / Three.Raycaster',
+  selectedVertex:pickedVertex,selectedFace:pickedFace,
+  normalAccessor:{before:oldNormal,after:newNormal},
+  nativeProject:pass8Native,exportedGlb:pass8Export,
+  originalSourceSha256:SHA(inputRig.bytes)};
+
  // Restore the original fixture for independently reproducible MP4 frames.
  await page.evaluate(async bytes=>{
   await window.MARK_RIG_VIEWER_API.loadBinary(new Uint8Array(bytes));
