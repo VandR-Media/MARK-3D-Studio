@@ -491,6 +491,21 @@ for(const [id,method] of [['mesh-undo','history.undo'],['mesh-redo','history.red
  });
 }
 
+for(const [id,method,type,name] of [
+ ['mesh-save','scene.save','application/zip','MARK-Mesh-Edit-v3-preview.markscene'],
+ ['mesh-export','scene.export','model/gltf-binary','MARK-Mesh-Edit-Real-Geometry.glb']
+]){
+ byId(id).addEventListener('click',async()=>{
+  try{
+   if(!meshSession)throw Error('Сначала откройте Edit Mode.');
+   const file=await meshCall(method);
+   download(file.data,name,type);
+   meshOutput().textContent='Экспортирован настоящий '+name+
+    ', '+file.bytes+' байт, SHA-256 '+file.sha256.slice(0,16)+'.';
+  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+ });
+}
+
 window.addEventListener('resize',resize);resize();
 requestAnimationFrame(frame);
 if(window.MARK_EMBEDDED_RIG_BASE64){
