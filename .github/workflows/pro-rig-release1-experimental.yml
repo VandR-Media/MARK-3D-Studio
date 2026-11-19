@@ -39,6 +39,10 @@ jobs:
           node --check tests/pro-studio-release1-v3.test.mjs
           node --check src/pro-studio/glb-texture-qa.js
           node --check src/pro-studio/ai-bridge-core.js
+          node --check scripts/pro-studio-ai-bridge-cli.mjs
+          node --check scripts/pro-studio-complex-rig-fixture.mjs
+          node --check scripts/pro-studio-complex-rig-accept.mjs
+          node --check tests/pro-studio-complex-rig.test.mjs
           node --check tests/pro-studio-ai-bridge.test.mjs
           node --check tests/pro-studio-texture-qa.test.mjs
           node --check scripts/pro-studio-external-neon-qa.mjs
@@ -49,6 +53,7 @@ jobs:
           node --test tests/pro-studio-release1-v3.test.mjs
           node --test tests/pro-studio-texture-qa.test.mjs
           node --test tests/pro-studio-ai-bridge.test.mjs
+          node --test tests/pro-studio-complex-rig.test.mjs
           npm run test:visual-v2
       - name: Build genuine fixture, secure archive and offline Three.js viewer
         run: |
@@ -56,11 +61,17 @@ jobs:
           npm run pro:rig:qa
           npm run pro:rig:viewer
           npm run pro:rig:native
+          npm run pro:rig:complex
+          npm run pro:rig:bridge
       - name: Install Chromium WebGL2 (video encoded by browser MediaRecorder)
         timeout-minutes: 8
         run: npx playwright install chromium
       - name: Capture real skinned poses, morphs, 3 clips, viewpoints, animated GLB export and frames
         run: npm run pro:rig:accept
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Capture 12-skinned-mesh 70-bone 3-clip/2-morph real WebGL2 frames and native roundtrip
+        run: npm run pro:rig:complex:accept
         env:
           MARK_SOURCE_SHA: ${{ github.sha }}
       - name: Locate short-lived external Neon Boy GLB from earlier owner repo run
@@ -92,6 +103,8 @@ jobs:
             dist/pro-studio/release1-preview/**
             dist/pro-studio/native-scene/**
             dist/pro-studio/external-benchmark/**
+            dist/pro-studio/ai-bridge-cli/**
+            dist/pro-studio/complex-rig/**
             dist/pro-studio/rig-viewer-offline.html
             dist/pro-studio/acceptance/**
           if-no-files-found: warn
