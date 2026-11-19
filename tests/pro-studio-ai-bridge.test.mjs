@@ -36,7 +36,8 @@ test('AI Bridge capability discovery is honest, stable, no network or sculpt cla
  assert.ok(r.result.supported.includes('scene.save'));
  assert.ok(r.result.supported.includes('mesh.edit'));
  assert.ok(r.result.supported.includes('mesh.getStats'));
- assert.ok(!r.result.supported.includes('mesh.create'));
+ assert.ok(r.result.supported.includes('mesh.create'));
+ assert.ok(r.result.supported.includes('scene.new'));
  assert.ok(!r.result.supported.includes('render.capture'));
  assert.match(r.result.transport,/in-process/);
  assert.ok(r.result.unsupported.includes('network transport'));
@@ -65,7 +66,8 @@ test('read-only authorization prevents uploads, edits, transactions and audit lo
 test('client receives structured diagnostic for unsupported methods, non UUIDs and bad uploads',async()=>{
  const b=await opened();
  expectError(await api(b,'mesh.edit',{script:'eval("foo")'}),'MESH_TARGET');
- expectError(await api(b,'mesh.create',{script:'eval("foo")'}),'UNSUPPORTED_OPERATION');
+ expectError(await api(b,'mesh.create',{script:'eval("foo")'}),'MESH_CREATE_ARGS');
+ expectError(await api(b,'modifier.add',{script:'eval("foo")'}),'UNSUPPORTED_OPERATION');
  expectError(await api(b,'object.setTransform',{
   uuid:'SkinnedQuad',transform:{translation:[.2,0,0]}
  }),'INVALID_UUID');
