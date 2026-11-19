@@ -9,17 +9,20 @@
  * must upload binary explicitly, not stringify it to untrusted JSON).
  */
 import {parseGlb} from '../glb.js';
+import {getMeshEditStats,validateMeshOperation} from './mesh-edit-core.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,
  exportEditedSourceGlb,sha256} from './markscene-v3-preview.js';
 
 export const BRIDGE_VERSION='mark.ai-bridge/0.1-preview';
-const LIMITS=Object.freeze({maxAssetBytes:64*1024*1024,maxAssets:8,maxAudit:500,
+const LIMITS=Object.freeze({maxAssetBytes:64*1024*1024,
+ maxTotalAssetBytes:96*1024*1024,maxAssets:8,maxAudit:500,
  maxUndo:32,maxRequestString:256,maxBatchCommands:64});
 const OP_NAMES=[
  'studio.getCapabilities','studio.getVersion',
  'asset.upload','asset.list','scene.open','scene.getHierarchy',
  'scene.getMaterials','scene.validate','scene.save','scene.export',
  'object.setTransform','material.setPbr','animation.preview',
+ 'mesh.getStats','mesh.edit',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
 ];
@@ -137,12 +140,14 @@ export function createAiBridge({
    scene:'single imported GLB or markscene v3-preview',
    object:'existing glTF node TRS only, stable gltf-node-N UUID',
    material:'existing PBR factors only, gltf-material-N stable ID',
+   mesh:'indexed triangle glTF primitive vertex.move / edge.split / face.flip / face.delete; real BIN revisions',
    animation:'existing clip selection/time only',
    transactions:'one active transaction, commit/rollback, 32 undo/redo snapshots',
    render:typeof adapter.capture==='function'?'real viewport via renderer adapter':'unsupported',
    camera:typeof adapter.camera==='function'?'provided viewport adapter':'unsupported'
   },
-  unsupported:['mesh.create','mesh.edit','rig.setWeights','rig.solveIK',
+  unsupported:['mesh.create','mesh.bevel','mesh.boolean','mesh.uvUnwrap',
+   'mesh.ngon','mesh.sculpt','rig.setWeights','rig.solveIK',
    'animation.setKeys','texture.assign','uv.unwrap','audio.analyze',
    'scene.new','jobs','network transport','production .markscene v3',
    'multi-scene','independent procedural artist'],
@@ -202,6 +207,9 @@ export function createAiBridge({
   'asset.upload':async params=>{
    assertGrant();guard(plain(params),'INVALID_ARGUMENT','asset.upload requires params');
    guard(engine.assets.size<LIMITS.maxAssets,'ASSET_LIMIT','Too many assets');
+   const occupied=[...engine.assets.values()].reduce((sum,a)=>sum+a.byteLength,0);
+   guard(occupied+(params?.data?.byteLength||0)<=LIMITS.maxTotalAssetBytes,
+    'TOTAL_ASSET_QUOTA','Aggregate in-process asset budget exceeded (96 MiB)');
    guard(['glb','markscene'].includes(params.type),'ASSET_TYPE',
     'Only glb and markscene supported by current profile');
    guard(typeof params.name==='string'&&params.name.length<=LIMITS.maxRequestString,
@@ -285,6 +293,34 @@ export function createAiBridge({
    guard(id<(doc.materials||[]).length,'MATERIAL_NOT_FOUND','Unknown glTF material ID');
    const fields=normalizePbr(params?.pbr),key=String(id);
    edits.materialPbr[key]={...(edits.materialPbr[key]||{}),...fields};
+  }),
+  'mesh.getStats':async params=>{
+   assertScene();
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primIndex=params?.primitiveIndex??0;
+   const stats=getMeshEditStats(engine.opened.sourceGLB,
+    meshIndex,primIndex,selectedEdits().meshOperations||[]);
+   return {meshId:params.meshId,topologyRevision:
+    (selectedEdits().meshOperations||[]).filter(x=>x.meshIndex===meshIndex).length,
+    ...stats,mode:'real binary glTF indexed triangle editing (preview)'};
+  },
+  'mesh.edit':async params=>mutate(edits=>{
+   guard(params&&typeof params.meshId==='string',
+    'MESH_TARGET','Mesh ID is required');
+   const meshIndex=stableUuid(params.meshId,'gltf-mesh-');
+   const primIndex=params.primitiveIndex??0;
+   guard(Number.isInteger(primIndex)&&primIndex>=0,
+    'MESH_TARGET','Primitive index must be nonnegative');
+   guard(plain(params.operation),'MESH_OPERATION','Expected typed operation');
+   const operation={...copy(params.operation),meshIndex,
+    primitiveIndex:primIndex};
+   const existing=edits.meshOperations||[];
+   guard(existing.length<32,'MESH_EDIT_LIMIT',
+    'Preview native project supports up to 32 geometry edits');
+   // Validation applies the real glTF BIN kernel to a temporary copy,
+   // not a fake metadata transform; failure cannot poison transaction.
+   const next=validateMeshOperation(engine.opened.sourceGLB,existing,operation);
+   edits.meshOperations=next.operations;
   }),
   'animation.preview':async params=>mutate(edits=>{
    const doc=glbDoc();
