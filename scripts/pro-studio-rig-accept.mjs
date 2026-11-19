@@ -9,6 +9,7 @@ import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {inspectRiggedGlb} from '../src/pro-studio/rigged-glb-audit.js';
 import {compareGlbSemantics} from '../src/pro-studio/glb-semantic-diff.js';
+import {compareGlbTextures} from '../src/pro-studio/glb-texture-qa.js';
 import {openPreviewMarkscene} from '../src/pro-studio/markscene-v3-preview.js';
 import {buildRiggedFixture} from './pro-studio-glb-fixtures.mjs';
 
@@ -133,6 +134,13 @@ try{
  const gltfComparison=compareGlbSemantics(buildRiggedFixture().bytes,exportBytes);
  json.numericalDiagnostics.push({profile:'independent-threejs-exporter',
   ...gltfComparison});
+ const threeTexture=compareGlbTextures(buildRiggedFixture().bytes,exportBytes);
+ json.textureDiagnostics=[{profile:'threejs-exporter',...threeTexture}];
+ assertTest('RIG-TEXTURE-015',
+  threeTexture.status==='pass_supported_png'&&threeTexture.stats.pixelsCompared===4,
+  {status:threeTexture.status,stats:threeTexture.stats,errors:threeTexture.errors,
+   unverified:threeTexture.unverified},
+  'GLTFExporter changed actual decoded PNG pixels, PBR slot, UV selector or sampler');
  const baseline=await page.evaluate(async()=>{
   window.MARK_RIG_VIEWER_API.selectClip(2);
   window.MARK_RIG_VIEWER_API.seek(6);
@@ -195,6 +203,13 @@ try{
  const editsNumeric=compareGlbSemantics(inputRig.bytes,editedGlb,{
   allowEditedNodes:['SkinnedQuad'],allowEditedMaterials:[0]});
  json.numericalDiagnostics.push({profile:'v3-preview-edits-only',...editsNumeric});
+ const editedTexture=compareGlbTextures(inputRig.bytes,editedGlb);
+ json.textureDiagnostics.push({profile:'native-edited-glb',...editedTexture});
+ assertTest('RIG-TEXTURE-016',
+  editedTexture.status==='pass_supported_png'&&editedTexture.stats.pixelsCompared===4,
+  {status:editedTexture.status,stats:editedTexture.stats,
+   errors:editedTexture.errors,unverified:editedTexture.unverified},
+  'Native .markscene reopen/export changed actual decoded PNG pixels or UV/sampler');
  json.exports.push({...editedGlbFile,origin:'experimental-v3-preview-edited-project',
   numericProfile:editsNumeric.status});
  assertTest('RIG-V3-EXPORT-013',
