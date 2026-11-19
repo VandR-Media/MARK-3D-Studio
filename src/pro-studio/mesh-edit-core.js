@@ -92,8 +92,12 @@ function append(ctx,data,{type,componentType,target:usage}){
   count:data.length,type};
  if(type==='VEC3'&&componentType===5126&&data.length&&usage===34962){
   // glTF POSITION accessors require min/max after geometry editing.
-  meta.min=[0,1,2].map(axis=>Math.min(...data.map(row=>row[axis])));
-  meta.max=[0,1,2].map(axis=>Math.max(...data.map(row=>row[axis])));
+  const lower=[Infinity,Infinity,Infinity],upper=[-Infinity,-Infinity,-Infinity];
+  for(const row of data)for(let axis=0;axis<3;axis++){
+   lower[axis]=Math.min(lower[axis],row[axis]);
+   upper[axis]=Math.max(upper[axis],row[axis]);
+  }
+  meta.min=lower;meta.max=upper;
  }
  ctx.doc.accessors.push(meta);ctx.bin=next;return accIndex;
 }
@@ -113,7 +117,7 @@ function indices(ctx,primitive){
 function writeIndices(ctx,prim,values,componentType){
  guard(values.length>=3&&values.length%3===0&&values.length<=MAX_INDICES,
   'FACE_COUNT','Indexed triangle mesh cannot become empty');
- const max=Math.max(...values);
+ let max=0;for(const n of values){if(n>max)max=n;}
  const type=max>65535?5125:max>255?5123:componentType;
  prim.indices=append(ctx,values.map(n=>[n]),{type:'SCALAR',
   componentType:type===5121&&max>255?5123:type,target:34963});
