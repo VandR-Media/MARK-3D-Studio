@@ -9,6 +9,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {parseGlb} from '../glb.js';
+import {createAiBridge} from './ai-bridge-core.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,exportEditedSourceGlb} from './markscene-v3-preview.js';
 
 const byId=id=>document.getElementById(id);
@@ -355,6 +356,86 @@ window.MARK_RIG_VIEWER_API={
   actualHardwareUnverified:true};},
  transport:()=>({sourceBytes:sourceBytes?.length||0,loadedName})
 };
+
+/**
+ * AI Bridge connects to THE SAME real local WebGL2 renderer. There is no
+ * HTTP listener. Mutations require the user's visible checkbox grant.
+ */
+const bridge=createAiBridge({
+ appVersion:'0.7.0-alpha.0',buildHash:'experimental-branch-no-reproducible-hash',
+ allowWrites:()=>byId('bridge-write-grant')?.checked===true,
+ adapter:{
+  openGLB:async(bytes,context={})=>{
+   await loadBinary(bytes,'MARK AI Bridge committed GLB');
+   const select=context.edits?.selection||{};
+   const clip=Math.min(select.clipIndex||0,parsed.animations.length-1);
+   selectClip(clip);
+   seek(Math.min(select.timeSeconds||0,parsed.animations[clip].duration));
+  },
+  camera:async view=>centerView(view),
+  capture:async ({view,timeSeconds})=>{
+   if(!parsed)throw Error('No glTF loaded in real renderer');
+   const idx=Math.min(bridge.getSnapshot().edits?.selection?.clipIndex||0,
+    parsed.animations.length-1);
+   selectClip(idx);seek(Math.min(timeSeconds,parsed.animations[idx].duration));
+   centerView(view);renderer.render(world,camera);
+   const encoded=canvas.toDataURL('image/png').split(',')[1];
+   if(!encoded)throw Error('WebGL2 toDataURL capture is empty');
+   const binary=atob(encoded);
+   const output=Uint8Array.from(binary,c=>c.charCodeAt(0));
+   return {data:output,width:canvas.width,height:canvas.height,
+    renderer:'Three.js WebGL2 / connected live viewer, not Huawei device'};
+  }
+ }
+});
+window.MARK_AI_BRIDGE={
+ request:request=>bridge.request(request),
+ getSnapshot:()=>bridge.getSnapshot(),
+ getAudit:()=>bridge.getAudit()
+};
+byId('bridge-demo').addEventListener('click',async()=>{
+ const outcome=byId('bridge-output');
+ outcome.textContent='Выполняется локальная транзакция…';
+ let seq=0,assetId=null,tx=null;
+ const doCall=async(method,params={})=>{
+  const reply=await bridge.request({requestId:'ui.'+(++seq),method,params});
+  if(!reply.ok)throw Error(reply.diagnostics[0]?.code+': '+
+   reply.diagnostics[0]?.message);
+  return reply.result;
+ };
+ try{
+  if(!byId('bridge-write-grant').checked)
+   throw Error('Разрешите изменения через флажок AI Bridge.');
+  if(!sourceBytes)throw Error('Сначала откройте GLB.');
+  const upload=await doCall('asset.upload',{
+   name:'local-rig-from-ui.glb',type:'glb',data:sourceBytes
+  });assetId=upload.assetId;
+  await doCall('scene.open',{assetId});
+  const started=await doCall('transaction.begin');tx=started.transactionId;
+  await doCall('object.setTransform',{uuid:'gltf-node-1',
+   transform:{translation:[.25,0,0]}});
+  await doCall('material.setPbr',{materialId:'gltf-material-0',
+   pbr:{roughnessFactor:.27}});
+  await doCall('animation.preview',{clipIndex:Math.min(2,parsed.animations.length-1),
+   timeSeconds:Math.min(3,parsed.animations[0].duration)});
+  const commit=await doCall('transaction.commit',{transactionId:tx});tx=null;
+  const shot=await doCall('render.capture',{view:'threequarter',timeSeconds:3});
+  const saved=await doCall('scene.save');
+  const exported=await doCall('scene.export');
+  download(shot.data,'MARK-AI-Bridge-REAL-WebGL2.png','image/png');
+  download(saved.data,'MARK-AI-Bridge-Editable.markscene','application/zip');
+  outcome.textContent='Сделано: revision '+commit.revision+
+   ', настоящее WebGL2 '+shot.width+'×'+shot.height+
+   ', scene SHA '+saved.sha256.slice(0,12)+
+   ', GLB SHA '+exported.sha256.slice(0,12)+
+   '. Получены PNG и .markscene. API доступен только в этой странице.';
+ }catch(error){
+  if(tx)await bridge.request({requestId:'ui.rollback',method:'transaction.rollback',
+   params:{transactionId:tx}});
+  outcome.textContent='Ошибка AI Bridge: '+String(error?.message||error);
+ }
+});
+
 window.addEventListener('resize',resize);resize();
 requestAnimationFrame(frame);
 if(window.MARK_EMBEDDED_RIG_BASE64){
