@@ -575,7 +575,9 @@ try{
  const beforePrimitive=await canvasShot(page,'pass8-box-from-empty-real-webgl.png',
   {purpose:'real P8 original procedural box from empty Studio scene'});
  await page.locator('#primitive-shape').selectOption('uv-sphere');
- await page.locator('#primitive-size').fill('.7');
+ // A 0.7m sphere is entirely hidden INSIDE the opaque 1.6m cube.
+ // Use a larger sphere so the new mesh is externally visible in WebGL2.
+ await page.locator('#primitive-size').fill('2.4');
  await page.locator('#primitive-segments').fill('10');
  await page.locator('#primitive-add').click();
  await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot().
