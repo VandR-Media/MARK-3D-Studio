@@ -57,6 +57,18 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="bridge-demo">Проверить AI Bridge: изменение → рендер → сохранение</button>
 </section>
 <p id="bridge-output" class="sub" role="status">AI Bridge работает только внутри этой страницы, без HTTP-сервера и доступа к сети.</p>
+<section aria-label="Создание собственной модели с пустой сцены">
+<label>Примитив <select id="primitive-shape">
+<option value="box">Куб</option><option value="plane">Плоскость</option>
+<option value="grid">Сетка</option><option value="uv-sphere">UV-сфера</option>
+<option value="cylinder">Цилиндр</option>
+</select></label>
+<label>Размер <input type="number" id="primitive-size" min=".01" max="50" step=".1" value="1" style="max-width:75px"></label>
+<label>Сегменты <input type="number" id="primitive-segments" min="3" max="48" step="1" value="12" style="max-width:65px"></label>
+<button id="primitive-new">Новая сцена без Blender</button>
+<button id="primitive-add">Добавить примитив в сцену</button>
+</section>
+<p id="primitive-output" class="sub" role="status">Примитивы создаются оригинальным ядром MARK: GLB POSITION/NORMAL/UV/indices, без внешних моделей. Для записи нужно разрешение AI Bridge.</p>
 <section aria-label="Выделение элементов в настоящем 3D-окне">
 <button id="mesh-pick-toggle" aria-pressed="false">Выделение в 3D: выключено</button>
 <label>Тип выбора <select id="mesh-pick-mode">
@@ -98,7 +110,9 @@ HTML полностью автономный, без внешних загруз
 веса, кости, морф-геометрию или UV. Не является production .markscene v3. Mesh Edit Mode P7 поддерживает только
 индексированные треугольники и четыре ограниченные операции; не поддерживает N-gons,
 полный весовой скульпт. Реализованы начальный Raycaster выбор элемента в 3D и
-пересчёт усреднённых area-weighted нормалей только для индексированных треугольников. AI Bridge здесь — in-process preview, без сетевого API и без возможности создания меша.
+пересчёт усреднённых area-weighted нормалей только для индексированных треугольников. AI Bridge здесь — in-process preview, без сетевого API. Новые плоскости, кубы,
+сетки, UV-сферы и цилиндры создаются собственным процедурным ядром,
+но полные N-gons, скульптинг и weight paint ещё не поддерживаются.
 Проверки WebGL2/GLTFExporter и устройство Huawei должны подтверждаться отдельными отчётами.
 Статический Visual Engine v2 и его запрет импорта анимированных GLB не изменены.</footer>
 </main>
