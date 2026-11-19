@@ -50,6 +50,7 @@ jobs:
           name: Organic-Base-Probe
           path: |
             output/probe.json
+            human.glb
             outputlog.txt
           if-no-files-found: warn
           retention-days: 21
