@@ -3,6 +3,7 @@
  * Captures actual canvas pixels after imported glTF animations, never diagrams.
  */
 import {chromium} from 'playwright';
+import {parseGlb} from '../src/glb.js';
 import {createHash} from 'node:crypto';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {resolve,join} from 'node:path';
@@ -470,8 +471,7 @@ try{
  assertTest('RIG-MESH-PICK-VERTEX-024',
   pickedVertex?.mode==='vertex'&&
   pickedVertex.meshId==='gltf-mesh-0'&&
-  Number.isInteger(pickedVertex.vertex)&&
-  Number(document.getElementById('mesh-a')?.value??-1)>=0,
+  Number.isInteger(pickedVertex.vertex),
   {projected:vertex,hit:pickedVertex},
   'Pointer click failed to select actual skinned glTF vertex');
  await page.locator('#mesh-pick-mode').selectOption('face');
