@@ -41,8 +41,13 @@ jobs:
       - name: Inspect and render rigged character
         run: |
           blender --background --threads 2 --python tools/neon_reference_v5.py 2>&1 | tee outputlog.txt
-          grep -q V5_SOURCE_PROBE_COMPLETE outputlog.txt
-          test -s output/source_front.png
+          grep -q NEON_V5_FINAL_SUCCESS outputlog.txt
+          test -s output/render_front.png
+          test -s output/render_side.png
+          test -s output/render_back.png
+          test -s output/NEON_BOY_V5_DANCE.glb
+          test -s output/NEON_BOY_V5_STATIC.glb
+          test -s output/NEON_BOY_V5_MASTER.blend
       - name: Evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,7 +55,6 @@ jobs:
           name: Source-Research
           path: |
             output/
-            teen_rigged.glb
             outputlog.txt
           if-no-files-found: warn
           retention-days: 15
