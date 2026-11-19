@@ -153,6 +153,13 @@ if base:
             white_mask[ylo:yhi+1,xlo:xhi+1] |= inside
             filled_triangles+=1
     nearwhite=(r>.39)&(g>.38)&(b>.35)&(abs(r-g)<.24)
+    # Neutral grey straps share the atlas with garments: recolor those
+    # pixels within cloth UV islands, preserving facial skin and shoes.
+    neutral=(np.abs(r-g)<.095)&(np.abs(g-b)<.095)&(lum>.08)&(lum<.8)
+    neutral_cloth=white_mask&neutral
+    new[neutral_cloth,0]=lum[neutral_cloth]*.12
+    new[neutral_cloth,1]=lum[neutral_cloth]*.14
+    new[neutral_cloth,2]=lum[neutral_cloth]*.22
     cover=white_mask&nearwhite
     new[cover,0]=lum[cover]*.09
     new[cover,1]=lum[cover]*.095
@@ -160,7 +167,7 @@ if base:
     # Also reduce bright denim speckles while preserving source material relief.
     blue_splotch=(blue)&(white_mask)&(lum>.45)
     new[blue_splotch,0]*=.70;new[blue_splotch,1]*=.70;new[blue_splotch,2]*=.70
-    print("FABRIC_UV_MASK",filled_triangles,int(cover.sum()),int(blue_splotch.sum()),flush=True)
+    print("FABRIC_UV_MASK",filled_triangles,int(cover.sum()),int(blue_splotch.sum()),int(neutral_cloth.sum()),flush=True)
     new_img=bpy.data.images.new("NeonBoy_NavyHoodie_CharcoalCargo_PBR",width=width,height=height,alpha=True)
     new_img.pixels.foreach_set(new.reshape(-1));new_img.file_format="PNG"
     new_img.filepath_raw=str(OUT.joinpath("NeonBoy_ColorTexture.png").absolute())
@@ -281,6 +288,31 @@ for i in range(len(W)-1):
     tube("Neon_Chest_Equalizer_%02d"%i,
          [(a[0],-.157,a[1]),(b[0],-.157,b[1])],.0032,
          "lightcyan" if a[0]<.008 else "lightpink","Spine",8)
+# Tailored 3D cargo pockets: thin fabric volumes, flap and stitching.
+# Positioned at the outer upper legs, attached to the leg joints.
+cargo_m=material("Cargo_Pocket_CharcoalTwill","#383C49",rough=.92)
+cargo_seam=material("Cargo_Stitch_Thread","#666A76",rough=.92)
+M["cargo"]=cargo_m;M["cargo_stitch"]=cargo_seam
+for sign,side in [(-1,"Left"),(1,"Right")]:
+    bn=side+"UpLeg"
+    x=sign*.184
+    # pocket flaps sit on outer pant panels; curved corners, not cubes.
+    verts=[
+       (x,-.082,.73),(x+sign*.026,-.065,.73),(x+sign*.032,.035,.73),(x,.056,.73),
+       (x,-.09,.52),(x+sign*.03,-.074,.52),(x+sign*.04,.035,.52),(x,.065,.52)]
+    faces=[(0,1,5,4),(1,2,6,5),(2,3,7,6)]
+    pocket=create("Tailored_Cargo_Pocket_"+side,verts,faces,"cargo",bn)
+    sol=pocket.modifiers.new("Pocket_ClothThickness","SOLIDIFY");sol.thickness=.009
+    tube("Cargo_Pocket_TopSeam_"+side,
+        [(x,-.082,.73),(x+sign*.024,-.068,.742),
+        (x+sign*.032,.038,.742),(x,.059,.73)],.003,"cargo_stitch",bn,8)
+    tube("Cargo_Pocket_Flap_"+side,
+        [(x,-.083,.66),(x+sign*.033,-.072,.67),
+         (x+sign*.04,.035,.67),(x,.063,.66)],.005,"cargo_stitch",bn,8)
+    tube("Cargo_Pocket_BottomSeam_"+side,
+        [(x,-.09,.52),(x+sign*.03,-.074,.512),
+         (x+sign*.04,.035,.512),(x,.065,.52)],.0025,"cargo_stitch",bn,8)
+
 # Animated trim on sleeves. Fashion accessory geometry follows skinning bones.
 for sign,side in [(-1,"Left"),(1,"Right")]:
     for seg,bone,coords in [
@@ -356,8 +388,8 @@ for frame in range(1,152,10):
         if pb:
             pb.rotation_euler=(rx,ry,rz)
             pb.keyframe_insert(data_path="rotation_euler",frame=frame,group=bn)
-    key("Hips",.047*sin(t*2),.05*sin(t),.085*sin(t))
-    key("Spine",.05*sin(t+1),.06*sin(t),.07*sin(t))
+    key("Hips",.07*sin(t*2),.08*sin(t),.13*sin(t))
+    key("Spine",.07*sin(t+1),.07*sin(t),.1*sin(t))
     key("Spine01",.035*sin(t*2+.6),.035*sin(t),.055*sin(t+1))
     key("Spine02",.044*sin(t+.8),.06*sin(t),.07*sin(t+pi/2))
     key("neck",.05*sin(t*2),.035*sin(t),.05*sin(t))
@@ -365,11 +397,11 @@ for frame in range(1,152,10):
     for sign,side in ((-1,"Left"),(1,"Right")):
         q=t+(pi if sign>0 else 0)
         key(side+"Shoulder",.03*sin(q),.04*sin(q),.06*sin(q))
-        key(side+"Arm",.19+.29*sin(q),.075*sin(q),sign*(.16+.30*sin(q+.4)))
-        key(side+"ForeArm",-.27-.24*(.5+.5*sin(q+.6)),.05*sin(q),.06*sin(q))
+        key(side+"Arm",.22+.52*sin(q),.10*sin(q),sign*(.32+.52*sin(q+.4)))
+        key(side+"ForeArm",-.38-.38*(.5+.5*sin(q+.6)),.08*sin(q),.09*sin(q))
         key(side+"Hand",.08*sin(q),.05*sin(q+.8),0)
-        key(side+"UpLeg",.17*sin(q),.03*sin(q),.035*sin(q))
-        key(side+"Leg",-.12-.18*(.5+.5*sin(q+1.4)),0,0)
+        key(side+"UpLeg",.24*sin(q),.035*sin(q),.06*sin(q))
+        key(side+"Leg",-.17-.30*(.5+.5*sin(q+1.4)),0,0)
         key(side+"Foot",.10*sin(q+.3),0,0)
     rig.location=(.036*sin(t),0,.014*(1-cos(t*4)))
     rig.keyframe_insert(data_path="location",frame=frame,group="RootSway")
@@ -415,6 +447,19 @@ for label,pos,frame in [("front",(0,-4.5,1.6),1),("side",(4.5,0,1.6),1),
     cam("CAM_"+label,pos)
     bpy.context.scene.render.filepath=str(OUT.joinpath("render_"+label+".png").absolute())
     bpy.ops.render.render(write_still=True)
+# Real Blender frames from the skeletal dance, for a truthful motion preview.
+# This is a deliberately small Cycles render, not a generated animation.
+saved_resolution=(bpy.context.scene.render.resolution_x,bpy.context.scene.render.resolution_y,bpy.context.scene.cycles.samples)
+bpy.context.scene.render.resolution_x=320
+bpy.context.scene.render.resolution_y=440
+bpy.context.scene.cycles.samples=8
+cam("CAM_DanceMotion",(2.8,-3.7,1.8))
+for i,frame in enumerate((1,26,51,76,101,126,151)):
+    bpy.context.scene.frame_set(frame)
+    bpy.context.scene.render.filepath=str(OUT.joinpath("dance_step_%02d.png"%i).absolute())
+    bpy.ops.render.render(write_still=True)
+bpy.context.scene.render.resolution_x,bpy.context.scene.render.resolution_y,bpy.context.scene.cycles.samples=saved_resolution)
+
 def stats(p):
     raw=p.read_bytes()
     assert raw[:4]==b"glTF" and struct.unpack_from("<I",raw,8)[0]==len(raw)
