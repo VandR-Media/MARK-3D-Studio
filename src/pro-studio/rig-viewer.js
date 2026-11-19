@@ -436,6 +436,61 @@ byId('bridge-demo').addEventListener('click',async()=>{
  }
 });
 
+// Mesh Edit Mode P7: in-process real indexed-triangle binary edit controls.
+let meshSession=false,meshCallSeq=0;
+const meshOutput=()=>byId('mesh-output');
+const meshCall=async(method,params={})=>{
+ const r=await bridge.request({requestId:'mesh.ui.'+(++meshCallSeq),method,params});
+ if(!r.ok)throw Error(r.diagnostics[0]?.code+': '+r.diagnostics[0]?.message);
+ return r.result;
+};
+const meshId=()=> 'gltf-mesh-'+Number(byId('mesh-id').value);
+const meshShow=async(prefix='Mesh Edit')=>{
+ const stats=await meshCall('mesh.getStats',{meshId:meshId()});
+ meshOutput().textContent=prefix+': '+stats.vertexCount+' вершин, '+
+  stats.edgeCount+' рёбер, '+stats.triangleCount+' треугольников, '+
+  stats.morphTargets+' морфа, topology rev '+stats.topologyRevision+
+  '. Настоящий GLB, сохраните проект через AI Bridge.';
+};
+byId('mesh-open').addEventListener('click',async()=>{
+ try{
+  if(!byId('bridge-write-grant').checked)
+   throw Error('Требуется разрешение записи AI Bridge.');
+  if(!sourceBytes)throw Error('Сначала загрузите GLB.');
+  const upload=await meshCall('asset.upload',{
+   name:'mesh-edit-input.glb',type:'glb',data:sourceBytes
+  });
+  await meshCall('scene.open',{assetId:upload.assetId});
+  meshSession=true;await meshShow('Режим геометрии открыт');
+ }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+});
+byId('mesh-apply').addEventListener('click',async()=>{
+ try{
+  if(!meshSession)throw Error('Нажмите «Открыть Edit Mode».');
+  if(!byId('bridge-write-grant').checked)
+   throw Error('Требуется разрешение записи AI Bridge.');
+  const kind=byId('mesh-op').value;
+  const a=Number(byId('mesh-a').value),b=Number(byId('mesh-b').value);
+  const d=['mesh-dx','mesh-dy','mesh-dz'].map(id=>Number(byId(id).value));
+  const operation=kind==='vertex.move'?{kind,vertex:a,delta:d}:
+   kind==='edge.split'?{kind,start:a,end:b,factor:.5}:
+   {kind,face:a};
+  if(kind==='face.delete'&&!window.confirm(
+   'Удалить треугольную грань '+a+' из геометрии? Undo будет доступен.'))return;
+  const result=await meshCall('mesh.edit',{meshId:meshId(),operation});
+  await meshShow(kind+' сохранено, scene rev '+result.revision);
+ }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+});
+for(const [id,method] of [['mesh-undo','history.undo'],['mesh-redo','history.redo']]){
+ byId(id).addEventListener('click',async()=>{
+  try{
+   if(!meshSession)throw Error('Откройте Edit Mode.');
+   await meshCall(method);
+   await meshShow(method);
+  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+ });
+}
+
 window.addEventListener('resize',resize);resize();
 requestAnimationFrame(frame);
 if(window.MARK_EMBEDDED_RIG_BASE64){
