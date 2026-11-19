@@ -155,13 +155,6 @@ export function buildMeshDataSnapshot({
  const capSources=new Set(first?.faces||[]);
  const nonSelected=Array.from({length:originalFaces},(_,i)=>i)
   .filter(i=>!capSources.has(i));
- const outputFaceOrigins=first?[
-  ...nonSelected.map(i=>'source-face-'+i),
-  ...[...first.faces].sort((a,b)=>a-b).map(i=>'cap-face-'+i),
-  ...Array.from({length:(edited.indices.length/3-originalFaces+
-   first.faces.length)/2},(_,i)=>'wall-'+i+'-tri0')
-  // Correct wall triangle names are assigned below by output ordinal.
- ]:[];
  for(let f=0;f<edited.indices.length/3;f++){
   let name='source-face-'+f;
   if(first){
@@ -203,8 +196,8 @@ export function buildMeshDataSnapshot({
    cornerIds.push(cornerId);
    const h={id:edgeHalfedgeId,faceId,cornerId,edgeId,
     origin:logicalVertex,destination:logicalNext,
-    next:'mark-halfedge-'+faceId+'-k'+(k+1)%3,
-    prev:'mark-halfedge-'+faceId+'-k'+(k+2)%3,
+    next:'mark-halfedge-'+faceId+'-k'+((k+1)%3),
+    prev:'mark-halfedge-'+faceId+'-k'+((k+2)%3),
     twin:null};
    halfedges.push(h);
    if(!halfByUndirected.has(edgeId))halfByUndirected.set(edgeId,[]);
@@ -217,6 +210,7 @@ export function buildMeshDataSnapshot({
  const edges=[],badWinding=[],nonManifold=[],uvSeamEdges=[],
   boundaries=[];
  const byCorner=new Map(corners.map(c=>[c.id,c]));
+ const byHalfedge=new Map(halfedges.map(h=>[h.id,h]));
  for(const [id,list] of halfByUndirected){
   if(list.length===2){
    if(list[0].origin===list[1].destination&&
@@ -232,7 +226,7 @@ export function buildMeshDataSnapshot({
     cb=byCorner.get(b.cornerId);
    for(const uvName of uvSets){
     const x=ca.attributes.uvSets[uvName],
-     y=byCorner.get(halfedges.find(h=>h.id===b.next)?.cornerId)
+     y=byCorner.get(byHalfedge.get(b.next)?.cornerId)
       ?.attributes.uvSets[uvName];
     if(y&&x.some((v,k)=>v!==y[k]))uvs.push(uvName);
    }
