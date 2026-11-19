@@ -172,14 +172,22 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
    positions.needsUpdate=true;edgeLine.geometry.computeBoundingSphere();
    edgeLine.visible=true;
   }else{
-   const faces=faceIndices(mesh,selection.face);
-   const positions=faceLine.geometry.getAttribute('position');
-   faces.forEach((i,k)=>{
-    const v=vertexWorld(mesh,i);
-    positions.setXYZ(k,v.x,v.y,v.z);
-   });
-   positions.needsUpdate=true;
-   faceLine.geometry.computeBoundingSphere();faceLine.visible=true;
+   // When a multi-face region is active, the single-hit cyan outline
+   // would reintroduce the INTERNAL diagonal and misrepresent the boundary.
+   const groupIncludesHit=faceRegion&&faceRegion.meshIndex===selection.meshIndex&&
+    faceRegion.primitiveIndex===selection.primitiveIndex&&
+    faceRegion.topology.faces.length>1&&
+    faceRegion.topology.faces.includes(selection.face);
+   if(!groupIncludesHit){
+    const faces=faceIndices(mesh,selection.face);
+    const positions=faceLine.geometry.getAttribute('position');
+    faces.forEach((i,k)=>{
+     const v=vertexWorld(mesh,i);
+     positions.setXYZ(k,v.x,v.y,v.z);
+    });
+    positions.needsUpdate=true;
+    faceLine.geometry.computeBoundingSphere();faceLine.visible=true;
+   }
   }
  }
  function selectAt(x,y,pickMode=mode){
