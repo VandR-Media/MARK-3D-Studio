@@ -589,7 +589,8 @@ const meshShow=async(prefix='Mesh Edit')=>{
   const topology=await meshCall('mesh.getTopology',{meshId:id});
   seamText=' Атрибутных вершин '+topology.attributeVertexCount+
    ', геометрических кандидатов '+topology.geometricVertexCandidates+
-   ', UV-швов '+topology.uvSeamEdges+'.'+
+   ', UV-швов '+topology.uvSeamEdges+', подтверждённых связей '+
+   topology.approvedSeamLinks+'.'+
    (topology.uvSeamEdges?' UV-швы сохранены, автоматическая склейка отключена.':'');
  }catch(error){
   seamText=' Анализ UV-швов: '+String(error?.message||error)+'.';
@@ -649,6 +650,28 @@ byId('mesh-open').addEventListener('click',async()=>{
   await meshShow('Режим геометрии открыт');
  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
 });
+for(const [id,method] of [['mesh-link-seam','mesh.linkSeam'],
+ ['mesh-unlink-seam','mesh.unlinkSeam']]){
+ byId(id).addEventListener('click',async()=>{
+  try{
+   if(!meshSession)throw Error('Сначала откройте Edit Mode.');
+   if(!byId('bridge-write-grant').checked)
+    throw Error('Нужно разрешение записи AI Bridge.');
+   const vertexA=Number(byId('mesh-a').value),
+    vertexB=Number(byId('mesh-b').value);
+   if(!Number.isSafeInteger(vertexA)||vertexA<0||
+    !Number.isSafeInteger(vertexB)||vertexB<0||vertexA===vertexB)
+    throw Error('Укажите два различных целых индекса вершин V1/V2.');
+   if(method==='mesh.linkSeam'&&!window.confirm(
+    'Связать исходные вершины '+vertexA+' и '+vertexB+
+    ' логически? GLB/UV не изменятся; будущие изменения топологии будут заблокированы до удаления связей.'))return;
+   await meshCall(method,{meshId:meshId(),vertexA,vertexB});
+   await meshShow(method==='mesh.linkSeam'?
+    'Подтверждён логический UV-шов (не Weld)':
+    'Логическая связь UV-шва удалена');
+  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+ });
+}
 byId('mesh-apply').addEventListener('click',async()=>{
  try{
   if(!meshSession)throw Error('Нажмите «Открыть Edit Mode».');
