@@ -127,7 +127,8 @@ const vec=(a,size)=>Array.isArray(a)&&a.length===size&&
 function meshStatistics(input,meshIndex=0,primitiveIndex=0){
  const ctx=begin(input),prim=target(ctx,meshIndex,primitiveIndex);
  const {values,positions}=indices(ctx,prim),edges=new Set(),used=new Set();
- let bad=0;
+ const edgeIncidence=new Map(),faceKeys=new Set();
+ let bad=0,duplicateFaces=0;
  for(let i=0;i<values.length;i+=3){
   const a=values[i],b=values[i+1],c=values[i+2];
   used.add(a);used.add(b);used.add(c);
@@ -136,10 +137,22 @@ function meshStatistics(input,meshIndex=0,primitiveIndex=0){
   const area=Math.hypot(ab[1]*ac[2]-ab[2]*ac[1],
    ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]);
   if(area<1e-9)bad++;
-  for(const pair of [[a,b],[b,c],[c,a]])edges.add(pair.sort((x,y)=>x-y).join(':'));
+  const faceKey=[a,b,c].sort((x,y)=>x-y).join(':');
+  if(faceKeys.has(faceKey))duplicateFaces++;else faceKeys.add(faceKey);
+  for(const [from,to] of [[a,b],[b,c],[c,a]]){
+   const key=Math.min(from,to)+':'+Math.max(from,to);
+   edges.add(key);
+   const entry=edgeIncidence.get(key)||{count:0,directions:[]};
+   entry.count++;entry.directions.push(from<to?1:-1);edgeIncidence.set(key,entry);
+  }
  }
+ const boundaryEdges=[...edgeIncidence.values()].filter(e=>e.count===1).length;
+ const nonManifoldEdges=[...edgeIncidence.values()].filter(e=>e.count>2).length;
+ const conflictingWindingEdges=[...edgeIncidence.values()].filter(e=>
+  e.count===2&&e.directions[0]===e.directions[1]).length;
  return {meshIndex,primitiveIndex,vertexCount:positions.length,
   triangleCount:values.length/3,edgeCount:edges.size,
+  boundaryEdges,nonManifoldEdges,conflictingWindingEdges,duplicateFaces,
   unusedVertexCount:positions.length-used.size,
   degenerateTriangles:bad,skinNodes:(ctx.doc.nodes||[]).filter(n=>n.mesh===meshIndex&&n.skin!==undefined).length,
   morphTargets:prim.targets?.length||0,topology:'indexed triangles; no n-gons'};
@@ -148,11 +161,40 @@ function editOnce(ctx,operation){
  guard(operation&&Object.getPrototypeOf(operation)===Object.prototype,
   'OPERATION','Expected typed mesh operation');
  const {kind,meshIndex,primitiveIndex}=operation;
- guard(['vertex.move','edge.split','face.flip','face.delete'].includes(kind),
+ guard(['vertex.move','edge.split','face.flip','face.delete',
+  'normal.recalculate'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  const prim=target(ctx,meshIndex,primitiveIndex);
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
+ if(kind==='normal.recalculate'){
+  const accumulated=Array.from({length:count},()=>[0,0,0]);
+  let zeroArea=0;
+  for(let i=0;i<values.length;i+=3){
+   const [a,b,c]=values.slice(i,i+3);
+   const x=positions[a],y=positions[b],z=positions[c];
+   const u=y.map((q,j)=>q-x[j]),v=z.map((q,j)=>q-x[j]);
+   const cross=[
+    u[1]*v[2]-u[2]*v[1],
+    u[2]*v[0]-u[0]*v[2],
+    u[0]*v[1]-u[1]*v[0]
+   ];
+   if(Math.hypot(...cross)<1e-10){zeroArea++;continue;}
+   for(const index of [a,b,c])for(let k=0;k<3;k++)
+    accumulated[index][k]+=cross[k];
+  }
+  const normals=accumulated.map(n=>{
+   const len=Math.hypot(...n);
+   return len>1e-10?n.map(x=>x/len):[0,0,1];
+  });
+  prim.attributes.NORMAL=append(ctx,normals,
+   {type:'VEC3',componentType:5126,target:34962});
+  // Preexisting tangent frames no longer agree with recomputed normals.
+  // Do not pretend that previous tangents remain valid.
+  if(prim.attributes.TANGENT!==undefined)delete prim.attributes.TANGENT;
+  return {kind,zeroAreaFaces:zeroArea,
+   normalsRecomputed:count,addedVertices:0,addedTriangles:0};
+ }
  if(kind==='vertex.move'){
   guard(nat(operation.vertex)&&operation.vertex<count,
    'VERTEX','Selected vertex index out of range');
