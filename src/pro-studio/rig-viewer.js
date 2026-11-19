@@ -90,6 +90,8 @@ function collectPose(){
  root?.traverse(node=>{
   if(node.isSkinnedMesh){
    skins.push({mesh:node.name,joints:node.skeleton?.bones?.length||0});
+  }
+  if(node.isMesh){
    meshes.push({name:node.name,morph:(node.morphTargetInfluences||[]).map(Number)});
   }
   if(node.isBone)bones.push({
@@ -148,17 +150,19 @@ async function loadBinary(bytes,name='local-rigged.glb'){
   if(node.isSkinnedMesh)skins.push(node);
   if(node.morphTargetInfluences?.length)morphs.push(node);
  });
- if(!fresh.scene||!skins.length)throw Error('Expected real skin and skinned mesh, not a static/flat image');
- if(!fresh.animations?.length)throw Error('No animation clips in source GLB');
+ if(!fresh.scene||!fresh.scene.children.length)
+  throw Error('GLB scene has no visible nodes');
+ const visibleMeshes=[];fresh.scene.traverse(node=>{if(node.isMesh)visibleMeshes.push(node);});
+ if(!visibleMeshes.length)throw Error('GLB scene contains no renderable geometry');
  const old=root;
  playing=false;root=fresh.scene;parsed=fresh;sourceBytes=data.slice();
  nativeProjectSource=data.slice();nativeProjectOpened=null;
  nativeEdits={nodeTransforms:{},materialPbr:{},selection:{clipIndex:0,timeSeconds:0}};
  const doc=parseGlb(data).json;
  cachedSourceDoc=doc;
- nativeNodeIndex=Math.max(0,doc.nodes.findIndex(x=>x.skin!==undefined));
+ nativeNodeIndex=Math.max(0,doc.nodes.findIndex(x=>x.mesh!==undefined));
  nativeMaterialIndex=0;
- mixer=new THREE.AnimationMixer(root);skinned=skins[0];loadedName=name;
+ mixer=new THREE.AnimationMixer(root);skinned=skins[0]||visibleMeshes[0];loadedName=name;
  world.add(root);if(old)world.remove(old);
  const select=byId('clip');select.replaceChildren();
  parsed.animations.forEach((clip,index)=>{
@@ -167,10 +171,16 @@ async function loadBinary(bytes,name='local-rigged.glb'){
   select.add(option);
  });
  byId('message').dataset.error='no';
- byId('message').textContent='REAL GLB · '+skins.length+' SkinnedMesh · '+
-  skinned.skeleton.bones.length+' bones · '+morphs.length+' morph-enabled mesh · '+
-  parsed.animations.length+' clips. Experimental, not Neon Boy.';
- const state=selectClip(0);centerView('front');
+ byId('message').textContent='REAL GLB · '+visibleMeshes.length+
+  ' mesh · '+skins.length+' skinned · '+
+  (skinned.skeleton?.bones?.length||0)+' bones · '+morphs.length+
+  ' morph-enabled · '+parsed.animations.length+
+  ' clips. Standalone native primitive scenes are supported (preview).';
+ byId('play').disabled=parsed.animations.length===0;
+ byId('clip').disabled=parsed.animations.length===0;
+ byId('timeline').disabled=parsed.animations.length===0;
+ const state=parsed.animations.length?selectClip(0):collectPose();
+ centerView('front');
  byId('rig-x').value=String(skinned.position.x);
  byId('rig-rough').value=String((Array.isArray(skinned.material)?
   skinned.material[0]:skinned.material)?.roughness??.6);
@@ -282,8 +292,10 @@ async function openNativeProject(bytes){
  byId('rig-rough').value=String(savedR??material?.roughness??.6);
  const clip=nativeEdits.selection.clipIndex;
  const time=nativeEdits.selection.timeSeconds;
- selectClip(clip);
- seek(Math.min(parsed.animations[clip].duration,time));
+ if(parsed.animations.length){
+  selectClip(clip);
+  seek(Math.min(parsed.animations[clip].duration,time));
+ }
  byId('message').textContent='Открыт собственный .markscene v3 (эксперимент): original GLB SHA-256 '+
   loaded.sourceSha256.slice(0,12)+' · TRS/PBR правки восстановлены · 3D и анимации сохранены.';
  return {manifest:loaded.manifest,edits:projectEdits(),sourceSha256:loaded.sourceSha256,
@@ -373,16 +385,21 @@ const bridge=createAiBridge({
   openGLB:async(bytes,context={})=>{
    await loadBinary(bytes,'MARK AI Bridge committed GLB');
    const select=context.edits?.selection||{};
-   const clip=Math.min(select.clipIndex||0,parsed.animations.length-1);
-   selectClip(clip);
-   seek(Math.min(select.timeSeconds||0,parsed.animations[clip].duration));
+   if(parsed.animations.length){
+    const clip=Math.min(select.clipIndex||0,parsed.animations.length-1);
+    selectClip(clip);
+    seek(Math.min(select.timeSeconds||0,parsed.animations[clip].duration));
+   }
   },
   camera:async view=>centerView(view),
   capture:async ({view,timeSeconds})=>{
    if(!parsed)throw Error('No glTF loaded in real renderer');
-   const idx=Math.min(bridge.getSnapshot().edits?.selection?.clipIndex||0,
-    parsed.animations.length-1);
-   selectClip(idx);seek(Math.min(timeSeconds,parsed.animations[idx].duration));
+   if(parsed.animations.length){
+    const idx=Math.min(bridge.getSnapshot().edits?.selection?.clipIndex||0,
+     parsed.animations.length-1);
+    selectClip(idx);seek(Math.min(timeSeconds,parsed.animations[idx].duration));
+   }else if(timeSeconds!==0)
+    throw Error('Static primitive has no timeline: capture time must be 0');
    centerView(view);renderer.render(world,camera);
    const encoded=canvas.toDataURL('image/png').split(',')[1];
    if(!encoded)throw Error('WebGL2 toDataURL capture is empty');
