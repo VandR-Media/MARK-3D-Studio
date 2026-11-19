@@ -514,7 +514,9 @@ export function createAiBridge({
   'mesh.moveLinkedCap':async params=>mutate(edits=>{
    const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
    const primitiveIndex=params?.primitiveIndex??0;
-   guard(plain(params)&&Object.keys(params).length===4&&
+   guard(plain(params)&&Object.keys(params).length>=3&&
+    Object.keys(params).length<=4&&
+    ['meshId','capStableId','delta'].every(k=>Object.hasOwn(params,k))&&
     Object.keys(params).every(k=>[
      'meshId','primitiveIndex','capStableId','delta'].includes(k))&&
     Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
