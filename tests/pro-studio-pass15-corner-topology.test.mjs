@@ -9,50 +9,10 @@ import {createPreviewMarkscene,openPreviewMarkscene,exportEditedSourceGlb}
  from '../src/pro-studio/markscene-v3-preview.js';
 import {createAiBridge} from '../src/pro-studio/ai-bridge-core.js';
 import {buildRiggedFixture} from '../scripts/pro-studio-glb-fixtures.mjs';
+import {createSplitSeamFixture,seamPositions,seamIndices,seamNormals,seamUv} from '../scripts/pro-studio-seam-fixture.mjs';
 
-const positions=[
- [-1,-1,0],[1,-1,0],[-1,1,0],[1,1,0],[1,-1,0],[-1,1,0]
-];
-const triangles=[0,1,2,4,3,5]; // geometric shared edge 1:2, distinct attribute rows 4,5
-const uv=[
- [0,0],[1,0],[0,1],[1,1],[.61,.1],[.12,.77]
-];
-const normals=positions.map(()=>[0,0,1]);
-
-function glbWithSeam(){
- const chunks=[],bufferViews=[],accessors=[];
- let byteLength=0;
- const add=(rows,type,componentType,target)=>{
-  const components=type==='SCALAR'?1:type==='VEC2'?2:3;
-  const flat=rows.flat(),width=componentType===5123?2:4;
-  const data=new Uint8Array(flat.length*width),view=new DataView(data.buffer);
-  flat.forEach((v,i)=>componentType===5123?
-   view.setUint16(i*width,v,true):view.setFloat32(i*width,v,true));
-  const byteOffset=byteLength;
-  bufferViews.push({buffer:0,byteOffset,byteLength:data.length,target});
-  chunks.push(data);byteLength+=data.length;
-  accessors.push({bufferView:bufferViews.length-1,
-   componentType,type,count:rows.length});
-  assert.equal(flat.length,components*rows.length);
-  return accessors.length-1;
- };
- const POSITION=add(positions,'VEC3',5126,34962);
- const NORMAL=add(normals,'VEC3',5126,34962);
- const TEXCOORD_0=add(uv,'VEC2',5126,34962);
- const indices=add(triangles.map(i=>[i]),'SCALAR',5123,34963);
- const bin=new Uint8Array(byteLength);
- let offset=0;for(const chunk of chunks){bin.set(chunk,offset);offset+=chunk.length;}
- const doc={
-  asset:{version:'2.0',generator:'MARK Pass15 seam regression fixture'},
-  scene:0,scenes:[{nodes:[0]}],nodes:[{name:'SplitCornerQuad',mesh:0}],
-  meshes:[{primitives:[{mode:4,attributes:{
-   POSITION,NORMAL,TEXCOORD_0
-  },indices}]}],buffers:[{byteLength}],bufferViews,accessors
- };
- return writeGlb({chunks:[{type:0x4e4f534a,data:new Uint8Array(0)},
-  {type:0x004e4942,data:bin}]},doc);
-}
-const seamSource=glbWithSeam();
+const positions=seamPositions,triangles=seamIndices,uv=seamUv,normals=seamNormals;
+const seamSource=createSplitSeamFixture();
 
 test('separate glTF attribute-vertex identity and exact-position geometric candidates',()=>{
  const analysis=buildCornerTopology({positions,indices:triangles,
