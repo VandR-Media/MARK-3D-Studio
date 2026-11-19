@@ -83,6 +83,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <option value="vertex.snap">Привязать вершину к вершине</option>
 <option value="edge.split">Разделить ребро</option>
 <option value="face.flip">Перевернуть грань</option>
+<option value="face.extrude">Выдавить треугольную грань</option>
 <option value="face.delete">Удалить грань</option>
 <option value="normal.recalculate">Пересчитать нормали</option>
 </select></label>
@@ -91,6 +92,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <label>ΔX <input id="mesh-dx" type="number" min="-1" max="1" step=".01" value="0" style="max-width:65px"></label>
 <label>ΔY <input id="mesh-dy" type="number" min="-1" max="1" step=".01" value=".15" style="max-width:65px"></label>
 <label>ΔZ <input id="mesh-dz" type="number" min="-1" max="1" step=".01" value="0" style="max-width:65px"></label>
+<label>Extrude (м) <input id="mesh-extrude-distance" type="number" min=".001" max="50" step=".05" value=".25" style="max-width:75px"></label>
 <button id="mesh-open">Открыть Edit Mode</button>
 <button id="mesh-apply">Применить к геометрии</button>
 <button id="mesh-undo">↶ Undo</button>

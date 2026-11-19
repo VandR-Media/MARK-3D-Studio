@@ -2,7 +2,8 @@
  * MARK Professional Studio / Pass 7 / EXPERIMENTAL actual indexed triangle
  * Mesh Edit core. Edits REAL glTF binary accessors (not node transforms).
  *
- * Supported ops: vertex.move, vertex.snap, edge.split, face.flip, face.delete, normal.recalculate, primitive.add.
+ * Supported ops: vertex.move, vertex.snap, edge.split, face.flip, face.delete,
+ * face.extrude (bounded individual triangle), normal.recalculate, primitive.add.
  * Current profile: glTF 2.0 GLB, BIN-only, indexed TRIANGLES, dense accessors,
  * 5126 floats for vertex attributes, JOINTS_0 Uint8/16, WEIGHTS_0 Float32.
  * Sparse/Draco/interleaved targets are REJECTED with structured diagnostics.
@@ -163,7 +164,7 @@ function editOnce(ctx,operation){
   'OPERATION','Expected typed mesh operation');
  const {kind,meshIndex,primitiveIndex}=operation;
  guard(['vertex.move','edge.split','face.flip','face.delete',
-  'normal.recalculate','primitive.add','vertex.snap'].includes(kind),
+  'normal.recalculate','primitive.add','vertex.snap','face.extrude'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -269,6 +270,119 @@ function editOnce(ctx,operation){
   prim.attributes.POSITION=append(ctx,revised,
    {type:'VEC3',componentType:5126,target:34962});
   return {kind,changedVertices:1,addedVertices:0,addedTriangles:0};
+ }
+ if(kind==='face.extrude'){
+  // Individual indexed TRIANGLE extrusion. No N-gons or region extrusion.
+  // Original face becomes a raised cap with three new vertices; three
+  // independent quad sides are triangulated. Wall vertices are deliberately
+  // split at UV/normal corners. No original accessor is modified in-place.
+  const {face,distance}=operation;
+  guard(nat(face)&&face<values.length/3,'FACE','Invalid face for extrusion');
+  guard(finite(distance)&&distance>=.001&&distance<=50,
+   'EXTRUDE_DISTANCE','Distance must be within [0.001, 50] meters');
+  const tri=values.slice(face*3,face*3+3);
+  guard(new Set(tri).size===3,'DEGENERATE_FACE','Repeated face vertex');
+  const [a,b,c]=tri.map(index=>positions[index]);
+  const u=b.map((v,i)=>v-a[i]),v=c.map((q,i)=>q-a[i]);
+  const cross=[u[1]*v[2]-u[2]*v[1],
+   u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  const magnitude=Math.hypot(...cross);
+  guard(magnitude>1e-9,'DEGENERATE_FACE','Cannot extrude zero-area face');
+  const offset=cross.map(q=>q/magnitude*distance);
+  guard(count+15<=MAX_VERTICES&&values.length+18<=MAX_INDICES,
+   'TOPOLOGY_LIMIT','Extrusion exceeds bounded mesh limits');
+  const sourceAttributes={};
+  for(const [name,index] of Object.entries(prim.attributes)){
+   // Reusing old tangent vectors for new sidewalls gives wrong normal maps.
+   guard(name!=='TANGENT','TANGENT_PROFILE',
+    'Extrusion requires tangent regeneration; tangent meshes unsupported');
+   const stream=read(ctx,index);
+   guard(stream.count===count,'ATTRIBUTE_PROFILE','Attribute vertex count mismatch');
+   guard(stream.componentType===5126||
+    name==='JOINTS_0'&&[5121,5123].includes(stream.componentType),
+    'ATTRIBUTE_PROFILE','Unsupported normalized or integer vertex stream: '+name);
+   sourceAttributes[name]=stream;
+  }
+  guard(sourceAttributes.POSITION?.type==='VEC3','POSITION_PROFILE',
+   'Expected Float32 VEC3 positions');
+  if(sourceAttributes.NORMAL)
+   guard(sourceAttributes.NORMAL.type==='VEC3','NORMAL_PROFILE',
+    'Expected VEC3 normal stream');
+  for(const [name,stream] of Object.entries(sourceAttributes)){
+   if(/^TEXCOORD_/.test(name))guard(stream.type==='VEC2',
+    'UV_PROFILE','Expected VEC2 texture coordinates');
+  }
+  const sourceMorphs=(prim.targets||[]).map(targets=>{
+   const entries={};
+   for(const [name,index] of Object.entries(targets)){
+    // Morph normal deltas require a corresponding sidewall normal solver;
+    // reject rather than silently corrupting facial normal animation.
+    guard(name==='POSITION','MORPH_PROFILE',
+     'Only POSITION morph deltas supported for extrusion');
+    const stream=read(ctx,index);
+    guard(stream.componentType===5126&&stream.type==='VEC3'&&
+     stream.count===count,'MORPH_PROFILE','Invalid POSITION morph stream');
+    entries[name]=stream;
+   }
+   return entries;
+  });
+  const cap=tri.map((_,i)=>count+i);
+  const walls=[];
+  const sourceForNew=[...tri];
+  const topForNew=[true,true,true];
+  const wallNormals=new Map(),wallUvs=new Map();
+  for(let edge=0;edge<3;edge++){
+   const from=tri[edge],to=tri[(edge+1)%3];
+   const start=count+3+edge*4;
+   const ids=[start,start+1,start+2,start+3];
+   sourceForNew.push(from,to,to,from);
+   topForNew.push(false,false,true,true);
+   const direction=positions[to].map((q,i)=>q-positions[from][i]);
+   const outward=[
+    direction[1]*offset[2]-direction[2]*offset[1],
+    direction[2]*offset[0]-direction[0]*offset[2],
+    direction[0]*offset[1]-direction[1]*offset[0]
+   ];
+   const norm=Math.hypot(...outward);
+   guard(norm>1e-9,'DEGENERATE_WALL','Extrusion wall has no area');
+   const wallNormal=outward.map(q=>q/norm);
+   for(const id of ids)wallNormals.set(id,wallNormal);
+   [[0,0],[1,0],[1,1],[0,1]].forEach((uv,i)=>wallUvs.set(ids[i],uv));
+   // Oriented outward for a source CCW face, including negative local normal.
+   walls.push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
+  }
+  for(const [name,stream] of Object.entries(sourceAttributes)){
+   const data=stream.value.map(row=>row.slice());
+   for(let j=0;j<sourceForNew.length;j++){
+    const index=count+j,source=sourceForNew[j];
+    let row=stream.value[source].slice();
+    if(name==='POSITION'&&topForNew[j])
+     row=row.map((q,k)=>q+offset[k]);
+    else if(name==='NORMAL'&&wallNormals.has(index))
+     row=wallNormals.get(index).slice();
+    else if(/^TEXCOORD_/.test(name)&&wallUvs.has(index))
+     row=wallUvs.get(index).slice();
+    data.push(row);
+   }
+   prim.attributes[name]=append(ctx,data,{
+    type:stream.type,componentType:stream.componentType,target:34962
+   });
+  }
+  (prim.targets||[]).forEach((targets,k)=>{
+   for(const [name,stream] of Object.entries(sourceMorphs[k])){
+    targets[name]=append(ctx,[
+     ...stream.value.map(row=>row.slice()),
+     ...sourceForNew.map(i=>stream.value[i].slice())
+    ],{type:stream.type,componentType:5126,target:34962});
+   }
+  });
+  const newer=values.slice();newer.splice(face*3,3);
+  newer.push(...cap,...walls);
+  writeIndices(ctx,prim,newer,oldIndex.componentType);
+  return{kind,face,distance,capVertexIndices:cap,
+   addedVertices:15,addedTriangles:6,changedVertices:0,
+   wallUv:'per-edge rectangular coordinates',
+   supportedMorphAttributes:['POSITION']};
  }
  if(kind==='face.flip'||kind==='face.delete'){
   const face=operation.face;

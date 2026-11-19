@@ -598,6 +598,7 @@ byId('mesh-apply').addEventListener('click',async()=>{
   const operation=kind==='vertex.move'?{kind,vertex:a,delta:d}:
    kind==='vertex.snap'?{kind,vertex:a,targetVertex:b}:
    kind==='edge.split'?{kind,start:a,end:b,factor:.5}:
+   kind==='face.extrude'?{kind,face:a,distance:Number(byId('mesh-extrude-distance').value)}:
    kind==='normal.recalculate'?{kind}:
    {kind,face:a};
   if(kind==='face.delete'&&!window.confirm(
