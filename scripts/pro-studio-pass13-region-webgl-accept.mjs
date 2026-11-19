@@ -83,9 +83,9 @@ try{
  const second=await page.evaluate(()=>
   window.MARK_MESH_PICK_API.projectFace(0,1));
  const secondBox=await page.locator('#viewport').boundingBox();
- await page.mouse.click(secondBox.x+second.x,secondBox.y+second.y,{
-  modifiers:['Shift']
- });
+ await page.keyboard.down('Shift');
+ try{await page.mouse.click(secondBox.x+second.x,secondBox.y+second.y);}
+ finally{await page.keyboard.up('Shift');}
  const selectedFaces=await page.locator('#mesh-region-faces').inputValue();
  const action=await page.locator('#mesh-op').inputValue();
  check('P13-REGION-POINTER-003',selectedFaces==='0,1'&&
@@ -159,7 +159,7 @@ finally{
  await browser.close();
  report.completedAt=new Date().toISOString();
  writeFileSync(join(path,'pass13-report.json'),JSON.stringify(report,null,2)+'\n');
- console.log('PASS12 '+report.status.toUpperCase()+' '+JSON.stringify({
+ console.log('PASS13 '+report.status.toUpperCase()+' '+JSON.stringify({
   tests:report.tests.map(t=>({id:t.testId,status:t.status})),errors:report.errors
  }));
  if(report.status!=='pass')process.exitCode=1;
