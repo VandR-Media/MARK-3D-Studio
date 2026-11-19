@@ -239,6 +239,127 @@ try{
   rejected,'Corrupt native archive replaced the working scene');
  await canvasShot(page,'rig-v3-reopened-edit.png',
   {view:'front',clip:2,seconds:6,nativeEditing:'reopened'});
+ // API integration runs ON THE REAL ACTIVE VIEWPORT; it is not a
+ // JavaScript mock, and no HTTP/network listener is involved.
+ const bridgeResult=await page.evaluate(async()=>{
+  const a=window.MARK_AI_BRIDGE,feedback=[];
+  let n=0;
+  const call=async(method,params={})=>{
+   const r=await a.request({requestId:'playwright.'+(++n),method,params});
+   feedback.push({method,ok:r.ok,diagnostics:r.diagnostics});
+   return r;
+  };
+  const caps=await call('studio.getCapabilities');
+  const denied=await call('asset.upload',{
+   name:'denied.glb',type:'glb',data:new Uint8Array([1,2,3,4])
+  });
+  document.getElementById('bridge-write-grant').checked=true;
+  const bytes=Uint8Array.from(atob(window.MARK_EMBEDDED_RIG_BASE64),
+   x=>x.charCodeAt(0));
+  const uploaded=await call('asset.upload',{name:'rig.glb',type:'glb',data:bytes});
+  if(!uploaded.ok)throw Error('asset.upload: '+JSON.stringify(uploaded.diagnostics));
+  const opened=await call('scene.open',{assetId:uploaded.result.assetId});
+  if(!opened.ok)throw Error('scene.open: '+JSON.stringify(opened.diagnostics));
+  const baseline=await call('render.capture',{view:'front',timeSeconds:6});
+  if(!baseline.ok)throw Error('Initial real WebGL capture: '+JSON.stringify(baseline.diagnostics));
+  const started=await call('transaction.begin');
+  if(!started.ok)throw Error('transaction.begin: '+JSON.stringify(started.diagnostics));
+  const commands=[
+   ['object.setTransform',{uuid:'gltf-node-1',transform:{translation:[.28,0,0]}}],
+   ['material.setPbr',{materialId:'gltf-material-0',pbr:{roughnessFactor:.26}}],
+   ['animation.preview',{clipIndex:2,timeSeconds:6}]
+  ];
+  for(const [method,params] of commands){
+   const r=await call(method,params);
+   if(!r.ok)throw Error('Staged '+method+': '+JSON.stringify(r.diagnostics));
+  }
+  const committed=await call('transaction.commit',{transactionId:started.result.transactionId});
+  if(!committed.ok)throw Error('commit: '+JSON.stringify(committed.diagnostics));
+  const after=await call('render.capture',{view:'front',timeSeconds:6});
+  if(!after.ok)throw Error('After commit capture: '+JSON.stringify(after.diagnostics));
+  const saved=await call('scene.save');
+  const exported=await call('scene.export');
+  if(!saved.ok||!exported.ok)
+   throw Error('Native bridge save/export '+JSON.stringify(feedback.slice(-2)));
+  const invalid=await call('object.setTransform',{
+   uuid:'SkinnedQuad',transform:{translation:[.5,0,0]}
+  });
+  const undo=await call('history.undo');
+  const undoneState=a.getSnapshot();
+  const redo=await call('history.redo');
+  const redoneState=a.getSnapshot();
+  const side=await call('camera.set',{view:'left'});
+  const sideImage=await call('render.capture',{view:'left',timeSeconds:6});
+  document.getElementById('bridge-write-grant').checked=false;
+  const deniedAfter=await call('material.setPbr',{materialId:'gltf-material-0',
+   pbr:{roughnessFactor:.5}});
+  return {
+   caps:caps.result,denied:denied.diagnostics?.[0]?.code,
+   opened:opened.result,baseline:{sha256:baseline.result.sha256,
+    width:baseline.result.width,height:baseline.result.height},
+   after:{sha256:after.result.sha256,width:after.result.width,
+    height:after.result.height,png:Array.from(after.result.data)},
+   committed:committed.result,
+   saved:{sha256:saved.result.sha256,data:Array.from(saved.result.data)},
+   exported:{sha256:exported.result.sha256,data:Array.from(exported.result.data)},
+   invalid:invalid.diagnostics?.[0]?.code,
+   undo:{ok:undo.ok,edits:undoneState.edits},
+   redo:{ok:redo.ok,edits:redoneState.edits},
+   side:{ok:side.ok,sha256:sideImage.result?.sha256},
+   deniedAfter:deniedAfter.diagnostics?.[0]?.code,feedback
+  };
+ });
+ assertTest('RIG-BRIDGE-DISCOVERY-017',
+  bridgeResult.caps?.supported.includes('render.capture')&&
+  bridgeResult.caps?.supported.includes('transaction.commit')&&
+  !bridgeResult.caps?.supported.includes('mesh.edit')&&
+  bridgeResult.denied==='WRITE_PERMISSION_DENIED'&&
+  bridgeResult.deniedAfter==='WRITE_PERMISSION_DENIED',
+  {transport:bridgeResult.caps?.transport,writeRequired:true,
+   userGrants:bridgeResult.caps?.writePermissionGranted,
+   diagnostics:{denied:bridgeResult.denied,after:bridgeResult.deniedAfter}},
+  'Wrong capability set or missing explicit user grant');
+ const webglPng=put('ai-bridge-real-WebGL2.png',Buffer.from(bridgeResult.after.png));
+ const browserProject=Buffer.from(bridgeResult.saved.data);
+ const reopenedViaNode=await openPreviewMarkscene(browserProject);
+ const browserGlb=Buffer.from(bridgeResult.exported.data);
+ const inspectedViaNode=inspectRiggedGlb(browserGlb);
+ const bridgeFiles=[
+  put('ai-bridge-edited.markscene',browserProject),
+  put('ai-bridge-edited.glb',browserGlb)
+ ];
+ assertTest('RIG-BRIDGE-TRANSACTION-018',
+  bridgeResult.committed.commands===3&&
+  bridgeResult.after.sha256!==bridgeResult.baseline.sha256&&
+  bridgeResult.invalid==='INVALID_UUID'&&
+  bridgeResult.undo.ok&&bridgeResult.redo.ok&&
+  bridgeResult.undo.edits.nodeTransforms['1']===undefined&&
+  bridgeResult.redo.edits.nodeTransforms['1'].translation[0]===.28,
+  {commands:bridgeResult.committed.commands,frontBefore:bridgeResult.baseline.sha256,
+   frontAfter:bridgeResult.after.sha256,invalid:bridgeResult.invalid,
+   undo:bridgeResult.undo.edits.nodeTransforms,
+   redo:bridgeResult.redo.edits.nodeTransforms},
+  'Atomic UUID edit, rollback/redo or actual WebGL pixel difference failed');
+ assertTest('RIG-BRIDGE-ROUNDTRIP-019',
+  reopenedViaNode.sourceSha256===SHA(buildRiggedFixture().bytes)&&
+  reopenedViaNode.edits.nodeTransforms['1'].translation[0]===.28&&
+  inspectedViaNode.skins[0].joints===70&&inspectedViaNode.animations.length===3&&
+  inspectedViaNode.morphs[0].targets===2,
+  {nativeSha:bridgeFiles[0].sha256,exportSha:bridgeFiles[1].sha256,
+   pngSha:webglPng.sha256,rigJoints:inspectedViaNode.skins[0].joints},
+  'Live AI Bridge project export cannot be reopened in clean Node/headless');
+ assertTest('RIG-BRIDGE-CAMERA-020',
+  bridgeResult.side.ok&&bridgeResult.side.sha256!==bridgeResult.after.sha256&&
+  bridgeResult.after.width>0&&bridgeResult.after.height>0,
+  {frontSha:bridgeResult.after.sha256,sideSha:bridgeResult.side.sha256,
+   width:bridgeResult.after.width,height:bridgeResult.after.height},
+  'Camera.set did not update real WebGL viewport');
+ json.aiBridge={
+  profile:bridgeResult.caps.schema,transport:bridgeResult.caps.transport,
+  supportedOperations:bridgeResult.caps.supported,permissionGates:'explicit DOM user grant',
+  realCapture:webglPng,project:bridgeFiles[0],glb:bridgeFiles[1],
+  noNetworkListener:true};
+
  // Restore the original fixture for independently reproducible MP4 frames.
  await page.evaluate(async bytes=>{
   await window.MARK_RIG_VIEWER_API.loadBinary(new Uint8Array(bytes));
