@@ -4,7 +4,7 @@ NOT a sphere-built humanoid.
 """
 import bpy, bmesh, math, os, json, struct
 from pathlib import Path
-from mathutils import Vector
+from mathutils import Vector, Quaternion
 from math import sin,cos,pi
 import numpy as np
 OUT=Path("output");OUT.mkdir(exist_ok=True)
@@ -397,8 +397,23 @@ for frame in range(1,152,10):
     for sign,side in ((-1,"Left"),(1,"Right")):
         q=t+(pi if sign>0 else 0)
         key(side+"Shoulder",.03*sin(q),.04*sin(q),.06*sin(q))
-        key(side+"Arm",.22+.52*sin(q),.10*sin(q),sign*(.32+.52*sin(q+.4)))
-        key(side+"ForeArm",-.38-.38*(.5+.5*sin(q+.6)),.08*sin(q),.09*sin(q))
+        # Move arms in rig bone rest coordinates: visible alternating raises.
+        pb=rig.pose.bones.get(side+"Arm")
+        if pb:
+            direction=1 if pb.bone.tail_local.x>pb.bone.head_local.x else -1
+            yaxis=pb.bone.matrix_local.to_quaternion().inverted()@Vector((0,1,0))
+            theta=-direction*(.28+.92*(.5+.5*sin(q+.4)))
+            pb.rotation_mode="QUATERNION"
+            pb.rotation_quaternion=Quaternion(yaxis,theta)
+            pb.keyframe_insert(data_path="rotation_quaternion",frame=frame,group=side+"Arm")
+        pb=rig.pose.bones.get(side+"ForeArm")
+        if pb:
+            direction=1 if pb.bone.tail_local.x>pb.bone.head_local.x else -1
+            yaxis=pb.bone.matrix_local.to_quaternion().inverted()@Vector((0,1,0))
+            theta=-direction*(.1+.55*(.5+.5*sin(q+.9)))
+            pb.rotation_mode="QUATERNION"
+            pb.rotation_quaternion=Quaternion(yaxis,theta)
+            pb.keyframe_insert(data_path="rotation_quaternion",frame=frame,group=side+"ForeArm")
         key(side+"Hand",.08*sin(q),.05*sin(q+.8),0)
         key(side+"UpLeg",.24*sin(q),.035*sin(q),.06*sin(q))
         key(side+"Leg",-.17-.30*(.5+.5*sin(q+1.4)),0,0)
