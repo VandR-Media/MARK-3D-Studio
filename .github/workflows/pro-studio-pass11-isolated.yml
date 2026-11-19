@@ -1,0 +1,31 @@
+name: MARK Studio Pass 11 isolated geometry tests
+
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass11-face-extrude
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pass11:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install reproducible dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test new geometry operations and picker
+        run: node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs
+      - name: Check previous geometry and AI Bridge regression
+        run: node --test tests/pro-studio-mesh-edit.test.mjs tests/pro-studio-primitives.test.mjs tests/pro-studio-ai-bridge.test.mjs
+      - name: Protect existing Visual Engine v2
+        run: npm run test:visual-v2
+      - name: Build real standalone rig viewer
+        run: npm run pro:rig:viewer
