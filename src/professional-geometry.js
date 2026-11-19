@@ -179,7 +179,7 @@ export class EditableMesh {
    for(const [id,,after] of entries)this.vertices.get(id).position=after;
    // Validate only incident polygon triangles; topology/adjacency are unchanged.
    const affected=new Set();
-   for(const he of this.halfEdges.values())if(selected.has(he.from))affected.add(he.face);
+   for(const id of selected)for(const fid of this.incidentFaces.get(id)||[])affected.add(fid);
    for(const id of affected){
     const f=this.faces.get(id);
     for(const [a,b,c] of triangulatePolygon(f.vertices,this.vertices)){
@@ -283,7 +283,9 @@ export class EditableMesh {
   insist(['grab','inflate','clay','smooth','relax','pinch','flatten','crease'].includes(mode),'неподдерживаемая кисть');
   insist(vec(delta),'delta должен быть XYZ');
   insist(mask===null||this.masks.has(mask),'название маски неизвестно');
-  const src=this._spatialIndex(radius),orig=new Map([...this.vertices].map(([id,v])=>[id,v.position]));
+  // Read-only coordinate accessor. Updates are calculated before committing,
+  // so an O(N) snapshot Map is unnecessary for each local brush sample.
+  const src=this._spatialIndex(radius),orig={get:id=>this.vertices.get(id)?.position};
   const brushAt=(point)=>{
    const near=[],min=src.cellAt(point).map(v=>v-1),max=src.cellAt(point).map(v=>v+1),r2=radius*radius;
    for(let x=min[0];x<=max[0];x++)for(let y=min[1];y<=max[1];y++)for(let z=min[2];z<=max[2];z++){

@@ -77,7 +77,10 @@
             "face.adjustLandmarks",
             "reference.landmarks",
             "reference.compare",
-            "face.adjustToReference"
+            "face.adjustToReference",
+            "face.adjustContour",
+            "sculpt.stroke",
+            "face.previewPose"
           ]
         },
         "target": {

@@ -1,7 +1,5 @@
 name: MARK Modeling API v0.4.1 — deterministic GLB and 5x WebGL rendering
 on:
-  push:
-    branches: ['develop/character-production-v0.4']
   workflow_dispatch:
 concurrency:
   group: mark-modeling-v041

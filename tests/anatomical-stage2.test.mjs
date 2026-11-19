@@ -16,9 +16,13 @@ test('new anatomically distinct quad surface has real 5 closed socket/oral/nostr
  assert.equal(a.nonManifoldEdges,0);
  assert.equal(a.degenerateFaces,0);
  assert.ok(a.faces<a.triangles,'native QUADS must exist instead of an entirely triangulated shell');
- assert.deepEqual(Object.keys(m.regions).sort(),[
- 'eye_left_rim','eye_right_rim','mouth_rim','nostril_left_rim','nostril_right_rim'
- ].sort());
+ for(const name of [
+  'eye_left_rim','eye_right_rim','mouth_rim','nostril_left_rim','nostril_right_rim',
+  'eye_left','eye_right','upper_eyelid_left','upper_eyelid_right',
+  'lower_eyelid_left','lower_eyelid_right','mouth_upper_lip','mouth_lower_lip',
+  'nose_alar_left','nose_alar_right','cheeks','chin','jaw',
+  'ear_left','ear_right','ear_left_helix','ear_right_helix','ear_left_concha','ear_right_concha'
+ ])assert.ok(m.regions[name]?.length>=4,'Expected actual topology region '+name);
  for(const [name,ids] of Object.entries(m.regions)){
   assert.ok(ids.length>=5,'rim '+name+' must have a real contiguous polygon loop');
   assert.ok(ids.every(id=>m.vertices.has(id)));
@@ -66,4 +70,33 @@ test('private normalized reference control points move exact mesh-linked landmar
  assert.deepEqual(restored.referenceViews,mesh.referenceViews);
  assert.equal(compareReference(restored,'front').rmse,final);
  assert.throws(()=>configureLandmarks(mesh,{view:'front',points:{wrong:[.5,.5]}}));
+});
+
+test('no radial triangle fan closes eye or nostril cavities: deep lids use only quad strips',()=>{
+ const m=makeAnatomicalChildHead({rings:94,columns:144});
+ const deepFaces=[...m.faces.values()].filter(f=>{
+  const p=f.vertices.map(id=>m.vertices.get(id).position);
+  const avg=p.reduce((a,v)=>[a[0]+v[0],a[1]+v[1],a[2]+v[2]],[0,0,0]).map(x=>x/p.length);
+  const nearEye=Math.abs(avg[0])>.19&&Math.abs(avg[0])<.52&&avg[1]>.19&&avg[1]<.47&&avg[2]<.52;
+  return nearEye;
+ });
+ assert.ok(deepFaces.length>20,'Eye recess must contain real interior surfaces');
+ assert.ok(deepFaces.every(f=>f.vertices.length===4),'No inner eye triangle fans permitted');
+ assert.equal(m.inspect().nonManifoldEdges,0);
+ assert.equal(m.inspect().boundaryEdges,0);
+});
+
+test('bilateral ears are connected quad surfaces with helix, antihelix, concha and no degenerate triangles',()=>{
+ const m=makeAnatomicalChildHead({rings:94,columns:144});
+ for(const side of ['left','right']){
+  for(const name of ['ear_'+side,'ear_'+side+'_helix','ear_'+side+'_antihelix','ear_'+side+'_concha']){
+   assert.ok(m.regions[name]?.length>=8,name+' must be a genuine polygonal region');
+  }
+  const ids=new Set(m.regions['ear_'+side]);
+  const insertedFaces=[...m.faces.values()].filter(f=>f.vertices.every(id=>ids.has(id)));
+  assert.ok(insertedFaces.length>=80,'Ear patch must be genuinely multi-ring quad topology');
+  assert.ok(insertedFaces.every(f=>f.vertices.length===4),'Ear interior must not contain star triangle fans');
+ }
+ assert.equal(m.inspect().nonManifoldEdges,0);
+ assert.equal(m.inspect().boundaryEdges,0);
 });

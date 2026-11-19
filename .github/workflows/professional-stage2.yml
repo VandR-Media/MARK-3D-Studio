@@ -1,7 +1,5 @@
 name: MARK Professional Stage 2 — Compact binary & anatomical checks
 on:
-  push:
-    branches: ['develop/compact-anatomical-core-v0.6']
   workflow_dispatch:
 permissions:
   contents: read

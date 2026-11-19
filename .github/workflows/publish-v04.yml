@@ -1,8 +1,5 @@
 name: Package verified v0.4 Modeling API preview (not stable)
 on:
-  push:
-    branches: ['develop/character-production-v0.4']
-    paths: ['.github/workflows/publish-v04.yml']
   workflow_dispatch:
 concurrency:
   group: mark-release-v04
