@@ -62,6 +62,10 @@ try{
   new Uint8Array(bytes)),Array.from(original));
  await page.locator('#bridge-write-grant').check();
  await page.locator('#mesh-open').click();
+ // Import/rigged renderer rebuild is asynchronous; wait for the real
+ // completed Mesh Edit diagnostics rather than sampling stale placeholder.
+ await page.waitForFunction(()=>document.querySelector('#mesh-output')?
+  .textContent?.includes('UV-швов'),null,{timeout:30000});
  const status=await page.locator('#mesh-output').innerText();
  const analyzed=await page.evaluate(async()=>{
   const r=await window.MARK_AI_BRIDGE.request({requestId:'p15.topology',
