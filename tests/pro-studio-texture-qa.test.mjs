@@ -34,6 +34,26 @@ test('same pixel colors with PNG recompression and data URI count as equivalent'
  const x=compareGlbTextures(sample,changed);
  assert.equal(x.status,'pass_supported_png',JSON.stringify(x));
 });
+test('GLTFExporter-style 1-3 zero alignment bytes after PNG IEND preserve exact pixels',()=>{
+ const p=parseGlb(sample),doc=p.json,view=doc.bufferViews[doc.images[0].bufferView];
+ const bin=p.chunks.find(x=>x.type===0x004e4942).data;
+ const original=Buffer.from(bin.slice(view.byteOffset,view.byteOffset+view.byteLength));
+ for(const pad of [1,2,3]){
+  const altered=mutate(d=>{
+   d.images[0]={uri:'data:image/png;base64,'+
+    Buffer.concat([original,Buffer.alloc(pad)]).toString('base64')};
+  });
+  const result=compareGlbTextures(sample,altered);
+  assert.equal(result.status,'pass_supported_png',JSON.stringify(result));
+ }
+ const illegal=mutate(d=>{
+  d.images[0]={uri:'data:image/png;base64,'+
+   Buffer.concat([original,Buffer.from([0,0,127])]).toString('base64')};
+ });
+ const result=compareGlbTextures(sample,illegal);
+ assert.equal(result.status,'fail');
+ assert.match(keys(result),/invalid/);
+});
 test('valid but altered RGBA pixels fail even if image dimensions match',()=>{
  const doc=parseGlb(sample).json,parsed=parseGlb(sample),view=doc.bufferViews[doc.images[0].bufferView];
  const binary=parsed.chunks.find(x=>x.type===0x004e4942).data;
