@@ -14,6 +14,7 @@ import {createPrimitiveGlb} from './primitive-factory.js';
 import {normalizeExplicitSeamLinks,inspectExplicitSeamTopology,
  inspectConsumedSeamExtrude} from './mesh-seam-identity.js';
 import {inspectGlbCornerTopology} from './mesh-corner-topology.js';
+import {buildMeshDataSnapshot} from './meshdata-halfedge-preview.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,
  exportEditedSourceGlb,sha256} from './markscene-v3-preview.js';
 
@@ -26,8 +27,9 @@ const OP_NAMES=[
  'asset.upload','asset.list','scene.new','scene.open','scene.getHierarchy',
  'scene.getMaterials','scene.validate','scene.save','scene.export',
  'object.setTransform','material.setPbr','animation.preview',
- 'mesh.getStats','mesh.getTopology','mesh.getLinkedRegion',
+ 'mesh.getStats','mesh.getTopology','mesh.getLinkedRegion','mesh.getMeshData',
  'mesh.linkSeam','mesh.unlinkSeam','mesh.extrudeLinkedRegion',
+ 'mesh.moveLinkedCap',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -148,7 +150,7 @@ export function createAiBridge({
    scene:'new standalone primitive scene / imported GLB / markscene v3-preview',
    object:'existing glTF node TRS only, stable gltf-node-N UUID',
    material:'existing PBR factors only, gltf-material-N stable ID',
-   mesh:'indexed triangle mesh editing + read-only exact-position/corner seam topology analysis',
+   mesh:'indexed triangle editing + read-only halfedge/corner MeshData + bounded stable-cap deformation',
    animation:'existing clip selection/time only',
    transactions:'one active transaction, commit/rollback, 32 undo/redo snapshots',
    render:typeof adapter.capture==='function'?'real viewport via renderer adapter':'unsupported',
@@ -413,6 +415,43 @@ export function createAiBridge({
     operations:selectedEdits().meshOperations||[],faces:params?.faces
    });
   },
+  'mesh.getMeshData':async params=>{
+   assertScene();
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primitiveIndex=params?.primitiveIndex??0;
+   guard(Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    plain(params)&&Object.keys(params).every(k=>
+     ['meshId','primitiveIndex','full'].includes(k)),
+    'MESHDATA_TARGET','Expected supported mesh and primitive target');
+   const ops=selectedEdits().meshOperations||[];
+   const geometry=applyMeshOperations(engine.opened.sourceGLB,ops);
+   const result=buildMeshDataSnapshot({
+    sourceGLB:engine.opened.sourceGLB,editedGLB:geometry,
+    sourceSha256:engine.opened.sourceSha256,meshIndex,primitiveIndex,
+    operations:ops
+   });
+   const full=params.full===true;
+   guard(!full||result.faces.length<=512,'MESHDATA_FULL_LIMIT',
+    'Full halfedge snapshot limited to 512 triangles');
+   return{
+    schema:result.schema,meshId:params.meshId,primitiveIndex,
+    revision:engine.revision,sourceSha256:result.sourceSha256,
+    profile:result.profile,diagnostics:result.diagnostics,
+    uvSets:result.uvSets,colorSets:result.colorSets,
+    materialSlots:result.materialSlots,stableIdScope:result.stableIdScope,
+    persistedAs:result.persistedAs,
+    ...(full?{faces:result.faces,edges:result.edges,
+     halfedges:result.halfedges,corners:result.corners,
+     capMap:result.capMap,mappedWalls:result.mappedWalls}:{
+     faceSample:result.faces.slice(0,8),
+     edgeSample:result.edges.slice(0,12),
+     cornerSample:result.corners.slice(0,12).map(c=>({
+      id:c.id,attributeVertex:c.attributeVertex,
+      logicalVertexId:c.logicalVertexId,
+      uvSets:c.attributes.uvSets
+     })),capMap:result.capMap.slice(0,16)})
+   };
+  },
   'mesh.linkSeam':async params=>mutate(edits=>{
    const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
    const primitiveIndex=params?.primitiveIndex??0;
@@ -471,6 +510,42 @@ export function createAiBridge({
    // After this one-shot action, original IDs are no longer current.
    // The provenance stays in op.links and source->cap remap is queryable.
    edits.meshSeamLinks=[];
+  }),
+  'mesh.moveLinkedCap':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primitiveIndex=params?.primitiveIndex??0;
+   guard(plain(params)&&Object.keys(params).length===4&&
+    Object.keys(params).every(k=>[
+     'meshId','primitiveIndex','capStableId','delta'].includes(k))&&
+    Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    typeof params.capStableId==='string'&&
+    params.capStableId.length<=256&&
+    Array.isArray(params.delta)&&params.delta.length===3&&
+    params.delta.every(n=>numeric(n)&&Math.abs(n)<=2)&&
+    Math.hypot(...params.delta)>1e-8,
+    'CAP_MOVE_ARGS','Expected exact stable ID and bounded displacement');
+   const existing=edits.meshOperations||[],first=existing[0];
+   guard(first?.kind==='face.regionExtrudeLinked'&&
+    first.meshIndex===meshIndex&&first.primitiveIndex===primitiveIndex&&
+    existing.length<=16&&existing.slice(1).every(x=>
+     x.kind==='vertex.moveLinkedCap'),
+    'CAP_MOVE_SEQUENCE',
+    'Only 16 stable logical-cap moves after one linked extrusion');
+   const consumed=inspectConsumedSeamExtrude(engine.opened.sourceGLB,{
+    sourceSha256:engine.opened.sourceSha256,operation:first});
+   const matched=consumed.capRemap.find(c=>
+    c.capStableId===params.capStableId);
+   guard(matched,'CAP_STABLE_ID','Unknown or stale cap identity');
+   let sourceRoot=matched.sourceVertex;
+   // A confirmed pair is one movable logical corner. The lower source ID
+   // is the stable canonical root for all copies across the seam.
+   for(const pair of first.links)
+    if(pair.vertexA===sourceRoot||pair.vertexB===sourceRoot)
+     sourceRoot=Math.min(pair.vertexA,pair.vertexB);
+   const op={kind:'vertex.moveLinkedCap',meshIndex,primitiveIndex,
+    sourceVertex:sourceRoot,delta:params.delta.slice()};
+   const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
+   edits.meshOperations=next.operations;
   }),
   'mesh.edit':async params=>mutate(edits=>{
    guard(params&&typeof params.meshId==='string',
