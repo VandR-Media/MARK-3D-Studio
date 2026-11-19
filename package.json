@@ -34,7 +34,10 @@
     "pro:rig:qa": "node scripts/pro-studio-rig-roundtrip.mjs",
     "pro:rig:viewer": "node scripts/pro-studio-rig-build.mjs",
     "pro:rig:accept": "node scripts/pro-studio-rig-accept.mjs",
-    "pro:rig:native": "node scripts/pro-studio-v3-preview.mjs"
+    "pro:rig:native": "node scripts/pro-studio-v3-preview.mjs",
+    "pro:rig:complex": "node scripts/pro-studio-complex-rig-fixture.mjs",
+    "pro:rig:complex:accept": "node scripts/pro-studio-complex-rig-accept.mjs",
+    "pro:rig:bridge": "node scripts/pro-studio-ai-bridge-cli.mjs --out dist/pro-studio/ai-bridge-cli"
   },
   "license": "MIT",
   "dependencies": {
