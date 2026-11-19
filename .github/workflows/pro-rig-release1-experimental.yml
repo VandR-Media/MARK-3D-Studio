@@ -1,0 +1,122 @@
+name: MARK Professional Studio R1 experimental rig playback QA
+on:
+  push:
+    branches:
+      - develop/pro-studio-release0-audit
+    paths:
+      - 'src/pro-studio/**'
+      - 'scripts/pro-studio-*.mjs'
+      - 'tests/pro-studio-*.mjs'
+      - 'package.json'
+      - 'docs/pro-studio/PASS-6-AI-BRIDGE-AND-COMPLEX-RIG.md'
+      - 'docs/pro-studio/PASS-7-REAL-MESH-EDIT-PREVIEW.md'
+      - 'docs/pro-studio/PASS-8-PICKING-NORMALS-PRIMITIVES.md'
+      - '.github/workflows/pro-rig-release1-experimental.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: mark-pro-rig-r1-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  rig-playback:
+    name: Actual WebGL2 rigs and animated GLB round-trip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked JS library versions
+        run: npm install --no-audit --no-fund
+      - name: Validate source syntax
+        run: |
+          node --check src/pro-studio/rig-viewer.js
+          node --check scripts/pro-studio-rig-build.mjs
+          node --check scripts/pro-studio-rig-accept.mjs
+          node --check tests/pro-studio-release1.test.mjs
+          node --check src/pro-studio/markscene-v3-preview.js
+          node --check src/pro-studio/glb-semantic-diff.js
+          node --check tests/pro-studio-release1-v3.test.mjs
+          node --check src/pro-studio/glb-texture-qa.js
+          node --check src/pro-studio/ai-bridge-core.js
+          node --check scripts/pro-studio-ai-bridge-cli.mjs
+          node --check scripts/pro-studio-complex-rig-fixture.mjs
+          node --check scripts/pro-studio-complex-rig-accept.mjs
+          node --check tests/pro-studio-complex-rig.test.mjs
+          node --check src/pro-studio/mesh-edit-core.js
+          node --check src/pro-studio/primitive-geometry.js
+          node --check src/pro-studio/primitive-factory.js
+          node --check src/pro-studio/viewport-picking.js
+          node --check tests/pro-studio-primitives.test.mjs
+          node --check tests/pro-studio-mesh-edit.test.mjs
+          node --check tests/pro-studio-ai-bridge.test.mjs
+          node --check tests/pro-studio-texture-qa.test.mjs
+          node --check scripts/pro-studio-external-neon-qa.mjs
+          node --check scripts/pro-studio-v3-preview.mjs
+      - name: Old v2 compatibility and rigged transport regression
+        run: |
+          npm run test:pro-rig
+          node --test tests/pro-studio-release1-v3.test.mjs
+          node --test tests/pro-studio-texture-qa.test.mjs
+          node --test tests/pro-studio-ai-bridge.test.mjs
+          node --test tests/pro-studio-complex-rig.test.mjs
+          node --test tests/pro-studio-mesh-edit.test.mjs
+          node --test tests/pro-studio-primitives.test.mjs
+          npm run test:visual-v2
+      - name: Build genuine fixture, secure archive and offline Three.js viewer
+        run: |
+          npm run pro:rig:fixtures
+          npm run pro:rig:qa
+          npm run pro:rig:viewer
+          npm run pro:rig:native
+          npm run pro:rig:complex
+          npm run pro:rig:bridge
+      - name: Install Chromium WebGL2 (video encoded by browser MediaRecorder)
+        timeout-minutes: 8
+        run: npx playwright install chromium
+      - name: Capture real skinned poses, morphs, 3 clips, viewpoints, animated GLB export and frames
+        run: npm run pro:rig:accept
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Capture 12-skinned-mesh 70-bone 3-clip/2-morph real WebGL2 frames and native roundtrip
+        run: npm run pro:rig:complex:accept
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Locate short-lived external Neon Boy GLB from earlier owner repo run
+        id: neon_fixture
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/pro-studio/external
+          if gh run download 44398211839 --repo VandR-Media/MARK-3D-Studio \
+              --name MARK-Neon-Boy-Review --dir dist/pro-studio/external \
+              && test -s dist/pro-studio/external/output/NEON_BOY_DANCE.glb; then
+            echo "file=dist/pro-studio/external/output/NEON_BOY_DANCE.glb" >> "$GITHUB_OUTPUT"
+          else
+            echo "External evidence artifact unavailable; QA must report SKIP, never PASS"
+            echo "file=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Independent large 278-mesh external humanoid import and WebGL2 QA
+        run: node scripts/pro-studio-external-neon-qa.mjs
+        env:
+          MARK_EXTERNAL_GLB: ${{ steps.neon_fixture.outputs.file }}
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Upload source-matched audit evidence regardless of test outcome
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pro-rig-r1-real-webgl
+          path: |
+            dist/pro-studio/fixtures/*.glb
+            dist/pro-studio/release1-preview/**
+            dist/pro-studio/native-scene/**
+            dist/pro-studio/external-benchmark/**
+            dist/pro-studio/ai-bridge-cli/**
+            dist/pro-studio/complex-rig/**
+            dist/pro-studio/rig-viewer-offline.html
+            dist/pro-studio/acceptance/**
+          if-no-files-found: warn
+          retention-days: 14

@@ -28,7 +28,16 @@
     "test:visual-v2": "node --test tests/visual-engine-v2.test.mjs",
     "visual:v2:recipe": "node scripts/visual-v2-build.mjs",
     "visual:v2:build": "node scripts/build-visual-v2.mjs",
-    "visual:v2:accept": "node scripts/visual-v2-accept.mjs"
+    "visual:v2:accept": "node scripts/visual-v2-accept.mjs",
+    "test:pro-rig": "node --test tests/pro-studio-release0.test.mjs tests/pro-studio-release1.test.mjs",
+    "pro:rig:fixtures": "node scripts/pro-studio-glb-fixtures.mjs dist/pro-studio/fixtures",
+    "pro:rig:qa": "node scripts/pro-studio-rig-roundtrip.mjs",
+    "pro:rig:viewer": "node scripts/pro-studio-rig-build.mjs",
+    "pro:rig:accept": "node scripts/pro-studio-rig-accept.mjs",
+    "pro:rig:native": "node scripts/pro-studio-v3-preview.mjs",
+    "pro:rig:complex": "node scripts/pro-studio-complex-rig-fixture.mjs",
+    "pro:rig:complex:accept": "node scripts/pro-studio-complex-rig-accept.mjs",
+    "pro:rig:bridge": "node scripts/pro-studio-ai-bridge-cli.mjs --out dist/pro-studio/ai-bridge-cli"
   },
   "license": "MIT",
   "dependencies": {

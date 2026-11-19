@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mark.studio/schema/mark-professional-capabilities-v1",
+  "title": "MARK Professional Studio capability audit registry (code evidence, not test results)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "scope",
+    "auditedSourceCommit",
+    "sourceBranch",
+    "date",
+    "sourceOfTruth",
+    "dependencies",
+    "v2Limits",
+    "staticGltfAcceptedExtensions",
+    "historicalEvidence",
+    "capabilities"
+  ],
+  "properties": {
+    "schema": {
+      "const": "mark.professional-capabilities/1"
+    },
+    "scope": {
+      "const": "audit_not_runtime_proof"
+    },
+    "auditedSourceCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sourceBranch": {
+      "type": "string",
+      "minLength": 2
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "sourceOfTruth": {
+      "type": "string"
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "v2Limits": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "staticGltfAcceptedExtensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "historicalEvidence": {
+      "type": "object",
+      "required": [
+        "sourceCommit",
+        "status",
+        "deviceMeasured"
+      ],
+      "properties": {
+        "sourceCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "status": {
+          "const": "historical_pass_not_current_HEAD"
+        },
+        "deviceMeasured": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "description",
+          "status",
+          "evidence",
+          "tests",
+          "limitations"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9-]+$"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "partial",
+              "unsupported",
+              "not_started",
+              "not_tested",
+              "passed"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limitations": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
