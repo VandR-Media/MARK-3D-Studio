@@ -180,9 +180,11 @@ function normalizeEdits(edits,doc,sourceGLB){
    good(keyed(input),'MESH_EDIT','operation must be typed object');
    const kind=input.kind;
    good(['vertex.move','edge.split','face.flip','face.delete',
-    'normal.recalculate','primitive.add'].includes(kind),
+    'normal.recalculate','primitive.add','vertex.snap','face.extrude'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
    const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
+    kind==='vertex.snap'?['kind','meshIndex','primitiveIndex','vertex','targetVertex']:
+    kind==='face.extrude'?['kind','meshIndex','primitiveIndex','face','distance']:
     kind==='edge.split'?['kind','meshIndex','primitiveIndex','start','end','factor']:
     kind==='normal.recalculate'?['kind','meshIndex','primitiveIndex']:
     kind==='primitive.add'?['kind','meshIndex','primitiveIndex','shape',
@@ -199,6 +201,18 @@ function normalizeEdits(edits,doc,sourceGLB){
      input.delta.every(x=>Number.isFinite(x)&&Math.abs(x)<10000),
      'MESH_MOVE','Invalid vertex/delta');
     op.vertex=input.vertex;op.delta=input.delta.slice();
+   }else if(kind==='vertex.snap'){
+    good(Number.isInteger(input.vertex)&&input.vertex>=0&&
+     Number.isInteger(input.targetVertex)&&input.targetVertex>=0&&
+     input.vertex!==input.targetVertex,
+     'MESH_SNAP','Expected distinct valid vertex indices');
+    op.vertex=input.vertex;op.targetVertex=input.targetVertex;
+   }else if(kind==='face.extrude'){
+    good(Number.isInteger(input.face)&&input.face>=0&&
+     typeof input.distance==='number'&&Number.isFinite(input.distance)&&
+     input.distance>=.001&&input.distance<=50,
+     'MESH_EXTRUDE','Invalid face extrusion distance/index');
+    op.face=input.face;op.distance=input.distance;
    }else if(kind==='edge.split'){
     good(Number.isInteger(input.start)&&input.start>=0&&
      Number.isInteger(input.end)&&input.end>=0&&
@@ -297,7 +311,7 @@ export async function createPreviewMarkscene(input,{
   dependencies:[],audioBindings:[],checksums:{[FILES[1]]:hash},
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
-   'clip view state','bounded indexed-triangle edits + normal recalculation + procedural primitive.add'],
+   'clip view state','bounded indexed-triangle edits, vertex snap, triangle extrusion, normal recalculation and primitive.add'],
   unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
    'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
    'audio graph authoring'],
