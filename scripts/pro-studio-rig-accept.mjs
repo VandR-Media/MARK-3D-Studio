@@ -362,6 +362,93 @@ try{
   realCapture:webglPng,project:bridgeFiles[0],glb:bridgeFiles[1],
   noNetworkListener:true};
 
+ // Pass 7: live, ACTUAL WebGL2 binary geometry editing via the same
+ // permission-controlled bridge, not a node transform or mock surface.
+ const meshBridge=await page.evaluate(async()=>{
+  const api=window.MARK_AI_BRIDGE;let n=0;
+  const run=async(method,params={})=>{
+   const r=await api.request({requestId:'mesh7.'+(++n),method,params});
+   if(!r.ok)throw Error(method+': '+JSON.stringify(r.diagnostics));
+   return r.result;
+  };
+  document.getElementById('bridge-write-grant').checked=true;
+  const original=await run('mesh.getStats',{meshId:'gltf-mesh-0'});
+  const start=await run('render.capture',{view:'front',timeSeconds:6});
+  const tx=await run('transaction.begin');
+  await run('mesh.edit',{meshId:'gltf-mesh-0',operation:{
+   kind:'vertex.move',vertex:2,delta:[0,.28,.24]
+  }});
+  await run('mesh.edit',{meshId:'gltf-mesh-0',operation:{
+   kind:'edge.split',start:1,end:2,factor:.5
+  }});
+  const staged=await run('mesh.getStats',{meshId:'gltf-mesh-0'});
+  const committed=await run('transaction.commit',{transactionId:tx.transactionId});
+  const changed=await run('mesh.getStats',{meshId:'gltf-mesh-0'});
+  const shot=await run('render.capture',{view:'front',timeSeconds:6});
+  const project=await run('scene.save'),exported=await run('scene.export');
+  await run('history.undo');
+  const undo=await run('mesh.getStats',{meshId:'gltf-mesh-0'});
+  await run('history.redo');
+  const redo=await run('mesh.getStats',{meshId:'gltf-mesh-0'});
+  document.getElementById('bridge-write-grant').checked=false;
+  const denied=await api.request({
+   requestId:'mesh7.denied',method:'mesh.edit',
+   params:{meshId:'gltf-mesh-0',operation:{kind:'face.flip',face:0}}
+  });
+  return {
+   original,staged,committed,changed,undo,redo,
+   initialSha:start.sha256,changedSha:shot.sha256,
+   initialPng:Array.from(start.data),changedPng:Array.from(shot.data),
+   project:Array.from(project.data),exported:Array.from(exported.data),
+   denied:denied.diagnostics?.[0]?.code
+  };
+ });
+ const meshScene=put('mesh-edit-p7-native.markscene',Buffer.from(meshBridge.project));
+ const meshExport=put('mesh-edit-p7-exported.glb',Buffer.from(meshBridge.exported));
+ const meshShotBefore=put('mesh-edit-p7-before-real-webgl.png',
+  Buffer.from(meshBridge.initialPng));
+ const meshShotAfter=put('mesh-edit-p7-after-real-webgl.png',
+  Buffer.from(meshBridge.changedPng));
+ const meshReopened=await openPreviewMarkscene(Buffer.from(meshBridge.project));
+ const meshDecoded=inspectRiggedGlb(Buffer.from(meshBridge.exported));
+ assertTest('RIG-MESH-EDIT-WEBGL-021',
+  meshBridge.original.vertexCount===4&&
+  meshBridge.staged.vertexCount===5&&
+  meshBridge.changed.vertexCount===5&&
+  meshBridge.changed.triangleCount===4&&
+  meshBridge.changedSha!==meshBridge.initialSha,
+  {original:meshBridge.original,changed:meshBridge.changed,
+   beforeSha:meshShotBefore.sha256,afterSha:meshShotAfter.sha256},
+  'Real WebGL2 canvas or indexed geometry did not change after mesh edit');
+ assertTest('RIG-MESH-EDIT-NATIVE-022',
+  meshReopened.sourceSha256===SHA(inputRig.bytes)&&
+  meshReopened.edits.meshOperations.length===2&&
+  meshDecoded.skins[0].joints===70&&meshDecoded.animations.length===3&&
+  meshDecoded.morphs[0].targets===2&&
+  compareGlbTextures(inputRig.bytes,Buffer.from(meshBridge.exported)).status===
+   'pass_supported_png',
+  {nativeFile:meshScene,outputGlb:meshExport,
+   operations:meshReopened.edits.meshOperations.map(x=>x.kind),
+   skins:meshDecoded.skins,morphs:meshDecoded.morphs,
+   clips:meshDecoded.animations.length},
+  'Native mesh edit reopened with lost original rig/texture/animation data');
+ assertTest('RIG-MESH-EDIT-HISTORY-023',
+  meshBridge.committed.commands===2&&
+  meshBridge.undo.vertexCount===4&&
+  meshBridge.redo.vertexCount===5&&
+  meshBridge.denied==='WRITE_PERMISSION_DENIED',
+  {commitCommands:meshBridge.committed.commands,
+   undo:meshBridge.undo.vertexCount,redo:meshBridge.redo.vertexCount,
+   denied:meshBridge.denied},
+  'Mesh edit undo/redo or write permission guard failed');
+ json.meshEdit={
+  schema:'mark.mesh-edit-qa/1',sourceSha256:SHA(inputRig.bytes),
+  supported:['vertex.move','edge.split','face.flip','face.delete'],
+  nativeProject:meshScene,exportedGlb:meshExport,
+  realFrames:[meshShotBefore,meshShotAfter],
+  caveat:'experimental indexed triangles, NOT full sculpt or Blender';
+ };
+
  // Restore the original fixture for independently reproducible MP4 frames.
  await page.evaluate(async bytes=>{
   await window.MARK_RIG_VIEWER_API.loadBinary(new Uint8Array(bytes));
