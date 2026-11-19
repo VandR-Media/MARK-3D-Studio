@@ -218,9 +218,13 @@ test('AI Bridge only moves verified stable cap ID, requires grant, Undo/Redo, fu
  assert.equal(bad.ok,false);
  assert.ok(JSON.stringify(bad.diagnostics).includes('CAP_STABLE_ID'));
  const previous=await call('history.undo');
- assert.equal(previous.edits.meshOperations.length,1);
+ assert.equal(previous.undoDepth>=0,true);
+ assert.equal(bridge.getSnapshot().edits.meshOperations.length,1);
+ assert.equal((await call('mesh.getMeshData',{meshId:'gltf-mesh-0'}))
+  .diagnostics.linkedCapMoveCount,0);
  const redone=await call('history.redo');
- assert.equal(redone.edits.meshOperations.length,2);
+ assert.equal(redone.redoDepth>=0,true);
+ assert.equal(bridge.getSnapshot().edits.meshOperations.length,2);
  assert.deepEqual((await call('scene.export')).data,after.data);
  const clone=createAiBridge({allowWrites:true});
  let i=0;
