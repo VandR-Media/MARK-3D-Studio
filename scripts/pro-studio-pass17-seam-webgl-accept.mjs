@@ -153,12 +153,12 @@ try{
  await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot()
   .edits?.meshOperations?.[0]?.kind==='face.regionExtrudeLinked',
   null,{timeout:30000});
- const snapshot=await page.evaluate(()=>window.MARK_AI_BRIDGE.getSnapshot());
+ const extrudedSnapshot=await page.evaluate(()=>window.MARK_AI_BRIDGE.getSnapshot());
  assertCheck('P17-PHYSICAL-EXTRUDE-006',
-  snapshot.edits.meshOperations.length===1&&
-  snapshot.edits.meshOperations[0].links.length===2&&
-  snapshot.edits.meshSeamLinks.length===0,
-  {operation:snapshot.edits.meshOperations[0],revision:snapshot.revision},
+  extrudedSnapshot.edits.meshOperations.length===1&&
+  extrudedSnapshot.edits.meshOperations[0].links.length===2&&
+  extrudedSnapshot.edits.meshSeamLinks.length===0,
+  {operation:extrudedSnapshot.edits.meshOperations[0],revision:extrudedSnapshot.revision},
   'Source links were not atomically converted into true glTF geometry');
  await page.evaluate(()=>window.MARK_RIG_VIEWER_API.centerView('threequarter'));
  await page.evaluate(()=>window.MARK_RIG_VIEWER_API.seek(0));
