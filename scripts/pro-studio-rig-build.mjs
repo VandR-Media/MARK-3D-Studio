@@ -72,7 +72,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <section aria-label="Выделение элементов в настоящем 3D-окне">
 <button id="mesh-pick-toggle" aria-pressed="false">Выделение в 3D: выключено</button>
 <label>Тип выбора <select id="mesh-pick-mode">
-<option value="vertex">Вершина</option><option value="face">Треугольник</option>
+<option value="vertex">Вершина</option><option value="edge">Ребро</option><option value="face">Треугольник</option>
 </select></label>
 <output id="mesh-selection" role="status">Нажмите «Открыть Edit Mode», затем включите выбор.</output>
 </section>
@@ -80,6 +80,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <label>Меш <input id="mesh-id" type="number" min="0" max="500" value="0" style="max-width:65px"></label>
 <label>Операция <select id="mesh-op" aria-label="Операция геометрии">
 <option value="vertex.move">Переместить вершину</option>
+<option value="vertex.snap">Привязать вершину к вершине</option>
 <option value="edge.split">Разделить ребро</option>
 <option value="face.flip">Перевернуть грань</option>
 <option value="face.delete">Удалить грань</option>
