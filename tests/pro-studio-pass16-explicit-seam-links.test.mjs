@@ -107,6 +107,12 @@ test('identical XYZ but different skin/morph deformation MUST NOT be logical-lin
   offset=(view.byteOffset||0)+(pos.byteOffset||0),stride=view.byteStride??12;
  for(let k=0;k<3;k++)
   dv.setFloat32(offset+stride+k*4,dv.getFloat32(offset+k*4,true),true);
+ // Make the first POSITION morph target explicitly incompatible at these
+ // coincident positions, so a logical link must reject a future shape-key split.
+ const m=doc.accessors[primitive.targets[0].POSITION],
+  mv=doc.bufferViews[m.bufferView],mo=(mv.byteOffset||0)+(m.byteOffset||0),
+  ms=mv.byteStride??12;
+ dv.setFloat32(mo+ms,dv.getFloat32(mo,true)+.157,true);
  const changed=writeGlb({...parsed,chunks:parsed.chunks.map(c=>c.type===
   0x004e4942?{type:c.type,data:bin}:c)},doc);
  assert.throws(()=>normalizeExplicitSeamLinks(changed,[link(0,1)]),
