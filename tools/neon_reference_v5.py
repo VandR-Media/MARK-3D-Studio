@@ -24,22 +24,50 @@ for pb in rig.pose.bones:
     pb.scale=(1,1,1)
 bpy.context.view_layer.update()
 
-# Remove only geometry projecting further behind the torso than its actual cloth
-# surface (the CC0 source includes a large backpack absent from the reference).
-# This does NOT remove the humanoid body and sleeves.
+# Remove source backpack and the two original backpack straps (the reference has none).
+# Detect strap islands from their material color in the actual UV atlas; preserve
+# green hoodie fabric and skin, using spatial and material constraints together.
 bm=bmesh.new();bm.from_mesh(body.data)
 world=body.matrix_world.copy()
-cut=[]
-for f in bm.faces:
-    w=world@f.calc_center_median()
-    if .82<w.z<1.43 and -.29<w.x<.29 and w.y>.075:
-        cut.append(f)
+uv_layer=bm.loops.layers.uv.active
+base_src=next((n.image for ma in body.data.materials if ma and ma.use_nodes
+  for n in ma.node_tree.nodes if n.type=="TEX_IMAGE" and n.image and
+  any(l.from_node==n and l.to_socket.name=="Base Color" for l in ma.node_tree.links)),None)
+atlas=None
+if base_src:
+    tw,th=base_src.size
+    atlas=np.empty(tw*th*4,dtype=np.float32)
+    base_src.pixels.foreach_get(atlas)
+    atlas=atlas.reshape((th,tw,4))
+cut=[];removed_back=0;removed_strap=0
+for face in bm.faces:
+    w=world@face.calc_center_median()
+    # Remove protruding rear accessories and shoulder-bag hardware.
+    if .80<w.z<1.45 and -.31<w.x<.31 and w.y>.078:
+        cut.append(face);removed_back+=1
+        continue
+    # On the chest, remove neutral-grey / cream strap polygons, not cloth.
+    if .91<w.z<1.47 and .052<abs(w.x)<.24 and w.y<-.095 and atlas is not None and uv_layer:
+        cs=[]
+        for loop in face.loops[:3]:
+            uv=loop[uv_layer].uv
+            px=int(max(0,min(tw-1,uv.x*tw)))
+            py=int(max(0,min(th-1,uv.y*th)))
+            cs.append(atlas[py,px,:3])
+        color=np.mean(cs,axis=0)
+        # Neutral textile straps; hoodie is clearly green in the source texture.
+        neutral=float(max(color)-min(color))
+        if neutral<.105 and float(np.mean(color))>.15:
+            cut.append(face);removed_strap+=1
 bmesh.ops.delete(bm,geom=cut,context="FACES")
 bm.to_mesh(body.data);bm.free();body.data.update()
-print("V5_REMOVED_BACKPACK_FACES",len(cut),flush=True)
+print("V6_REMOVED_BACKPACK_AND_STRAPS",removed_back,removed_strap,flush=True)
 
 def rgb(h):
-    return tuple(int(h[i:i+2],16)/255 for i in (1,3,5))+(1,)
+    def channel(q):
+        v=int(q,16)/255
+        return v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4
+    return tuple(channel(h[i:i+2]) for i in (1,3,5))+(1,)
 def material(n,h,metal=0,rough=.7,emit=0):
     m=bpy.data.materials.new(n);m.use_nodes=True
     m.diffuse_color=rgb(h)
@@ -298,8 +326,8 @@ for iz in range(nz):
         xx=width*u
         bulge=(1-u*u)**.7
         # rear surface drapes toward shoulder blades with soft wrinkles
-        yy=.067+.075*bulge+.013*sin(zz*27+u*8)*sin(pi*t)
-        yy+=.01*sin(pi*t)
+        yy=.035+.048*bulge+.009*sin(zz*25+u*7)*sin(pi*t)
+        yy+=.006*sin(pi*t)
         pts.append((xx,yy,zz))
 for iz in range(nz-1):
     for ix in range(nv-1):
@@ -309,7 +337,7 @@ back_panel=create("Hoodie_Draped_Rear_Cloth",pts,fs,dark_fabric,"Spine01")
 sol=back_panel.modifiers.new("FabricShell","SOLIDIFY");sol.thickness=.003
 # Sew along the neckline and down to the hem, physically in 3D.
 tube("Hoodie_Rear_Center_Stitch",[
- (0,.145,.84),(0,.143,1.00),(0,.149,1.16),(0,.135,1.32)],.0025,
+ (0,.086,.84),(0,.090,1.00),(0,.090,1.16),(0,.080,1.32)],.0025,
  "cap_edge","Spine01",8)
 tube("Hoodie_Rear_Hem_Stitch",[
  (x,.067+.075*(1-(x/.188)**2)**.7,.836)
