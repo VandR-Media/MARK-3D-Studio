@@ -11,6 +11,7 @@
  * Real rig bind matrices, animations and image buffers survive byte-for-byte.
  */
 import {parseGlb,writeGlb,assertSelfContainedGlb} from '../glb.js';
+import {primitiveGeometry} from './primitive-geometry.js';
 const MAX_BYTES=64*1024*1024,MAX_VERTICES=500000,MAX_INDICES=3000000;
 const TYPES={SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16};
 const COMPONENTS={5121:[1,'getUint8','setUint8'],5123:[2,'getUint16','setUint16'],
@@ -162,8 +163,49 @@ function editOnce(ctx,operation){
   'OPERATION','Expected typed mesh operation');
  const {kind,meshIndex,primitiveIndex}=operation;
  guard(['vertex.move','edge.split','face.flip','face.delete',
-  'normal.recalculate'].includes(kind),
+  'normal.recalculate','primitive.add'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
+ if(kind==='primitive.add'){
+  const geometry=primitiveGeometry({
+   shape:operation.shape,size:operation.size??1,segments:operation.segments??12
+  });
+  const attributes={
+   POSITION:append(ctx,geometry.position,{
+    type:'VEC3',componentType:5126,target:34962}),
+   NORMAL:append(ctx,geometry.normal,{
+    type:'VEC3',componentType:5126,target:34962}),
+   TEXCOORD_0:append(ctx,geometry.uv,{
+    type:'VEC2',componentType:5126,target:34962})
+  };
+  const indicesAccessor=append(ctx,geometry.index.map(v=>[v]),{
+   type:'SCALAR',componentType:5123,target:34963
+  });
+  ctx.doc.materials||=[];
+  if(!ctx.doc.materials.length)ctx.doc.materials.push({
+   name:'MARK Default PBR Material',doubleSided:true,
+   pbrMetallicRoughness:{
+    baseColorFactor:[.65,.73,.85,1],metallicFactor:.1,roughnessFactor:.6
+   }
+  });
+  const mat=operation.materialIndex??0;
+  guard(nat(mat)&&mat<ctx.doc.materials.length,
+   'MATERIAL','Primitive material index is invalid');
+  ctx.doc.meshes||=[];ctx.doc.nodes||=[];ctx.doc.scenes||=[{nodes:[]}];
+  const createdMeshIndex=ctx.doc.meshes.length;
+  ctx.doc.meshes.push({name:geometry.name,
+   primitives:[{attributes,indices:indicesAccessor,material:mat,mode:4}]});
+  const createdNodeIndex=ctx.doc.nodes.length;
+  ctx.doc.nodes.push({
+   name:geometry.name+' node '+createdMeshIndex,mesh:createdMeshIndex
+  });
+  const sceneIdx=ctx.doc.scene??0;
+  guard(ctx.doc.scenes[sceneIdx]&&Array.isArray(ctx.doc.scenes[sceneIdx].nodes),
+   'SCENE_GRAPH','Cannot attach primitive to invalid active scene');
+  ctx.doc.scenes[sceneIdx].nodes.push(createdNodeIndex);
+  return {kind,meshIndex:createdMeshIndex,nodeIndex:createdNodeIndex,
+   addedVertices:geometry.position.length,
+   addedTriangles:geometry.index.length/3};
+ }
  const prim=target(ctx,meshIndex,primitiveIndex);
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
