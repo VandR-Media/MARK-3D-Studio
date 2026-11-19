@@ -8,6 +8,7 @@ on:
       - 'scripts/pro-studio-*.mjs'
       - 'tests/pro-studio-*.mjs'
       - 'package.json'
+      - 'docs/pro-studio/PASS-6-AI-BRIDGE-AND-COMPLEX-RIG.md'
       - '.github/workflows/pro-rig-release1-experimental.yml'
   workflow_dispatch:
 permissions:
