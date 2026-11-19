@@ -458,7 +458,7 @@ for i,frame in enumerate((1,26,51,76,101,126,151)):
     bpy.context.scene.frame_set(frame)
     bpy.context.scene.render.filepath=str(OUT.joinpath("dance_step_%02d.png"%i).absolute())
     bpy.ops.render.render(write_still=True)
-bpy.context.scene.render.resolution_x,bpy.context.scene.render.resolution_y,bpy.context.scene.cycles.samples=saved_resolution)
+bpy.context.scene.render.resolution_x,bpy.context.scene.render.resolution_y,bpy.context.scene.cycles.samples=saved_resolution
 
 def stats(p):
     raw=p.read_bytes()
