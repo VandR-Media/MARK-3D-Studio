@@ -18,7 +18,7 @@ const sha=process.env.MARK_SOURCE_SHA||'local-not-a-release-sha';
 const path=resolve('dist/pro-studio/pass13-acceptance');
 mkdirSync(path,{recursive:true});
 const digest=data=>createHash('sha256').update(data).digest('hex');
-const report={schema:'mark.pass13-webgl-extrude/1',buildSha:sha,
+const report={schema:'mark.pass13-webgl-region-extrude/1',buildSha:sha,
  backend:'Chromium WebGL2 / SwiftShader (software)',
  physicalHuaweiTest:false,status:'in_progress',tests:[],artifacts:[],errors:[]};
 const save=(file,data,metadata={})=>{
@@ -100,7 +100,7 @@ try{
  const beforeArtifact=save('region-extrude-before-threequarter-webgl.png',before,
   {camera:'threequarter',width:1280,height:780,frame:0,type:'real WebGL2'});
  await page.locator('#mesh-op').selectOption('face.regionExtrude');
- await page.locator('#mesh-region-extrude-distance').fill('0.55');
+ await page.locator('#mesh-extrude-distance').fill('0.55');
  await page.locator('#mesh-apply').click();
  await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot()
   .edits?.meshOperations?.some(op=>op.kind==='face.regionExtrude'),
