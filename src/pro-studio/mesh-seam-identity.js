@@ -18,7 +18,7 @@ const TYPES={SCALAR:1,VEC2:2,VEC3:3,VEC4:4};
 const COMP={5121:[1,'getUint8'],5123:[2,'getUint16'],
  5125:[4,'getUint32'],5126:[4,'getFloat32']};
 const disallowed=new Set(['vertex.move','vertex.snap','edge.split',
- 'face.delete','face.extrude','face.regionExtrude','primitive.add']);
+ 'face.flip','face.delete','face.extrude','face.regionExtrude','primitive.add']);
 function reader(bytes){
  const parsed=parseGlb(bytes),doc=parsed.json;
  ok(!doc.extensionsRequired?.length,'EXTENSIONS','Required glTF extensions unsupported');
