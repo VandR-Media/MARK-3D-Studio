@@ -91,23 +91,7 @@ try{
   {views:['front','left','right','back','threequarter'],frames:10});
  // Verify the installed, local AI Bridge changes ONE mesh by UUID, material,
  // and clip in ONE atomic commit in the real WebGL renderer.
- const bridge=await page.evaluate(async()=>{
-  const api=window.MARK_AI_BRIDGE;let seq=0;
-  const request=async(method,params={})=>{
-   const r=await api.request({requestId:'complex.'+(++seq),method,params});
-   if(!r.ok)throw Error(method+': '+JSON.stringify(r.diagnostics));
-   return r.result;
-  };
-  document.getElementById('bridge-write-grant').checked=true;
-  const source=new Uint8Array(await (await fetch(
-   new URL('complex-rig/complex-rig70-12parts-3clips.glb',
-    new URL('./',location.href)))).arrayBuffer());
-  // The standalone HTML runs under file://; direct file fetch is often blocked.
-  // The source is passed by host via a separate injected typed array below.
-  return {unsupported:false,sourceLength:source.length};
- }).catch(()=>({deferredInjection:true}));
- // Explicitly pass local typed bytes via Playwright instead of allowing network
- // fetch or arbitrary asset URLs inside the AI Bridge implementation.
+ // Feed bytes directly from the verified Playwright file fixture. No URLs.
  const callResult=await page.evaluate(async bytes=>{
   const api=window.MARK_AI_BRIDGE,request=async(method,params={})=>{
    const r=await api.request({requestId:'complex.cli.'+method,method,params});
