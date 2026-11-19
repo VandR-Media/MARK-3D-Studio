@@ -34,11 +34,11 @@ jobs:
             -o blender.tar.xz; then
             tar -xJf blender.tar.xz
             echo "$PWD/blender-4.0.2-linux-x64" >> "$GITHUB_PATH"
+            ./blender-4.0.2-linux-x64/blender --version
           else
             sudo apt-get update -qq
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends blender python3-numpy
           fi
-          blender --version
       - name: Inspect MakeHuman organic body mesh and skeleton
         run: |
           blender --background --threads 2 --python tools/neon_organic_v4.py 2>&1 | tee outputlog.txt
