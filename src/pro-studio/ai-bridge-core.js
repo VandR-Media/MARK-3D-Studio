@@ -165,7 +165,7 @@ export function createAiBridge({
  const openVisible=async opened=>{
   if(typeof adapter.openGLB!=='function')return;
   const exported=await exportEditedSourceGlb(opened);
-  await adapter.openGLB(exported.glb);
+  await adapter.openGLB(exported.glb,{edits:copy(opened.edits),sourceSha256:opened.sourceSha256});
  };
  const commitTo=async (edits,{pushHistory=true}={})=>{
   const next=await materialize(edits);
