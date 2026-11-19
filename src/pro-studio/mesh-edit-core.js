@@ -2,7 +2,7 @@
  * MARK Professional Studio / Pass 7 / EXPERIMENTAL actual indexed triangle
  * Mesh Edit core. Edits REAL glTF binary accessors (not node transforms).
  *
- * Supported ops: vertex.move, edge.split, face.flip, face.delete.
+ * Supported ops: vertex.move, vertex.snap, edge.split, face.flip, face.delete, normal.recalculate, primitive.add.
  * Current profile: glTF 2.0 GLB, BIN-only, indexed TRIANGLES, dense accessors,
  * 5126 floats for vertex attributes, JOINTS_0 Uint8/16, WEIGHTS_0 Float32.
  * Sparse/Draco/interleaved targets are REJECTED with structured diagnostics.
@@ -163,7 +163,7 @@ function editOnce(ctx,operation){
   'OPERATION','Expected typed mesh operation');
  const {kind,meshIndex,primitiveIndex}=operation;
  guard(['vertex.move','edge.split','face.flip','face.delete',
-  'normal.recalculate','primitive.add'].includes(kind),
+  'normal.recalculate','primitive.add','vertex.snap'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -240,6 +240,23 @@ function editOnce(ctx,operation){
   if(prim.attributes.TANGENT!==undefined)delete prim.attributes.TANGENT;
   return {kind,zeroAreaFaces:zeroArea,
    normalsRecomputed:count,addedVertices:0,addedTriangles:0};
+ }
+ if(kind==='vertex.snap'){
+  // Snap POSITION in the underlying mesh datablock, not skinned/morphed
+  // viewport coordinates. Preserve UV, skin weights and morph deltas.
+  const {vertex,targetVertex}=operation;
+  guard(nat(vertex)&&vertex<count&&nat(targetVertex)&&targetVertex<count,
+   'VERTEX','Snap vertex indices out of range');
+  guard(vertex!==targetVertex,'SNAP_TARGET','Cannot snap a vertex to itself');
+  const original=positions[vertex],destination=positions[targetVertex];
+  const revised=positions.map(row=>row.slice());
+  revised[vertex]=destination.slice();
+  prim.attributes.POSITION=append(ctx,revised,
+   {type:'VEC3',componentType:5126,target:34962});
+  // Snapping overlapping positions is not a topological weld.
+  return {kind,changedVertices:1,addedVertices:0,addedTriangles:0,
+   distance:Math.hypot(...original.map((x,i)=>x-destination[i])),
+   topologyMerged:false};
  }
  if(kind==='vertex.move'){
   guard(nat(operation.vertex)&&operation.vertex<count,
