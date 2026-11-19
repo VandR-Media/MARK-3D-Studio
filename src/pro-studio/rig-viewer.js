@@ -583,11 +583,21 @@ const meshCall=async(method,params={})=>{
 };
 const meshId=()=> 'gltf-mesh-'+Number(byId('mesh-id').value);
 const meshShow=async(prefix='Mesh Edit')=>{
- const stats=await meshCall('mesh.getStats',{meshId:meshId()});
+ const id=meshId(),stats=await meshCall('mesh.getStats',{meshId:id});
+ let seamText='';
+ try{
+  const topology=await meshCall('mesh.getTopology',{meshId:id});
+  seamText=' Атрибутных вершин '+topology.attributeVertexCount+
+   ', геометрических кандидатов '+topology.geometricVertexCandidates+
+   ', UV-швов '+topology.uvSeamEdges+'.'+
+   (topology.uvSeamEdges?' UV-швы сохранены, автоматическая склейка отключена.':'');
+ }catch(error){
+  seamText=' Анализ UV-швов: '+String(error?.message||error)+'.';
+ }
  meshOutput().textContent=prefix+': '+stats.vertexCount+' вершин, '+
   stats.edgeCount+' рёбер, '+stats.triangleCount+' треугольников, '+
-  stats.morphTargets+' морфа, topology rev '+stats.topologyRevision+
-  '. Настоящий GLB, сохраните проект через AI Bridge.';
+  stats.morphTargets+' морфа, topology rev '+stats.topologyRevision+'.'+
+  seamText+' Настоящий GLB, сохраните проект через AI Bridge.';
 };
 async function createPrimitiveInViewport(method){
  if(!byId('bridge-write-grant').checked)

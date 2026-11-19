@@ -11,6 +11,7 @@
 import {parseGlb} from '../glb.js';
 import {getMeshEditStats,validateMeshOperation,applyMeshOperations} from './mesh-edit-core.js';
 import {createPrimitiveGlb} from './primitive-factory.js';
+import {inspectGlbCornerTopology} from './mesh-corner-topology.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,
  exportEditedSourceGlb,sha256} from './markscene-v3-preview.js';
 
@@ -23,7 +24,7 @@ const OP_NAMES=[
  'asset.upload','asset.list','scene.new','scene.open','scene.getHierarchy',
  'scene.getMaterials','scene.validate','scene.save','scene.export',
  'object.setTransform','material.setPbr','animation.preview',
- 'mesh.getStats','mesh.edit','mesh.create',
+ 'mesh.getStats','mesh.getTopology','mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
 ];
@@ -143,7 +144,7 @@ export function createAiBridge({
    scene:'new standalone primitive scene / imported GLB / markscene v3-preview',
    object:'existing glTF node TRS only, stable gltf-node-N UUID',
    material:'existing PBR factors only, gltf-material-N stable ID',
-   mesh:'indexed triangle source + area-weighted normals + procedural plane/grid/box/UV sphere/cylinder',
+   mesh:'indexed triangle mesh editing + read-only exact-position/corner seam topology analysis',
    animation:'existing clip selection/time only',
    transactions:'one active transaction, commit/rollback, 32 undo/redo snapshots',
    render:typeof adapter.capture==='function'?'real viewport via renderer adapter':'unsupported',
@@ -351,6 +352,33 @@ export function createAiBridge({
    return {meshId:params.meshId,topologyRevision:
     (selectedEdits().meshOperations||[]).filter(x=>x.meshIndex===meshIndex).length,
     ...stats,mode:'real binary glTF indexed triangle editing (preview)'};
+  },
+  'mesh.getTopology':async params=>{
+   assertScene();
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primitiveIndex=params?.primitiveIndex??0;
+   guard(Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0,
+    'MESH_TARGET','Invalid primitive index');
+   const operations=selectedEdits().meshOperations||[];
+   // Analyze the same currently edited GLB as mesh.getStats; this query
+   // never writes coordinates, UV, skeletons or native edit logs.
+   const edited=applyMeshOperations(engine.opened.sourceGLB,operations);
+   const topology=inspectGlbCornerTopology(edited,{meshIndex,primitiveIndex});
+   const diagnostics=topology.diagnostics;
+   return{
+    meshId:params.meshId,primitiveIndex,revision:engine.revision,
+    topologyRevision:operations.filter(o=>o.meshIndex===meshIndex&&
+     o.primitiveIndex===primitiveIndex).length,
+    schema:topology.schema,mode:'read-only; candidate position joins are NOT edits',
+    ...diagnostics,uvSets:topology.uvSets,
+    seamSample:topology.edges.filter(e=>e.uvSeamSets.length)
+     .slice(0,16).map(e=>({geometricEdgeId:e.geometricEdgeId,
+      uvSeamSets:e.uvSeamSets.slice(),faces:e.incidents.map(i=>i.face)})),
+    splitAttributeGroupsSample:topology.geometricVertices
+     .filter(g=>g.attributeVertices.length>1).slice(0,16)
+     .map(g=>({geometricVertex:g.geometricVertex,
+      attributeVertices:g.attributeVertices.slice(0,16)}))
+   };
   },
   'mesh.edit':async params=>mutate(edits=>{
    guard(params&&typeof params.meshId==='string',
