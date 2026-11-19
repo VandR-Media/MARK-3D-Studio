@@ -57,13 +57,21 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="bridge-demo">Проверить AI Bridge: изменение → рендер → сохранение</button>
 </section>
 <p id="bridge-output" class="sub" role="status">AI Bridge работает только внутри этой страницы, без HTTP-сервера и доступа к сети.</p>
-<section aria-label="Mesh Edit Mode P7, экспериментальный">
+<section aria-label="Выделение элементов в настоящем 3D-окне">
+<button id="mesh-pick-toggle" aria-pressed="false">Выделение в 3D: выключено</button>
+<label>Тип выбора <select id="mesh-pick-mode">
+<option value="vertex">Вершина</option><option value="face">Треугольник</option>
+</select></label>
+<output id="mesh-selection" role="status">Нажмите «Открыть Edit Mode», затем включите выбор.</output>
+</section>
+<section aria-label="Mesh Edit Mode P8, экспериментальный">
 <label>Меш <input id="mesh-id" type="number" min="0" max="500" value="0" style="max-width:65px"></label>
 <label>Операция <select id="mesh-op" aria-label="Операция геометрии">
 <option value="vertex.move">Переместить вершину</option>
 <option value="edge.split">Разделить ребро</option>
 <option value="face.flip">Перевернуть грань</option>
 <option value="face.delete">Удалить грань</option>
+<option value="normal.recalculate">Пересчитать нормали</option>
 </select></label>
 <label>V1 / грань <input id="mesh-a" type="number" min="0" value="2" style="max-width:65px"></label>
 <label>V2 <input id="mesh-b" type="number" min="0" value="1" style="max-width:65px"></label>
@@ -89,7 +97,8 @@ HTML полностью автономный, без внешних загруз
 сохраняет исходный GLB отдельно от изменений TRS/PBR и выбранного клипа. Не редактирует вершины,
 веса, кости, морф-геометрию или UV. Не является production .markscene v3. Mesh Edit Mode P7 поддерживает только
 индексированные треугольники и четыре ограниченные операции; не поддерживает N-gons,
-полный весовой скульпт и автоматическое пересчитывание нормалей. AI Bridge здесь — in-process preview, без сетевого API и без возможности создания меша.
+полный весовой скульпт. Реализованы начальный Raycaster выбор элемента в 3D и
+пересчёт усреднённых area-weighted нормалей только для индексированных треугольников. AI Bridge здесь — in-process preview, без сетевого API и без возможности создания меша.
 Проверки WebGL2/GLTFExporter и устройство Huawei должны подтверждаться отдельными отчётами.
 Статический Visual Engine v2 и его запрет импорта анимированных GLB не изменены.</footer>
 </main>
