@@ -183,10 +183,13 @@ export function createAiBridge({
  const mutate=async change=>{
   assertScene();assertGrant();
   if(engine.transaction){
-   change(engine.transaction.edits);
-   engine.transaction.commands++;
-   guard(engine.transaction.commands<=LIMITS.maxBatchCommands,
+   guard(engine.transaction.commands<LIMITS.maxBatchCommands,
     'TRANSACTION_LIMIT','Transaction max command count exceeded');
+   // Invalid commands may not leave partial changes in an atomic group.
+   const pending=copy(engine.transaction.edits);
+   change(pending);
+   engine.transaction.edits=pending;
+   engine.transaction.commands++;
    return {staged:true,transactionId:engine.transaction.id,
     commands:engine.transaction.commands};
   }
@@ -204,6 +207,9 @@ export function createAiBridge({
    guard(typeof params.name==='string'&&params.name.length<=LIMITS.maxRequestString,
     'ASSET_NAME','Asset name must be a bounded string');
    const bytes=bytesOf(params.data);
+   const isGlb=bytes.length>=4&&new DataView(bytes.buffer).getUint32(0,true)===0x46546c67;
+   guard((isGlb&&params.type==='glb')||(!isGlb&&params.type==='markscene'),
+    'ASSET_TYPE_MISMATCH','Asset media type conflicts with binary content');
    const imported=await serializedOpen(bytes);
    const sha=await sha256(bytes);
    const assetId='asset.'+(++engine.nextAsset);
@@ -313,22 +319,7 @@ export function createAiBridge({
    engine.transaction=null;
    return {rolledBack:true,transactionId:tx.id,revision:engine.revision};
   },
-  'history.undo':async()=>{
-   assertScene();assertGrant();assertIdle();
-   guard(engine.undo.length>0,'HISTORY_EMPTY','No committed revision to undo');
-   const previous=engine.undo.at(-1);
-   await commitTo(previous,{pushHistory:false});
-   engine.undo.pop();engine.redo.push(copy(engine.opened.edits)); // replaced below
-   return {revision:engine.revision};
-  },
-  'history.redo':async()=>{
-   assertScene();assertGrant();assertIdle();
-   guard(engine.redo.length>0,'HISTORY_EMPTY','No redo revision available');
-   const future=engine.redo.at(-1),old=copy(engine.opened.edits);
-   await commitTo(future,{pushHistory:false});
-   engine.redo.pop();engine.undo.push(old);
-   return {revision:engine.revision};
-  }
+
  };
  // Undo needs the PRE-COMMIT snapshot for redo. Keep it separate from command
  // table construction to avoid duplicating commit/renderer logic.
