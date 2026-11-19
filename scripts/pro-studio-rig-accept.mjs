@@ -547,6 +547,105 @@ try{
   nativeProject:pass8Native,exportedGlb:pass8Export,
   originalSourceSha256:SHA(inputRig.bytes)};
 
+ // P8 real standalone authoring: create an independent STATIC native
+ // scene from zero objects, using same WebGL2 viewer (no imported rig).
+ await page.locator('#primitive-shape').selectOption('box');
+ await page.locator('#primitive-size').fill('1.6');
+ await page.locator('#primitive-new').click();
+ await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot().sceneId===
+  'scene.studio-new-primitive'&&
+  window.MARK_RIG_VIEWER_API.pose().meshes.length===1,null,{timeout:15000});
+ const firstPrimitive=await page.evaluate(async()=>{
+  const api=window.MARK_AI_BRIDGE;
+  const result=await api.request({requestId:'pass8.new-glb',
+   method:'scene.export',params:{}});
+  if(!result.ok)throw Error(JSON.stringify(result.diagnostics));
+  return{glb:Array.from(result.result.data),
+   sceneId:api.getSnapshot().sceneId,pose:window.MARK_RIG_VIEWER_API.pose()};
+ });
+ const firstPrimitiveDoc=parseGlb(Buffer.from(firstPrimitive.glb)).json;
+ assertTest('RIG-PRIMITIVE-EMPTY-SCENE-027',
+  firstPrimitiveDoc.meshes.length===1&&firstPrimitiveDoc.nodes.length===1&&
+  (firstPrimitiveDoc.skins||[]).length===0&&
+  (firstPrimitiveDoc.animations||[]).length===0&&
+  firstPrimitive.pose.meshes.length===1,
+  {source:'native scene.new from empty',sceneId:firstPrimitive.sceneId,
+   meshes:firstPrimitiveDoc.meshes.length,bones:0,clips:0},
+  'Standalone no-Blender box was not rendered in real WebGL2');
+ const beforePrimitive=await canvasShot(page,'pass8-box-from-empty-real-webgl.png',
+  {purpose:'real P8 original procedural box from empty Studio scene'});
+ await page.locator('#primitive-shape').selectOption('uv-sphere');
+ await page.locator('#primitive-size').fill('.7');
+ await page.locator('#primitive-segments').fill('10');
+ await page.locator('#primitive-add').click();
+ await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot().
+  edits?.meshOperations?.length===1&&
+  window.MARK_RIG_VIEWER_API.pose().meshes.length===2,
+  null,{timeout:15000});
+ const afterPrimitive=await canvasShot(page,'pass8-box-plus-sphere-real-webgl.png',
+  {purpose:'real P8 primitive.add second mesh and node'});
+ const primitiveSnapshot=await page.evaluate(async()=>{
+  const api=window.MARK_AI_BRIDGE;
+  const req=async method=>{
+   const r=await api.request({requestId:'pass8.'+method,method,params:{}});
+   if(!r.ok)throw Error(JSON.stringify(r.diagnostics));
+   return r.result;
+  };
+  const hierarchy=await req('scene.getHierarchy');
+  const glb=await req('scene.export');
+  return{nodes:hierarchy.nodes,glb:Array.from(glb.data),
+   selection:api.getSnapshot().edits.meshOperations};
+ });
+ const twoMeshDoc=parseGlb(Buffer.from(primitiveSnapshot.glb)).json;
+ assertTest('RIG-PRIMITIVE-ADD-028',
+  twoMeshDoc.meshes.length===2&&twoMeshDoc.nodes.length===2&&
+  primitiveSnapshot.nodes.length===2&&
+  primitiveSnapshot.selection[0].kind==='primitive.add'&&
+  beforePrimitive!==afterPrimitive,
+  {createdNodes:primitiveSnapshot.nodes.map(n=>n.meshId),
+   shapes:twoMeshDoc.meshes.map(m=>m.name),
+   frameBefore:beforePrimitive,frameAfter:afterPrimitive},
+  'Primitive.add did not create a separate real WebGL2 mesh');
+ // The newly created mesh must remain normal-editable and native saveable.
+ await page.locator('#mesh-op').selectOption('normal.recalculate');
+ await page.locator('#mesh-apply').click();
+ await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot().
+  edits?.meshOperations?.length===2,null,{timeout:15000});
+ const standaloneProof=await page.evaluate(async()=>{
+  const api=window.MARK_AI_BRIDGE;
+  const r1=await api.request({requestId:'p8.static.save',
+   method:'scene.save',params:{}});
+  const r2=await api.request({requestId:'p8.static.export',
+   method:'scene.export',params:{}});
+  if(!r1.ok||!r2.ok)throw Error('Standalone native save failed');
+  return{native:Array.from(r1.result.data),glb:Array.from(r2.result.data),
+   sourceSha256:r1.result.sourceSha256};
+ });
+ const p8StaticNative=put('pass8-box-sphere-editable.markscene',
+  Buffer.from(standaloneProof.native));
+ const p8StaticGlb=put('pass8-box-sphere-edited.glb',
+  Buffer.from(standaloneProof.glb));
+ const restoredStatic=await openPreviewMarkscene(Buffer.from(standaloneProof.native));
+ const staticSource=parseGlb(restoredStatic.sourceGLB).json;
+ const outputStatic=parseGlb(Buffer.from(standaloneProof.glb)).json;
+ assertTest('RIG-PRIMITIVE-NATIVE-029',
+  staticSource.meshes.length===1&&
+  outputStatic.meshes.length===2&&
+  restoredStatic.sourceSha256===standaloneProof.sourceSha256&&
+  restoredStatic.edits.meshOperations.map(x=>x.kind).join('|')===
+   'primitive.add|normal.recalculate'&&
+  Number.isInteger(outputStatic.meshes[1].primitives[0].attributes.NORMAL),
+  {sourceMeshes:staticSource.meshes.length,editedMeshes:outputStatic.meshes.length,
+   nativeSha:p8StaticNative.sha256,glbSha:p8StaticGlb.sha256},
+  'From-empty procedural scene could not save/reopen actual mesh and normals');
+ json.nativePrimitive={
+  backend:'actual Three.js WebGL2',source:'independent empty glTF document',
+  figures:['box','uv-sphere'],screenshots:[
+   'pass8-box-from-empty-real-webgl.png','pass8-box-plus-sphere-real-webgl.png'
+  ],native:p8StaticNative,glb:p8StaticGlb,
+  caveat:'static procedural scene, no artist rig/UV unwrap or Blender replacement'
+ };
+
  // Restore the original fixture for independently reproducible MP4 frames.
  await page.evaluate(async bytes=>{
   await window.MARK_RIG_VIEWER_API.loadBinary(new Uint8Array(bytes));
