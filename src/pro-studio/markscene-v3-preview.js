@@ -7,6 +7,7 @@
  * Pure browser/Node JS; no arbitrary code execution or external downloads.
  */
 import {parseGlb,writeGlb,assertSelfContainedGlb} from '../glb.js';
+import {applyMeshOperations} from './mesh-edit-core.js';
 
 const E=new TextEncoder(),D=new TextDecoder('utf-8',{fatal:true});
 const FILES=['manifest.json','assets/source.glb'];
@@ -122,7 +123,7 @@ function gltf(bytes){
  return parsed;
 }
 const clone=x=>structuredClone(x),keyed=x=>x&&typeof x==='object'&&!Array.isArray(x);
-function normalizeEdits(edits,doc){
+function normalizeEdits(edits,doc,sourceGLB){
  good(keyed(edits),'EDITS','expected structured edits');
  const out={nodeTransforms:{},materialPbr:{},selection:{clipIndex:0,timeSeconds:0}};
  for(const [k,value] of Object.entries(edits.nodeTransforms||{})){
@@ -171,6 +172,52 @@ function normalizeEdits(edits,doc){
   typeof time==='number'&&Number.isFinite(time)&&time>=0&&time<=3600,
   'EDIT_CLIP','invalid clip/time selection');
  out.selection={clipIndex:clip,timeSeconds:time};
+ if(edits.meshOperations!==undefined){
+  good(Array.isArray(edits.meshOperations)&&edits.meshOperations.length<=32,
+   'MESH_EDIT_COUNT','up to 32 geometry operations per native preview project');
+  const canonical=[];
+  for(const input of edits.meshOperations){
+   good(keyed(input),'MESH_EDIT','operation must be typed object');
+   const kind=input.kind;
+   good(['vertex.move','edge.split','face.flip','face.delete'].includes(kind),
+    'MESH_EDIT_TYPE','Unsupported geometry operation');
+   const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
+    kind==='edge.split'?['kind','meshIndex','primitiveIndex','start','end','factor']:
+    ['kind','meshIndex','primitiveIndex','face'];
+   good(Object.keys(input).every(k=>allowed.includes(k))&&
+    Number.isInteger(input.meshIndex)&&input.meshIndex>=0&&
+    Number.isInteger(input.primitiveIndex)&&input.primitiveIndex>=0,
+    'MESH_EDIT_FIELDS','Unexpected fields or invalid mesh/primitive indices');
+   const op={kind,meshIndex:input.meshIndex,primitiveIndex:input.primitiveIndex};
+   if(kind==='vertex.move'){
+    good(Number.isInteger(input.vertex)&&input.vertex>=0&&
+     Array.isArray(input.delta)&&input.delta.length===3&&
+     input.delta.every(x=>Number.isFinite(x)&&Math.abs(x)<10000),
+     'MESH_MOVE','Invalid vertex/delta');
+    op.vertex=input.vertex;op.delta=input.delta.slice();
+   }else if(kind==='edge.split'){
+    good(Number.isInteger(input.start)&&input.start>=0&&
+     Number.isInteger(input.end)&&input.end>=0&&
+     Number.isFinite(input.factor??.5)&&
+     (input.factor??.5)>0&&(input.factor??.5)<1,
+     'MESH_SPLIT','Invalid edge or interpolation');
+    op.start=input.start;op.end=input.end;
+    op.factor=input.factor??.5;
+   }else{
+    good(Number.isInteger(input.face)&&input.face>=0,
+     'MESH_FACE','Invalid face index');
+    op.face=input.face;
+   }
+   canonical.push(op);
+  }
+  if(sourceGLB&&canonical.length){
+   // The exact same binary topology kernel validates each persisted command.
+   // No malformed manifest can smuggle a geometry edit into export later.
+   try{applyMeshOperations(sourceGLB,canonical);}
+   catch(error){good(false,'MESH_KERNEL',String(error?.message||error));}
+  }
+  out.meshOperations=canonical;
+ }
  return out;
 }
 function summary(doc){return{
@@ -209,7 +256,7 @@ function validateManifest(m,source,doc){
   Array.isArray(m.audioBindings)&&m.upAxis==='Y'&&m.units==='meters'&&
   m.fps>0&&m.fps<=240&&keyed(m.colorManagement),
   'MANIFEST_FIELDS','missing required native project fields');
- return normalizeEdits(m.edits,doc);
+ return normalizeEdits(m.edits,doc,source);
 }
 export async function createPreviewMarkscene(input,{
  projectId='experimental-rig-project',name='MARK rigged scene',license='unknown',
@@ -220,7 +267,7 @@ export async function createPreviewMarkscene(input,{
  good(ID.test(projectId)&&typeof name==='string'&&name.length<=160&&
   typeof license==='string'&&license.length<=160&&keyed(extra),
   'PROJECT_META','invalid project identification');
- const hash=await sha256(bytes),normalized=normalizeEdits(edits,doc);
+ const hash=await sha256(bytes),normalized=normalizeEdits(edits,doc,bytes);
  const manifest={
   schema:FMT,formatStatus:STATUS,schemaVersion:3,
   appVersion:'0.7.0-alpha.0+rig-preview',minReaderVersion:'3-preview',
@@ -232,9 +279,11 @@ export async function createPreviewMarkscene(input,{
    nodeUUIDs:doc.nodes.map((_,i)=>'gltf-node-'+i)}],
   dependencies:[],audioBindings:[],checksums:{[FILES[1]]:hash},
   sourceSummary:summary(doc),edits:normalized,
-  authoringFeatures:['node TRS override','material metallic/roughness/baseColor override','clip view state'],
-  unimplemented:['mesh editing','weight paint','rig editing','IK','UV unwrapping',
-   'native v2 scene migration','undo/recovery','audio graph authoring'],
+  authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
+   'clip view state','bounded indexed-triangle vertex.move/edge.split/face.flip/face.delete edit log'],
+  unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
+   'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
+   'audio graph authoring'],
   extensions:clone(extra)
  };
  const encoded=E.encode(JSON.stringify(manifest,null,2)+'\n');
@@ -276,8 +325,13 @@ export async function repackPreviewMarkscene(opened,edits){
 }
 export async function exportEditedSourceGlb(opened){
  good(opened?.sourceGLB&&opened?.edits,'EXPORT_INPUT','open native project before export');
- const parsed=gltf(opened.sourceGLB),doc=clone(parsed.json);
- const edits=normalizeEdits(opened.edits,doc);
+ const original=gltf(opened.sourceGLB);
+ const edits=normalizeEdits(opened.edits,original.json,opened.sourceGLB);
+ const geometryModified=Boolean(edits.meshOperations?.length);
+ const updatedBinary=geometryModified?
+  applyMeshOperations(opened.sourceGLB,edits.meshOperations):null;
+ const parsed=updatedBinary?gltf(updatedBinary):original;
+ const doc=clone(parsed.json);
  for(const [index,fields] of Object.entries(edits.nodeTransforms))
   Object.assign(doc.nodes[Number(index)],fields);
  for(const [index,fields] of Object.entries(edits.materialPbr))
@@ -286,5 +340,7 @@ export async function exportEditedSourceGlb(opened){
  return {glb:exported,sha256:await sha256(exported),
   summary:summary(doc),modifiedNodeCount:Object.keys(edits.nodeTransforms).length,
   modifiedMaterialCount:Object.keys(edits.materialPbr).length,
-  preservesOriginalBinary:true};
+  meshOperations:edits.meshOperations?.length||0,
+  geometryModified,preservesOriginalBinary:!geometryModified,
+  originalSourcePreservedInNative:true};
 }
