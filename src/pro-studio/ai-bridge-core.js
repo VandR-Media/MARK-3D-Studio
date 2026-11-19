@@ -11,8 +11,8 @@
 import {parseGlb} from '../glb.js';
 import {getMeshEditStats,validateMeshOperation,applyMeshOperations} from './mesh-edit-core.js';
 import {createPrimitiveGlb} from './primitive-factory.js';
-import {normalizeExplicitSeamLinks,inspectExplicitSeamTopology}
- from './mesh-seam-identity.js';
+import {normalizeExplicitSeamLinks,inspectExplicitSeamTopology,
+ inspectConsumedSeamExtrude} from './mesh-seam-identity.js';
 import {inspectGlbCornerTopology} from './mesh-corner-topology.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,
  exportEditedSourceGlb,sha256} from './markscene-v3-preview.js';
@@ -27,7 +27,8 @@ const OP_NAMES=[
  'scene.getMaterials','scene.validate','scene.save','scene.export',
  'object.setTransform','material.setPbr','animation.preview',
  'mesh.getStats','mesh.getTopology','mesh.getLinkedRegion',
- 'mesh.linkSeam','mesh.unlinkSeam','mesh.edit','mesh.create',
+ 'mesh.linkSeam','mesh.unlinkSeam','mesh.extrudeLinkedRegion',
+ 'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
 ];
@@ -341,6 +342,8 @@ export function createAiBridge({
     shape:params.shape||'box',size:params.size??1,
     segments:params.segments??12,materialIndex:params.materialIndex??0};
    const existing=edits.meshOperations||[];
+   guard(!existing.some(o=>o.kind==='face.regionExtrudeLinked'),
+    'MESH_LINKED_SEQUENCE','Cannot create further mesh after linked extrusion');
    guard(existing.length<32,'MESH_EDIT_LIMIT','Preview max 32 geometry edits');
    if(edits.meshSeamLinks?.length)normalizeExplicitSeamLinks(
     engine.opened.sourceGLB,edits.meshSeamLinks,[...existing,operation]);
@@ -399,6 +402,11 @@ export function createAiBridge({
    const primitiveIndex=params?.primitiveIndex??0;
    guard(Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0,
     'MESH_TARGET','Invalid primitive index');
+   const consumed=(selectedEdits().meshOperations||[]).find(op=>
+    op.kind==='face.regionExtrudeLinked'&&
+    op.meshIndex===meshIndex&&op.primitiveIndex===primitiveIndex);
+   if(consumed)return inspectConsumedSeamExtrude(engine.opened.sourceGLB,{
+    sourceSha256:engine.opened.sourceSha256,operation:consumed});
    return inspectExplicitSeamTopology(engine.opened.sourceGLB,{
     meshIndex,primitiveIndex,sourceSha256:engine.opened.sourceSha256,
     links:selectedEdits().meshSeamLinks||[],
@@ -437,6 +445,33 @@ export function createAiBridge({
    edits.meshSeamLinks=normalizeExplicitSeamLinks(
     engine.opened.sourceGLB,after,edits.meshOperations||[]);
   }),
+  'mesh.extrudeLinkedRegion':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primitiveIndex=params?.primitiveIndex??0;
+   guard(Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    plain(params)&&Object.keys(params).every(k=>[
+     'meshId','primitiveIndex','faces','distance'].includes(k)),
+    'MESH_LINKED_FIELDS','Unexpected linked extrusion arguments');
+   // Hard limit one edit to preserve deterministic source->cap identity.
+   guard((edits.meshOperations||[]).length===0,
+    'MESH_LINKED_SEQUENCE','Linked extrusion requires unedited source');
+   const current=edits.meshSeamLinks||[];
+   const matching=current.filter(l=>l.meshIndex===meshIndex&&
+    l.primitiveIndex===primitiveIndex);
+   guard(matching.length>=2&&matching.length===current.length,
+    'MESH_LINKED_APPROVAL',
+    'Approve at least 2 seam pairs on this primitive; no other pending links');
+   const canonical=normalizeExplicitSeamLinks(
+    engine.opened.sourceGLB,matching,[]);
+   const op={kind:'face.regionExtrudeLinked',meshIndex,primitiveIndex,
+    faces:params.faces,distance:params.distance,links:canonical};
+   // The same physical GLB binary kernel is used for validation and replay.
+   const output=validateMeshOperation(engine.opened.sourceGLB,[],op);
+   edits.meshOperations=output.operations;
+   // After this one-shot action, original IDs are no longer current.
+   // The provenance stays in op.links and source->cap remap is queryable.
+   edits.meshSeamLinks=[];
+  }),
   'mesh.edit':async params=>mutate(edits=>{
    guard(params&&typeof params.meshId==='string',
     'MESH_TARGET','Mesh ID is required');
@@ -448,6 +483,11 @@ export function createAiBridge({
    const operation={...copy(params.operation),meshIndex,
     primitiveIndex:primIndex};
    const existing=edits.meshOperations||[];
+   guard(!existing.some(o=>o.kind==='face.regionExtrudeLinked'),
+    'MESH_LINKED_SEQUENCE','No subsequent edit without safe identity remap');
+   guard(params.operation.kind!=='face.regionExtrudeLinked',
+    'MESH_LINKED_APPROVAL',
+    'Use mesh.extrudeLinkedRegion after explicitly approving seam links');
    guard(existing.length<32,'MESH_EDIT_LIMIT',
     'Preview native project supports up to 32 geometry edits');
    // Validation applies the real glTF BIN kernel to a temporary copy,
