@@ -47,7 +47,7 @@ test('edge projection refuses nonexistent topology and invalid indices',()=>{
  const {picker}=setup();
  assert.throws(()=>picker.projectEdge(0,0,0),/MARK_PICK_EDGE_RANGE/);
  assert.throws(()=>picker.projectEdge(0,0,3),/MARK_PICK_EDGE_RANGE/);
- assert.throws(()=>picker.projectEdge(0,0,2,2),/MARK_PICK_MESH_ASSOCIATION/);
+ assert.throws(()=>picker.projectEdge(999,0,2),/MARK_PICK_MESH_ASSOCIATION/);
 });
 
 test('existing vertex and face modes remain selectable on actual geometry',()=>{
