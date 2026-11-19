@@ -24,6 +24,12 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
    transparent:true,opacity:.98})
  );
  faceLine.visible=false;faceLine.renderOrder=501;scene.add(faceLine);
+ const edgeLine=new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),
+  new THREE.LineBasicMaterial({color:0xff9e40,depthTest:false,
+   depthWrite:false,transparent:true,opacity:1})
+ );
+ edgeLine.visible=false;edgeLine.renderOrder=502;scene.add(edgeLine);
  let mode='vertex',selection=null,enabled=false;
  function locate(meshIndex,primitiveIndex=0){
   const root=getRoot(),parsed=getParsed(),doc=getSourceDoc();
@@ -102,7 +108,7 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
    world:v.toArray(),depth:nd.z,visible:nd.z>=-1&&nd.z<=1};
  }
  function overlay(){
-  marker.visible=false;faceLine.visible=false;
+  marker.visible=false;faceLine.visible=false;edgeLine.visible=false;
   if(!selection)return;
   let mesh;
   try{mesh=locate(selection.meshIndex,selection.primitiveIndex);}
@@ -110,6 +116,13 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
   if(selection.mode==='vertex'){
    const v=vertexWorld(mesh,selection.vertex);
    marker.position.copy(v);marker.visible=true;
+  }else if(selection.mode==='edge'){
+   const positions=edgeLine.geometry.getAttribute('position');
+   selection.edge.forEach((i,k)=>{
+    const v=vertexWorld(mesh,i);positions.setXYZ(k,v.x,v.y,v.z);
+   });
+   positions.needsUpdate=true;edgeLine.geometry.computeBoundingSphere();
+   edgeLine.visible=true;
   }else{
    const faces=faceIndices(mesh,selection.face);
    const positions=faceLine.geometry.getAttribute('position');
@@ -122,7 +135,7 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
   }
  }
  function selectAt(x,y,pickMode=mode){
-  safe(['vertex','face'].includes(pickMode),'MODE','Select vertex or face');
+  safe(['vertex','edge','face'].includes(pickMode),'MODE','Select vertex, edge or face');
   safe(enabled,'DISABLED','Open Mesh Edit Mode before viewport selection');
   camera.updateMatrixWorld(true);getRoot()?.updateMatrixWorld(true);
   ray.setFromCamera(pixelToNdc(x,y),camera);
@@ -140,7 +153,31 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
   }
   if(!hit){selection=null;overlay();render();return null;}
   const indices=faceIndices(hit.object,hit.faceIndex);
-  let vertex=null;
+  let vertex=null,edge=null;
+  if(pickMode==='edge'){
+   let closest=Infinity;
+   const pointToSegment=(a,b)=>{
+    const dx=b.x-a.x,dy=b.y-a.y,denom=dx*dx+dy*dy;
+    const t=denom>1e-10?Math.max(0,Math.min(1,
+     ((x-a.x)*dx+(y-a.y)*dy)/denom)):0;
+    return Math.hypot(x-a.x-dx*t,y-a.y-dy*t);
+   };
+   for(const pair of [[indices[0],indices[1]],[indices[1],indices[2]],
+    [indices[2],indices[0]]]){
+    const a=project(vertexWorld(hit.object,pair[0]));
+    const b=project(vertexWorld(hit.object,pair[1]));
+    if(!a.visible||!b.visible)continue;
+    const distance=pointToSegment(a,b);
+    if(distance<closest){
+     closest=distance;
+     edge=[Math.min(...pair),Math.max(...pair)];
+    }
+   }
+   if(!edge||closest>Math.max(20,Math.min(canvas.clientWidth,
+    canvas.clientHeight)*.035)){
+    selection=null;overlay();render();return null;
+   }
+  }
   if(pickMode==='vertex'){
    let closest=Infinity;
    for(const index of indices){
@@ -156,7 +193,8 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
    mode:pickMode,meshIndex:assoc.meshIndex,
    meshId:'gltf-mesh-'+assoc.meshIndex,
    primitiveIndex:assoc.primitiveIndex,
-   ...(pickMode==='vertex'?{vertex}:{face:hit.faceIndex}),
+   ...(pickMode==='vertex'?{vertex}:pickMode==='edge'?{edge}:
+    {face:hit.faceIndex}),
    triangleVertices:indices,
    click:{x,y}
   };
@@ -165,6 +203,25 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
  function projectVertex(meshIndex,vertexIndex,primitiveIndex=0){
   const mesh=locate(meshIndex,primitiveIndex);camera.updateMatrixWorld(true);
   return {...project(vertexWorld(mesh,vertexIndex)),meshIndex,vertexIndex};
+ }
+ function projectEdge(meshIndex,start,end,primitiveIndex=0){
+  const mesh=locate(meshIndex,primitiveIndex);
+  safe(inRange(start,mesh.geometry.attributes.position.count)&&
+   inRange(end,mesh.geometry.attributes.position.count)&&start!==end,
+   'EDGE_RANGE','Invalid edge vertices');
+  const geom=mesh.geometry,indices=geom.index;
+  safe(Boolean(indices),'EDGE_PROFILE','Indexed triangle mesh required');
+  let found=false;
+  for(let i=0;i<indices.count;i+=3){
+   const tri=[indices.getX(i),indices.getX(i+1),indices.getX(i+2)];
+   if(tri.includes(start)&&tri.includes(end)){found=true;break;}
+  }
+  safe(found,'EDGE_NOT_FOUND','Selected vertices do not share a triangle edge');
+  camera.updateMatrixWorld(true);
+  const a=project(vertexWorld(mesh,start)),b=project(vertexWorld(mesh,end));
+  return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,
+   visible:a.visible&&b.visible,meshIndex,primitiveIndex,
+   edge:[Math.min(start,end),Math.max(start,end)],endpoints:[a,b]};
  }
  function projectFace(meshIndex,faceIndex,primitiveIndex=0){
   const mesh=locate(meshIndex,primitiveIndex);
@@ -177,9 +234,9 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
  }
  return{
   setEnabled:v=>{enabled=Boolean(v);if(!enabled)selection=null;overlay();render();},
-  setMode:v=>{safe(['vertex','face'].includes(v),'MODE','Unknown selection mode');mode=v;},
+  setMode:v=>{safe(['vertex','edge','face'].includes(v),'MODE','Unknown selection mode');mode=v;},
   pickAt:selectAt,
-  projectVertex,projectFace,
+  projectVertex,projectEdge,projectFace,
   getSelection:()=>selection?structuredClone(selection):null,
   getEnabled:()=>enabled,
   update:overlay,
