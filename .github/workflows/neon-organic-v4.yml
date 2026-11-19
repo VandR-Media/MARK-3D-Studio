@@ -42,15 +42,19 @@ jobs:
       - name: Inspect MakeHuman organic body mesh and skeleton
         run: |
           blender --background --threads 2 --python tools/neon_organic_v4.py 2>&1 | tee outputlog.txt
-          grep -q MAKEHUMAN_IMPORT outputlog.txt
+          grep -q V4_ORGANIC_EXPORT_SUCCESS outputlog.txt
+          test -s output/NEON_BOY_V4_DANCE.glb
+          test -s output/NEON_BOY_V4_STATIC.glb
+          test -s output/NEON_BOY_V4_ORGANIC.blend
+          test -s output/render_front.png
+          test -s output/validation.json
       - name: Save evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Organic-Base-Probe
           path: |
-            output/probe.json
-            human.glb
+            output/
             outputlog.txt
           if-no-files-found: warn
           retention-days: 21
