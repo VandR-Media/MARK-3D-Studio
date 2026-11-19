@@ -80,10 +80,11 @@ try{
   {faceProjection:face,selection},'Actual mouse click failed to pick triangle');
  // Removing selection overlay ensures pixel diff measures mesh change.
  await page.evaluate(()=>window.MARK_MESH_PICK_API.enable(false));
+ await page.evaluate(()=>window.MARK_RIG_VIEWER_API.centerView('threequarter'));
  const before=pngFromData(await page.evaluate(()=>
   window.MARK_RIG_VIEWER_API.canvas()));
- const beforeArtifact=save('extrude-before-front-webgl.png',before,
-  {camera:'front',width:1280,height:780,frame:0,type:'real WebGL2'});
+ const beforeArtifact=save('extrude-before-threequarter-webgl.png',before,
+  {camera:'threequarter',width:1280,height:780,frame:0,type:'real WebGL2'});
  await page.locator('#mesh-op').selectOption('face.extrude');
  await page.locator('#mesh-a').fill('0');
  await page.locator('#mesh-extrude-distance').fill('0.55');
@@ -95,8 +96,8 @@ try{
  await page.evaluate(()=>window.MARK_RIG_VIEWER_API.seek(0));
  const after=pngFromData(await page.evaluate(()=>
   window.MARK_RIG_VIEWER_API.canvas()));
- const afterArtifact=save('extrude-after-front-webgl.png',after,
-  {camera:'front',width:1280,height:780,frame:0,type:'real WebGL2'});
+ const afterArtifact=save('extrude-after-threequarter-webgl.png',after,
+  {camera:'threequarter',width:1280,height:780,frame:0,type:'real WebGL2'});
  const diff=difference(before,after);
  check('P12-REAL-PIXEL-DIFF-003',
   diff.changedPixels>100, {before:beforeArtifact.sha256,
@@ -132,11 +133,11 @@ try{
   {native:nativeFile,glb:glbFile,stats:result.stats,
    meshes:editedDoc.meshes.length,sourceSha256:opened.sourceSha256},
   'Extruded binary/native/rig semantics did not survive reopen and export');
- await page.evaluate(()=>window.MARK_RIG_VIEWER_API.centerView('threequarter'));
+ await page.evaluate(()=>window.MARK_RIG_VIEWER_API.centerView('front'));
  const threequarter=pngFromData(await page.evaluate(()=>
   window.MARK_RIG_VIEWER_API.canvas()));
- save('extrude-after-threequarter-webgl.png',threequarter,
-  {camera:'threequarter',width:1280,height:780,frame:0,type:'real WebGL2'});
+ save('extrude-after-front-webgl.png',threequarter,
+  {camera:'front',width:1280,height:780,frame:0,type:'real WebGL2'});
  check('P12-BROWSER-ERRORS-005',errors.length===0,{errors},
   'WebGL viewer threw a browser error');
  report.status='pass';
