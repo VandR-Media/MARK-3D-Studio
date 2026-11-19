@@ -9,6 +9,7 @@ on:
       - 'tests/pro-studio-*.mjs'
       - 'package.json'
       - 'docs/pro-studio/PASS-6-AI-BRIDGE-AND-COMPLEX-RIG.md'
+      - 'docs/pro-studio/PASS-7-REAL-MESH-EDIT-PREVIEW.md'
       - '.github/workflows/pro-rig-release1-experimental.yml'
   workflow_dispatch:
 permissions:
