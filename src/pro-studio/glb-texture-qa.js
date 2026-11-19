@@ -78,7 +78,7 @@ function imageContent(ctx,imageIndex,{maxBytes=16*1024*1024}={}){
   throw Error('TEXTURE_QA_PNG_DIMENSIONS');
  return {supported:true,mime:'image/png',width,height,pixels:bitmap.data};
 }
-function resolveSlot(ctx,ref,slot){
+function resolveSlot(ctx,ref,slot,maxImageBytes){
  const texture=refIndex(ctx.doc.textures||[],ref.index,'TEXTURE');
  const used=texture.extensions||{};
  if(Object.keys(used).some(x=>x!=='KHR_texture_basisu'))
@@ -106,7 +106,7 @@ function resolveSlot(ctx,ref,slot){
   rotation:t.rotation??0};
  if(!Number.isFinite(uv.rotation))throw Error('TEXTURE_QA_TRANSFORM_ROTATION');
  if(texture.source===undefined)throw Error('TEXTURE_QA_TEXTURE_NO_SOURCE');
- const pixels=imageContent(ctx,texture.source);
+ const pixels=imageContent(ctx,texture.source,{maxBytes:maxImageBytes});
  return {slot,uv,sampler:normSampler,pixels,
   scale:ref.scale??1,strength:ref.strength??1,
   textureExtensions:Object.keys(used)};
@@ -138,6 +138,8 @@ export function compareGlbTextures(before,after,{
 }={}){
  if(!Number.isFinite(tolerance)||tolerance<0||tolerance>1)
   throw Error('TEXTURE_QA_TOLERANCE');
+ if(!safeUint(maxImageBytes)||maxImageBytes<64||maxImageBytes>64*1024*1024)
+  throw Error('TEXTURE_QA_IMAGE_BUDGET');
  const a=extract(before),b=extract(after),errors=[],unverified=[],passed=[],stats={
   materials:0,textureSlots:0,imagesDecoded:0,pixelsCompared:0,samplerChecks:0,
   uvTransformChecks:0,unsupportedTextures:0
@@ -160,7 +162,7 @@ export function compareGlbTextures(before,after,{
    stats.textureSlots++;
    let u,v;
    try{
-    u=resolveSlot(a,x,slot);v=resolveSlot(b,y,slot);
+    u=resolveSlot(a,x,slot,maxImageBytes);v=resolveSlot(b,y,slot,maxImageBytes);
    }catch(error){
     errors.push({key:name+'.'+slot+'.invalid',reason:String(error?.message||error)});
     continue;
@@ -203,6 +205,7 @@ export function compareGlbTextures(before,after,{
    else passed.push(name+'.'+slot+'.rgbaPixels');
   }
  }
+ if(stats.textureSlots===0)unverified.push('No referenced material textures: image pixel fidelity not exercised');
  // Safeguard: texture slots not attached to materials are unverified resource
  // garbage, never silently counted as checked image semantics.
  const referenced=(ctx)=>new Set((ctx.doc.materials||[])
