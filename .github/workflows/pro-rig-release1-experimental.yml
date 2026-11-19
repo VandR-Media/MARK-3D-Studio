@@ -12,6 +12,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: mark-pro-rig-r1-${{ github.ref }}
   cancel-in-progress: true
@@ -38,6 +39,7 @@ jobs:
           node --check tests/pro-studio-release1-v3.test.mjs
           node --check src/pro-studio/glb-texture-qa.js
           node --check tests/pro-studio-texture-qa.test.mjs
+          node --check scripts/pro-studio-external-neon-qa.mjs
           node --check scripts/pro-studio-v3-preview.mjs
       - name: Old v2 compatibility and rigged transport regression
         run: |
@@ -58,6 +60,25 @@ jobs:
         run: npm run pro:rig:accept
         env:
           MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Locate short-lived external Neon Boy GLB from earlier owner repo run
+        id: neon_fixture
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/pro-studio/external
+          if gh run download 44398211839 --repo VandR-Media/MARK-3D-Studio \
+              --name MARK-Neon-Boy-Review --dir dist/pro-studio/external \
+              && test -s dist/pro-studio/external/output/NEON_BOY_DANCE.glb; then
+            echo "file=dist/pro-studio/external/output/NEON_BOY_DANCE.glb" >> "$GITHUB_OUTPUT"
+          else
+            echo "External evidence artifact unavailable; QA must report SKIP, never PASS"
+            echo "file=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Independent large 278-mesh external humanoid import and WebGL2 QA
+        run: node scripts/pro-studio-external-neon-qa.mjs
+        env:
+          MARK_EXTERNAL_GLB: ${{ steps.neon_fixture.outputs.file }}
+          MARK_SOURCE_SHA: ${{ github.sha }}
       - name: Upload source-matched audit evidence regardless of test outcome
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,6 +88,7 @@ jobs:
             dist/pro-studio/fixtures/*.glb
             dist/pro-studio/release1-preview/**
             dist/pro-studio/native-scene/**
+            dist/pro-studio/external-benchmark/**
             dist/pro-studio/rig-viewer-offline.html
             dist/pro-studio/acceptance/**
           if-no-files-found: warn
