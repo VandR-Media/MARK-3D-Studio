@@ -1,0 +1,54 @@
+name: MARK Neon Boy V5 — source asset validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/neon-boy-reference-v5.yml'
+      - 'tools/neon_reference_v5.py'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch published free 3D character metadata
+        run: |
+          mkdir -p output
+          curl --fail --location --retry 2 --connect-timeout 20 --max-time 100 \
+            https://grab3d.com/api/v1/models.json -o output/grab_models.json || true
+          python - <<'PY'
+          import json,os
+          p='output/grab_models.json'
+          if os.path.isfile(p):
+            d=json.load(open(p))
+            print('METADATA_ROOT',str(type(d)),str(d.keys()) if isinstance(d,dict) else len(d))
+            arr=d.get('models',d.get('items',d)) if isinstance(d,dict) else d
+            if isinstance(arr,list):
+              for x in arr:
+                if 'hoodie' in str(x.get('slug','')).lower():
+                  print('HOODIE_DATA',json.dumps(x,ensure_ascii=False)[:9000])
+          PY
+      - name: Fetch independent CC0 hoodie character fallback
+        run: |
+          curl --fail --location --retry 2 --connect-timeout 20 --max-time 150 \
+            https://tevy.dev/models/casual-walker/v1/lod0.glb -o output/casual-walker.glb
+          python - <<'PY'
+          p='output/casual-walker.glb'
+          b=open(p,'rb').read(20)
+          assert b[:4]==b'glTF'
+          print('TEVY_SOURCE_OK',len(open(p,'rb').read()))
+          PY
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Source-Research
+          path: output/
+          if-no-files-found: warn
+          retention-days: 15
