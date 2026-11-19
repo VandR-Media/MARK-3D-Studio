@@ -30,7 +30,7 @@ node scripts/pro-studio-pass13-region-webgl-accept.mjs
 
 ## Известные ограничения
 
-**Экспериментальный профиль:** только indexed glTF TRIANGLES с dense attributes. Нужен Float32 NORMAL, а у morph-target допускается только `POSITION`; `TANGENT` и морфы нормалей сознательно отвергаются. Не поддерживаются N-gons, точное сохранение физически непрерывной half-edge топологии поверх UV seams, несколько контуров, холестерические области, Boolean, Region Extrude со сложным offset/intersection resolution. Периметр визуально и геометрически совпадает по позициям, но glTF seam vertices **разделены по индексам** — поэтому output нельзя объявлять индексно-замкнутым manifold solid.
+**Экспериментальный профиль:** только indexed glTF TRIANGLES с dense attributes. Нужен Float32 NORMAL, а у morph-target допускается только `POSITION`; `TANGENT` и морфы нормалей сознательно отвергаются. Не поддерживаются N-gons, точное сохранение физически непрерывной half-edge топологии поверх UV seams, несколько контуров, самопересекающиеся области, Boolean, Region Extrude со сложным offset/intersection resolution. Периметр визуально и геометрически совпадает по позициям, но glTF seam vertices **разделены по индексам** — поэтому output нельзя объявлять индексно-замкнутым manifold solid.
 
 Выбор по Shift+клику пока не делает подсветку всей группы и не поддерживает box/lasso selection. Никакой аппаратный Huawei тест, нативный Android APK и арт-директорская приёмка не проводились. Не является полной заменой Blender.
 
