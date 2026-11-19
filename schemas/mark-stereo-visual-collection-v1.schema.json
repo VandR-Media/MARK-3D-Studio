@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MARK Studio Stereo Visual Collection Contract v1 (not a renderer)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "signalSource",
+    "sampleBandsHz",
+    "channels",
+    "displayPolicy",
+    "palette",
+    "presets"
+  ],
+  "properties": {
+    "schema": {
+      "const": "mark-stereo-visual-collection/1"
+    },
+    "status": {
+      "type": "string",
+      "minLength": 10
+    },
+    "signalSource": {
+      "const": "decoded-pcm-not-microphone"
+    },
+    "sampleBandsHz": {
+      "type": "object",
+      "required": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
+    "channels": {
+      "const": [
+        "left",
+        "right"
+      ]
+    },
+    "displayPolicy": {
+      "type": "string",
+      "minLength": 12
+    },
+    "palette": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^#[0-9A-Fa-f]{6}$"
+      }
+    },
+    "presets": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "theme",
+          "camera",
+          "layers",
+          "bindings",
+          "qualityProfiles"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "analog-studio",
+              "spectrum-matrix",
+              "neon-towers",
+              "hi-fi-deck",
+              "pulse-rings",
+              "oscilloscope"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 5
+          },
+          "theme": {
+            "type": "string"
+          },
+          "camera": {
+            "enum": [
+              "fixed",
+              "orbit"
+            ]
+          },
+          "layers": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "elements"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "2d",
+                    "3d"
+                  ]
+                },
+                "elements": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 4
+                  },
+                  "minItems": 2
+                }
+              }
+            }
+          },
+          "bindings": {
+            "type": "array",
+            "minItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "signal",
+                "target",
+                "response"
+              ],
+              "properties": {
+                "signal": {
+                  "enum": [
+                    "left.low",
+                    "left.mid",
+                    "left.high",
+                    "right.low",
+                    "right.mid",
+                    "right.high",
+                    "left.rms",
+                    "right.rms",
+                    "left.peak",
+                    "right.peak",
+                    "left.waveform",
+                    "right.waveform"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 5
+                },
+                "response": {
+                  "enum": [
+                    "band-amplitude",
+                    "vu",
+                    "peak-hold",
+                    "pcm-trace"
+                  ]
+                }
+              }
+            }
+          },
+          "qualityProfiles": {
+            "const": [
+              "eco",
+              "normal",
+              "high"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
