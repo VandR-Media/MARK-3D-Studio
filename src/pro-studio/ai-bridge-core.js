@@ -11,6 +11,8 @@
 import {parseGlb} from '../glb.js';
 import {getMeshEditStats,validateMeshOperation,applyMeshOperations} from './mesh-edit-core.js';
 import {createPrimitiveGlb} from './primitive-factory.js';
+import {normalizeExplicitSeamLinks,inspectExplicitSeamTopology}
+ from './mesh-seam-identity.js';
 import {inspectGlbCornerTopology} from './mesh-corner-topology.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,
  exportEditedSourceGlb,sha256} from './markscene-v3-preview.js';
@@ -24,7 +26,8 @@ const OP_NAMES=[
  'asset.upload','asset.list','scene.new','scene.open','scene.getHierarchy',
  'scene.getMaterials','scene.validate','scene.save','scene.export',
  'object.setTransform','material.setPbr','animation.preview',
- 'mesh.getStats','mesh.getTopology','mesh.edit','mesh.create',
+ 'mesh.getStats','mesh.getTopology','mesh.getLinkedRegion',
+ 'mesh.linkSeam','mesh.unlinkSeam','mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
 ];
@@ -341,6 +344,8 @@ export function createAiBridge({
    guard(existing.length<32,'MESH_EDIT_LIMIT','Preview max 32 geometry edits');
    const next=validateMeshOperation(engine.opened.sourceGLB,
     existing,operation);
+   if(edits.meshSeamLinks?.length)normalizeExplicitSeamLinks(
+    engine.opened.sourceGLB,edits.meshSeamLinks,next.operations);
    edits.meshOperations=next.operations;
   }),
   'mesh.getStats':async params=>{
@@ -377,9 +382,61 @@ export function createAiBridge({
     splitAttributeGroupsSample:topology.geometricVertices
      .filter(g=>g.attributeVertices.length>1).slice(0,16)
      .map(g=>({geometricVertex:g.geometricVertex,
-      attributeVertices:g.attributeVertices.slice(0,16)}))
+      attributeVertices:g.attributeVertices.slice(0,16)})),
+    approvedSeamLinks:(selectedEdits().meshSeamLinks||[])
+     .filter(l=>l.meshIndex===meshIndex&&
+      l.primitiveIndex===primitiveIndex).length,
+    logicalIdentity:(selectedEdits().meshSeamLinks||[])
+     .some(l=>l.meshIndex===meshIndex&&l.primitiveIndex===primitiveIndex)?
+      inspectExplicitSeamTopology(engine.opened.sourceGLB,{
+       meshIndex,primitiveIndex,sourceSha256:engine.opened.sourceSha256,
+       links:selectedEdits().meshSeamLinks,operations}):null
    };
   },
+  'mesh.getLinkedRegion':async params=>{
+   assertScene();
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primitiveIndex=params?.primitiveIndex??0;
+   guard(Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0,
+    'MESH_TARGET','Invalid primitive index');
+   return inspectExplicitSeamTopology(engine.opened.sourceGLB,{
+    meshIndex,primitiveIndex,sourceSha256:engine.opened.sourceSha256,
+    links:selectedEdits().meshSeamLinks||[],
+    operations:selectedEdits().meshOperations||[],faces:params?.faces
+   });
+  },
+  'mesh.linkSeam':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primitiveIndex=params?.primitiveIndex??0;
+   guard(Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0,
+    'MESH_TARGET','Invalid primitive index');
+   guard(plain(params)&&Object.keys(params).every(k=>
+    ['meshId','primitiveIndex','vertexA','vertexB'].includes(k)),
+    'MESH_LINK_FIELDS','Unexpected seam linking arguments');
+   edits.meshSeamLinks=normalizeExplicitSeamLinks(
+    engine.opened.sourceGLB,[...(edits.meshSeamLinks||[]),{
+     meshIndex,primitiveIndex,vertexA:params.vertexA,vertexB:params.vertexB
+    }],edits.meshOperations||[]);
+  }),
+  'mesh.unlinkSeam':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
+   const primitiveIndex=params?.primitiveIndex??0;
+   guard(Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    Number.isSafeInteger(params?.vertexA)&&Number.isSafeInteger(params?.vertexB)&&
+    params.vertexA>=0&&params.vertexB>=0,
+    'MESH_LINK_FIELDS','Invalid seam unlink endpoints');
+   guard(plain(params)&&Object.keys(params).every(k=>
+    ['meshId','primitiveIndex','vertexA','vertexB'].includes(k)),
+    'MESH_LINK_FIELDS','Unexpected seam unlink arguments');
+   const vertexA=Math.min(params.vertexA,params.vertexB),
+    vertexB=Math.max(params.vertexA,params.vertexB);
+   const before=edits.meshSeamLinks||[];
+   const after=before.filter(l=>!(l.meshIndex===meshIndex&&
+    l.primitiveIndex===primitiveIndex&&l.vertexA===vertexA&&l.vertexB===vertexB));
+   guard(after.length<before.length,'MESH_LINK_NOT_FOUND','No such source seam link');
+   edits.meshSeamLinks=normalizeExplicitSeamLinks(
+    engine.opened.sourceGLB,after,edits.meshOperations||[]);
+  }),
   'mesh.edit':async params=>mutate(edits=>{
    guard(params&&typeof params.meshId==='string',
     'MESH_TARGET','Mesh ID is required');
@@ -396,6 +453,8 @@ export function createAiBridge({
    // Validation applies the real glTF BIN kernel to a temporary copy,
    // not a fake metadata transform; failure cannot poison transaction.
    const next=validateMeshOperation(engine.opened.sourceGLB,existing,operation);
+   if(edits.meshSeamLinks?.length)normalizeExplicitSeamLinks(
+    engine.opened.sourceGLB,edits.meshSeamLinks,next.operations);
    edits.meshOperations=next.operations;
   }),
   'animation.preview':async params=>mutate(edits=>{
