@@ -86,6 +86,51 @@ test('face.flip swaps winding and face.delete reduces actual triangle index buff
  assert.equal(compareGlbTextures(fixture.bytes,deleted).status,'pass_supported_png');
 });
 
+test('normal.recalculate replaces actual glTF Float32 vertex normals from oriented triangle geometry',()=>{
+ const original=mesh0(fixture.bytes),flipped=applyMeshOperations(
+  fixture.bytes,[op('face.flip',{face:0})]);
+ const recomputed=applyMeshOperations(flipped,[op('normal.recalculate')]);
+ const doc=parseGlb(recomputed).json,prim=doc.meshes[0].primitives[0];
+ const normals=getAccessor(recomputed,prim.attributes.NORMAL);
+ assert.equal(normals.length,original.position.length);
+ for(const row of normals)assert.ok(Math.abs(Math.hypot(...row)-1)<1e-5,
+  'area-weighted normal should be unit-length');
+ assert.notEqual(prim.attributes.NORMAL,parseGlb(fixture.bytes).json.meshes[0].primitives[0].attributes.NORMAL);
+ assert.equal(inspectRiggedGlb(recomputed).skins[0].joints,70);
+ assert.equal(compareGlbTextures(fixture.bytes,recomputed).status,'pass_supported_png');
+});
+test('topology diagnostics detect boundary, inconsistent winding and duplicate triangles independently',()=>{
+ const stats=getMeshEditStats(fixture.bytes);
+ assert.equal(stats.vertexCount,4);
+ assert.equal(stats.triangleCount,2);
+ assert.equal(stats.boundaryEdges,4);
+ assert.equal(stats.nonManifoldEdges,0);
+ assert.equal(stats.duplicateFaces,0);
+ const flipped=applyMeshOperations(fixture.bytes,[op('face.flip',{face:0})]);
+ assert.equal(getMeshEditStats(flipped).conflictingWindingEdges,1);
+ const duplicate=applyMeshOperations(fixture.bytes,[
+  op('edge.split',{start:1,end:2,factor:.5}),
+  op('normal.recalculate')
+ ]);
+ assert.equal(getMeshEditStats(duplicate).triangleCount,4);
+ assert.equal(getMeshEditStats(duplicate).nonManifoldEdges,0);
+});
+test('normal.recalculate survives native save/open/export and undo / redo with real BIN change',async()=>{
+ const input=await createPreviewMarkscene(fixture.bytes,{
+  projectId:'pass8-normal-profile',edits:{meshOperations:[
+   op('face.flip',{face:0}),op('normal.recalculate')
+  ]}
+ });
+ const saved=await openPreviewMarkscene(input.archive);
+ assert.deepEqual(saved.edits.meshOperations.map(x=>x.kind),
+  ['face.flip','normal.recalculate']);
+ const exported=await exportEditedSourceGlb(saved);
+ assert.equal(exported.geometryModified,true);
+ const doc=parseGlb(exported.glb).json;
+ assert.notEqual(doc.meshes[0].primitives[0].attributes.NORMAL,
+  parseGlb(fixture.bytes).json.meshes[0].primitives[0].attributes.NORMAL);
+ assert.equal(saved.sourceSha256,fixture.sha256);
+});
 test('invalid mesh mutations reject unknown operation, invalid indices, zero area budget and last face deletion',()=>{
  for(const invalid of [
   op('explode',{vertex:0}),
