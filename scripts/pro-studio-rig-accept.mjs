@@ -446,7 +446,7 @@ try{
   supported:['vertex.move','edge.split','face.flip','face.delete'],
   nativeProject:meshScene,exportedGlb:meshExport,
   realFrames:[meshShotBefore,meshShotAfter],
-  caveat:'experimental indexed triangles, NOT full sculpt or Blender';
+  caveat:'experimental indexed triangles, NOT full sculpt or Blender'
  };
 
  // Restore the original fixture for independently reproducible MP4 frames.
