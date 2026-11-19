@@ -17,7 +17,7 @@
 **Статус до успешного исполнения:** `not_tested`. Наличие тестов в репозитории не является их прохождением. Тестовый CI workflow должен выполниться на точном SHA финального коммита.
 
 ```sh
-npm ci
+npm install --no-audit --no-fund
 node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs
 node --test tests/pro-studio-mesh-edit.test.mjs tests/pro-studio-primitives.test.mjs tests/pro-studio-ai-bridge.test.mjs
 npm run test:visual-v2
