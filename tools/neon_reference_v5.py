@@ -288,30 +288,29 @@ for i in range(len(W)-1):
     tube("Neon_Chest_Equalizer_%02d"%i,
          [(a[0],-.157,a[1]),(b[0],-.157,b[1])],.0032,
          "lightcyan" if a[0]<.008 else "lightpink","Spine",8)
-# Tailored 3D cargo pockets: thin fabric volumes, flap and stitching.
-# Positioned at the outer upper legs, attached to the leg joints.
-cargo_m=material("Cargo_Pocket_CharcoalTwill","#383C49",rough=.92)
-cargo_seam=material("Cargo_Stitch_Thread","#666A76",rough=.92)
+# Cloth-mounted cargo pockets, close-fitting to the sculpted trouser surface.
+# Small layered fabric faces with a proper flap, never large hanging boxes.
+cargo_m=material("Cargo_Pocket_Twill","#333845",rough=.94)
+cargo_seam=material("Cargo_Stitch_Thread","#656979",rough=.92)
 M["cargo"]=cargo_m;M["cargo_stitch"]=cargo_seam
 for sign,side in [(-1,"Left"),(1,"Right")]:
     bn=side+"UpLeg"
-    x=sign*.184
-    # pocket flaps sit on outer pant panels; curved corners, not cubes.
+    x=sign*.166
     verts=[
-       (x,-.082,.73),(x+sign*.026,-.065,.73),(x+sign*.032,.035,.73),(x,.056,.73),
-       (x,-.09,.52),(x+sign*.03,-.074,.52),(x+sign*.04,.035,.52),(x,.065,.52)]
+       (x,-.055,.695),(x+sign*.014,-.053,.695),
+       (x+sign*.018,.055,.695),(x,.063,.695),
+       (x,-.060,.55),(x+sign*.016,-.061,.55),
+       (x+sign*.020,.055,.55),(x,.065,.55)]
     faces=[(0,1,5,4),(1,2,6,5),(2,3,7,6)]
-    pocket=create("Tailored_Cargo_Pocket_"+side,verts,faces,"cargo",bn)
-    sol=pocket.modifiers.new("Pocket_ClothThickness","SOLIDIFY");sol.thickness=.009
-    tube("Cargo_Pocket_TopSeam_"+side,
-        [(x,-.082,.73),(x+sign*.024,-.068,.742),
-        (x+sign*.032,.038,.742),(x,.059,.73)],.003,"cargo_stitch",bn,8)
-    tube("Cargo_Pocket_Flap_"+side,
-        [(x,-.083,.66),(x+sign*.033,-.072,.67),
-         (x+sign*.04,.035,.67),(x,.063,.66)],.005,"cargo_stitch",bn,8)
-    tube("Cargo_Pocket_BottomSeam_"+side,
-        [(x,-.09,.52),(x+sign*.03,-.074,.512),
-         (x+sign*.04,.035,.512),(x,.065,.52)],.0025,"cargo_stitch",bn,8)
+    pocket=create("Sewn_Cargo_Pocket_"+side,verts,faces,"cargo",bn)
+    solid=pocket.modifiers.new("CottonPocketShell","SOLIDIFY")
+    solid.thickness=.003
+    tube("Cargo_Flap_Stitch_"+side,[
+        (x,-.058,.68),(x+sign*.015,-.056,.685),
+        (x+sign*.019,.053,.685),(x,.063,.68)],.0018,"cargo_stitch",bn,8)
+    tube("Cargo_Base_Stitch_"+side,[
+        (x,-.06,.555),(x+sign*.016,-.061,.554),
+        (x+sign*.020,.055,.554)],.0015,"cargo_stitch",bn,8)
 
 # Animated trim on sleeves. Fashion accessory geometry follows skinning bones.
 for sign,side in [(-1,"Left"),(1,"Right")]:
