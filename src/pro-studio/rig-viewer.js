@@ -423,15 +423,20 @@ const meshPicker=createViewportPicker({
 const meshPickState=()=>meshPicker.getSelection();
 function reportPickedElement(selection){
  const status=byId('mesh-selection');
- if(!selection){status.textContent='Элемент не выбран. Коснитесь вершины или треугольника на модели.';return;}
+ if(!selection){status.textContent='Элемент не выбран. Коснитесь вершины, ребра или треугольника на модели.';return;}
  byId('mesh-id').value=String(selection.meshIndex);
- byId('mesh-a').value=String(selection.mode==='vertex'?selection.vertex:selection.face);
+ byId('mesh-a').value=String(selection.mode==='vertex'?selection.vertex:
+  selection.mode==='edge'?selection.edge[0]:selection.face);
+ if(selection.mode==='edge')byId('mesh-b').value=String(selection.edge[1]);
  if(selection.mode==='vertex')
   byId('mesh-op').value='vertex.move';
+ else if(selection.mode==='edge')
+  byId('mesh-op').value='edge.split';
  else
   byId('mesh-op').value='face.flip';
  status.textContent='Выбрано: '+selection.meshId+' / '+selection.mode+' #'+
-  (selection.mode==='vertex'?selection.vertex:selection.face)+
+  (selection.mode==='vertex'?selection.vertex:
+   selection.mode==='edge'?selection.edge.join('–'):selection.face)+
   ' (настоящая геометрия WebGL2).';
 }
 byId('mesh-pick-toggle').addEventListener('click',()=>{
@@ -466,6 +471,8 @@ window.MARK_MESH_PICK_API={
  pickAt:(x,y,mode)=>{const hit=meshPicker.pickAt(x,y,mode);reportPickedElement(hit);return hit;},
  projectVertex:(meshIndex,vertexIndex,primitiveIndex=0)=>
   meshPicker.projectVertex(meshIndex,vertexIndex,primitiveIndex),
+ projectEdge:(meshIndex,start,end,primitiveIndex=0)=>
+  meshPicker.projectEdge(meshIndex,start,end,primitiveIndex),
  projectFace:(meshIndex,faceIndex,primitiveIndex=0)=>
   meshPicker.projectFace(meshIndex,faceIndex,primitiveIndex),
  selection:meshPickState
@@ -589,6 +596,7 @@ byId('mesh-apply').addEventListener('click',async()=>{
   const a=Number(byId('mesh-a').value),b=Number(byId('mesh-b').value);
   const d=['mesh-dx','mesh-dy','mesh-dz'].map(id=>Number(byId(id).value));
   const operation=kind==='vertex.move'?{kind,vertex:a,delta:d}:
+   kind==='vertex.snap'?{kind,vertex:a,targetVertex:b}:
    kind==='edge.split'?{kind,start:a,end:b,factor:.5}:
    kind==='normal.recalculate'?{kind}:
    {kind,face:a};
