@@ -342,10 +342,10 @@ export function createAiBridge({
     segments:params.segments??12,materialIndex:params.materialIndex??0};
    const existing=edits.meshOperations||[];
    guard(existing.length<32,'MESH_EDIT_LIMIT','Preview max 32 geometry edits');
+   if(edits.meshSeamLinks?.length)normalizeExplicitSeamLinks(
+    engine.opened.sourceGLB,edits.meshSeamLinks,[...existing,operation]);
    const next=validateMeshOperation(engine.opened.sourceGLB,
     existing,operation);
-   if(edits.meshSeamLinks?.length)normalizeExplicitSeamLinks(
-    engine.opened.sourceGLB,edits.meshSeamLinks,next.operations);
    edits.meshOperations=next.operations;
   }),
   'mesh.getStats':async params=>{
@@ -452,9 +452,9 @@ export function createAiBridge({
     'Preview native project supports up to 32 geometry edits');
    // Validation applies the real glTF BIN kernel to a temporary copy,
    // not a fake metadata transform; failure cannot poison transaction.
-   const next=validateMeshOperation(engine.opened.sourceGLB,existing,operation);
    if(edits.meshSeamLinks?.length)normalizeExplicitSeamLinks(
-    engine.opened.sourceGLB,edits.meshSeamLinks,next.operations);
+    engine.opened.sourceGLB,edits.meshSeamLinks,[...existing,operation]);
+   const next=validateMeshOperation(engine.opened.sourceGLB,existing,operation);
    edits.meshOperations=next.operations;
   }),
   'animation.preview':async params=>mutate(edits=>{
