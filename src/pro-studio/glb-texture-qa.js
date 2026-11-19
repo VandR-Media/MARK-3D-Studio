@@ -45,6 +45,26 @@ function refIndex(arr,i,label){
  if(!safeUint(i)||i>=arr.length)throw Error('TEXTURE_QA_BAD_'+label+'_INDEX');
  return arr[i];
 }
+function pngWithoutAlignmentPadding(data){
+ // Some GLTFExporters include 0-3 zero bytes of BIN/alignment padding in the
+ // PNG bufferView itself. PNG decoders reject "content at end of stream" even
+ // though RGBA pixels are unchanged. Accept ONLY zero padding <= 3 bytes after
+ // the exact IEND chunk and still validate every chunk/CRC with pngjs.
+ const v=new DataView(data.buffer,data.byteOffset,data.byteLength);
+ let pos=8,ended=false;
+ while(pos+12<=data.length){
+  const len=v.getUint32(pos,false);
+  if(len>data.length-pos-12)throw Error('TEXTURE_QA_PNG_CHUNK_RANGE');
+  const type=Buffer.from(data.subarray(pos+4,pos+8)).toString('ascii');
+  pos+=12+len;
+  if(type==='IEND'){if(len!==0)throw Error('TEXTURE_QA_PNG_IEND');ended=true;break;}
+ }
+ if(!ended)throw Error('TEXTURE_QA_PNG_NO_IEND');
+ const extra=data.length-pos;
+ if(extra>3||data.subarray(pos).some(x=>x!==0))
+  throw Error('TEXTURE_QA_PNG_UNTRUSTED_TAIL');
+ return data.subarray(0,pos);
+}
 function imageContent(ctx,imageIndex,{maxBytes=16*1024*1024}={}){
  const image=refIndex(ctx.doc.images||[],imageIndex,'IMAGE');
  let data,mime=image.mimeType||null;
@@ -72,7 +92,7 @@ function imageContent(ctx,imageIndex,{maxBytes=16*1024*1024}={}){
  if(width<1||height<1||width>4096||height>4096||width*height>16_000_000)
   throw Error('TEXTURE_QA_PNG_PIXEL_BUDGET');
  let bitmap;
- try{bitmap=PNG.sync.read(Buffer.from(data),{checkCRC:true});}
+ try{bitmap=PNG.sync.read(Buffer.from(pngWithoutAlignmentPadding(data)),{checkCRC:true});}
  catch(error){throw Error('TEXTURE_QA_PNG_DECODE: '+String(error?.message||error));}
  if(bitmap.width!==width||bitmap.height!==height||bitmap.data.length!==width*height*4)
   throw Error('TEXTURE_QA_PNG_DIMENSIONS');
