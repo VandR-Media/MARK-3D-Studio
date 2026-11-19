@@ -196,7 +196,11 @@ function editOnce(ctx,operation){
    primitives:[{attributes,indices:indicesAccessor,material:mat,mode:4}]});
   const createdNodeIndex=ctx.doc.nodes.length;
   ctx.doc.nodes.push({
-   name:geometry.name+' node '+createdMeshIndex,mesh:createdMeshIndex
+   name:geometry.name+' node '+createdMeshIndex,mesh:createdMeshIndex,
+   // New objects are spaced apart by default; otherwise a small sphere
+   // added into a box would be invisible until the user edits transforms.
+   translation:[createdMeshIndex===0?0:
+    createdMeshIndex*((operation.size??1)+.6),0,0]
   });
   const sceneIdx=ctx.doc.scene??0;
   guard(ctx.doc.scenes[sceneIdx]&&Array.isArray(ctx.doc.scenes[sceneIdx].nodes),
