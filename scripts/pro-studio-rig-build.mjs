@@ -57,6 +57,24 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="bridge-demo">Проверить AI Bridge: изменение → рендер → сохранение</button>
 </section>
 <p id="bridge-output" class="sub" role="status">AI Bridge работает только внутри этой страницы, без HTTP-сервера и доступа к сети.</p>
+<section aria-label="Mesh Edit Mode P7, экспериментальный">
+<label>Меш <input id="mesh-id" type="number" min="0" max="500" value="0" style="max-width:65px"></label>
+<label>Операция <select id="mesh-op" aria-label="Операция геометрии">
+<option value="vertex.move">Переместить вершину</option>
+<option value="edge.split">Разделить ребро</option>
+<option value="face.flip">Перевернуть грань</option>
+<option value="face.delete">Удалить грань</option>
+</select></label>
+<label>V1 / грань <input id="mesh-a" type="number" min="0" value="2" style="max-width:65px"></label>
+<label>V2 <input id="mesh-b" type="number" min="0" value="1" style="max-width:65px"></label>
+<label>ΔX <input id="mesh-dx" type="number" min="-1" max="1" step=".01" value="0" style="max-width:65px"></label>
+<label>ΔY <input id="mesh-dy" type="number" min="-1" max="1" step=".01" value=".15" style="max-width:65px"></label>
+<label>ΔZ <input id="mesh-dz" type="number" min="-1" max="1" step=".01" value="0" style="max-width:65px"></label>
+<button id="mesh-open">Открыть Edit Mode</button>
+<button id="mesh-apply">Применить к геометрии</button>
+<button id="mesh-undo">↶ Undo</button>
+<button id="mesh-redo">↷ Redo</button></section>
+<p id="mesh-output" class="sub" role="status">Edit Mode: GLB POSITION/indices/morph/skin реально изменяются. Для записи включите флажок разрешения AI Bridge. Это экспериментальный профиль TRIANGLES.</p>
 <section><label for="timeline">Таймлайн</label><input type="range" id="timeline" min="0" max="12000" step="10" value="0">
 <output id="readout">0.00 s</output></section>
 <section class="views" aria-label="Проверка ракурсов">
@@ -67,7 +85,9 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <footer>Демонстрационный QUAD с 70 костями, 2 морфами и 3 анимациями — технический тест, не Neon Boy.
 HTML полностью автономный, без внешних загрузок. Экспериментальный .markscene v3-preview
 сохраняет исходный GLB отдельно от изменений TRS/PBR и выбранного клипа. Не редактирует вершины,
-веса, кости, морф-геометрию или UV. Не является production .markscene v3. AI Bridge здесь — in-process preview, без сетевого API и без возможности создания меша.
+веса, кости, морф-геометрию или UV. Не является production .markscene v3. Mesh Edit Mode P7 поддерживает только
+индексированные треугольники и четыре ограниченные операции; не поддерживает N-gons,
+полный весовой скульпт и автоматическое пересчитывание нормалей. AI Bridge здесь — in-process preview, без сетевого API и без возможности создания меша.
 Проверки WebGL2/GLTFExporter и устройство Huawei должны подтверждаться отдельными отчётами.
 Статический Visual Engine v2 и его запрет импорта анимированных GLB не изменены.</footer>
 </main>
