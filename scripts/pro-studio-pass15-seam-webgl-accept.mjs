@@ -15,7 +15,7 @@ import {openPreviewMarkscene,exportEditedSourceGlb}
 const buildSha=process.env.MARK_SOURCE_SHA||'local-unverified';
 const root=resolve('dist/pro-studio/pass15-acceptance');
 mkdirSync(root,{recursive:true});
-const SHA=data=>createHash('sha256').update(data).digest('hex');
+const SHA=data=>createHash('sha256').update(Buffer.from(data)).digest('hex');
 const original=createSplitSeamFixture(),sourceSha=SHA(original);
 const report={schema:'mark.pass15-seam-webgl/1',buildSha,sourceSha,
  backend:'Chromium WebGL2 / SwiftShader software GPU',device:'CI Linux',
