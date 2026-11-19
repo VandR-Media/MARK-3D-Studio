@@ -18,7 +18,8 @@ const TYPES={SCALAR:1,VEC2:2,VEC3:3,VEC4:4};
 const COMP={5121:[1,'getUint8'],5123:[2,'getUint16'],
  5125:[4,'getUint32'],5126:[4,'getFloat32']};
 const disallowed=new Set(['vertex.move','vertex.snap','edge.split',
- 'face.flip','face.delete','face.extrude','face.regionExtrude','primitive.add']);
+ 'face.flip','face.delete','face.extrude','face.regionExtrude',
+ 'face.regionExtrudeLinked','primitive.add']);
 function reader(bytes){
  const parsed=parseGlb(bytes),doc=parsed.json;
  ok(!doc.extensionsRequired?.length,'EXTENSIONS','Required glTF extensions unsupported');
@@ -202,4 +203,54 @@ export function inspectExplicitSeamTopology(sourceGLB,{
    boundaryEdges:selected.boundaryEdges.map(e=>[stableId(e.from),stableId(e.to)])
   }}:{})
  };
+}
+
+/**
+ * The committed linked extrusion consumes the original approval, because
+ * source attribute indices are no longer valid IDs for the edited cap.
+ * Report a *traceable remap* without pretending any future topological
+ * mutation is safe. The generated cap indices follow the kernel's sorted
+ * source-vertex order and are covered by binary geometry tests.
+ */
+export function inspectConsumedSeamExtrude(sourceGLB,{sourceSha256,operation}={}){
+ ok(operation?.kind==='face.regionExtrudeLinked',
+  'CONSUMED_OPERATION','Expected persisted one-shot linked region extrusion');
+ const previous=inspectExplicitSeamTopology(sourceGLB,{
+  meshIndex:operation.meshIndex,primitiveIndex:operation.primitiveIndex,
+  sourceSha256,links:operation.links,operations:[],faces:operation.faces
+ });
+ ok(previous.selection?.validRegion,
+  'CONSUMED_REGION','Persisted links no longer define a valid region');
+ const {doc,accessor}=reader(sourceGLB);
+ const prim=target(doc,operation.meshIndex,operation.primitiveIndex);
+ const sourcePositions=accessor(prim.attributes.POSITION);
+ const indices=accessor(prim.indices).rows.map(row=>row[0]);
+ const faceCount=indices.length/3;
+ const sources=[...new Set(operation.faces.flatMap(face=>{
+  ok(nat(face)&&face<faceCount,'CONSUMED_FACE','Invalid persisted source face');
+  return indices.slice(face*3,face*3+3);
+ }))].sort((a,b)=>a-b);
+ const capId=sourceVertex=>'mark-cap-attribute-'+sourceSha256+
+  '-m'+operation.meshIndex+'-p'+operation.primitiveIndex+
+  '-extrude0-v'+sourceVertex;
+ const remap=sources.map((sourceVertex,i)=>({
+  sourceVertex,capAttributeVertex:sourcePositions.rows.length+i,
+  capStableId:capId(sourceVertex)
+ }));
+ const bySource=new Map(remap.map(r=>[r.sourceVertex,r]));
+ const pairedCaps=operation.links.map(l=>({
+  sourceVertices:[l.vertexA,l.vertexB],
+  capAttributeVertices:[bySource.get(l.vertexA)?.capAttributeVertex,
+   bySource.get(l.vertexB)?.capAttributeVertex],
+  capStableIds:[capId(l.vertexA),capId(l.vertexB)]
+ }));
+ ok(pairedCaps.every(p=>p.capAttributeVertices.every(n=>nat(n))),
+  'CONSUMED_REMAP','Missing remapped linked cap vertex');
+ return{schema:'mark.consumed-seam-region-extrude/1',
+  meshIndex:operation.meshIndex,primitiveIndex:operation.primitiveIndex,
+  sourceSha256,sourceLinksConsumed:true,linksCount:operation.links.length,
+  sourceFaceIDs:operation.faces.slice(),capRemap:remap,pairedCaps,
+  sourceRegion:previous.selection,
+  noAutomaticWeld:true,futureTopologyMutationBlocked:true,
+  materialAndUvSemanticsPreservedInBinaryProfile:true};
 }
