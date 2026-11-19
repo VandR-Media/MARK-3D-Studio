@@ -147,8 +147,45 @@ if(!filename){
   test('EXT-NEON-ANIMATION-006',snapshots[0].sha256!==snapshots[1].sha256,
    {frontRest:snapshots[0].sha256,frontDance:snapshots[1].sha256,
     captured:snapshots.length},'Real scene did not visually animate');
+  // Record a real external humanoid dance on the actual Three.js WebGL
+  // canvas. No Blender player, no conceptual illustration, no synthetic video.
+  const video=await page.evaluate(async()=>{
+   const canvas=document.getElementById('viewport');
+   if(!canvas.captureStream||!window.MediaRecorder||
+    !MediaRecorder.isTypeSupported('video/webm;codecs=vp8'))
+    return {supported:false};
+   const stream=canvas.captureStream(0),track=stream.getVideoTracks()[0];
+   const recorder=new MediaRecorder(stream,{
+    mimeType:'video/webm;codecs=vp8',videoBitsPerSecond:1600000});
+   const chunks=[],done=new Promise((resolve,reject)=>{
+    recorder.onstop=resolve;recorder.onerror=e=>reject(Error(String(e.error||e)));
+   });
+   recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+   window.MARK_RIG_VIEWER_API.centerView('front');
+   recorder.start(125);
+   for(let i=0;i<30;i++){
+    window.MARK_RIG_VIEWER_API.seek(i*4/30);
+    track.requestFrame();
+    await new Promise(resolve=>setTimeout(resolve,95));
+   }
+   recorder.stop();await done;track.stop();
+   const data=new Uint8Array(await new Blob(chunks,{type:'video/webm'}).arrayBuffer());
+   let binary='';
+   for(let i=0;i<data.length;i+=16384)
+    binary+=String.fromCharCode(...data.subarray(i,i+16384));
+   return {supported:true,base64:btoa(binary),frames:30,mime:'video/webm'};
+  });
+  if(!video.supported)
+   throw Error('External Neon Boy canvas MediaRecorder VP8 unavailable: video evidence blocked');
+  const webm=Buffer.from(video.base64,'base64');
+  const videoInfo=save('neon-boy-real-webgl2-dance.webm',webm);
+  test('EXT-NEON-VIDEO-007',webm.length>3000&&
+   webm.subarray(0,4).toString('hex')==='1a45dfa3',
+   {...videoInfo,frames:video.frames,codec:'VP8',source:'real Three.js canvas'},
+   'External Neon Boy real canvas video missing EBML header or content');
   report.render={backend:'Chromium WebGL2 / SwiftShader',
-   viewport:'1280x780',sourceSha256:hash,screenshots:snapshots.map(x=>x.name)};
+   viewport:'1280x780',sourceSha256:hash,
+   screenshots:snapshots.map(x=>x.name),video:videoInfo.path};
   await browser.close();browser=null;
  }catch(error){
   report.errors=[String(error?.stack||error)];
