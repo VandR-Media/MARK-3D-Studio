@@ -73,7 +73,9 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="mesh-open">Открыть Edit Mode</button>
 <button id="mesh-apply">Применить к геометрии</button>
 <button id="mesh-undo">↶ Undo</button>
-<button id="mesh-redo">↷ Redo</button></section>
+<button id="mesh-redo">↷ Redo</button>
+<button id="mesh-save">Сохранить правки .markscene</button>
+<button id="mesh-export">Экспорт геометрии GLB</button></section>
 <p id="mesh-output" class="sub" role="status">Edit Mode: GLB POSITION/indices/morph/skin реально изменяются. Для записи включите флажок разрешения AI Bridge. Это экспериментальный профиль TRIANGLES.</p>
 <section><label for="timeline">Таймлайн</label><input type="range" id="timeline" min="0" max="12000" step="10" value="0">
 <output id="readout">0.00 s</output></section>
