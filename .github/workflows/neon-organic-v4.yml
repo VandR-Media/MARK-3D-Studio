@@ -1,0 +1,60 @@
+name: MARK Organic Neon Boy (MakeHuman test)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/neon_organic_v4.py'
+      - '.github/workflows/neon-organic-v4.yml'
+permissions:
+  contents: read
+
+jobs:
+  makehuman-base:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download CC0 MakeHuman humanoid
+        run: |
+          curl -fL --retry 2 --connect-timeout 20 --max-time 120 \
+            'https://raw.githubusercontent.com/kunalkushwaha/vsim/main/packages/assets/library/human.glb' \
+            -o human.glb
+          python - <<'PY'
+          import os,struct
+          b=open('human.glb','rb').read(20)
+          assert b[:4]==b'glTF' and os.path.getsize('human.glb')>100000
+          print('MAKEHUMAN_GLTF_OK',os.path.getsize('human.glb'))
+          PY
+      - name: Setup Blender
+        run: |
+          if curl -fL --retry 2 --connect-timeout 20 --max-time 160 \
+            'https://download.blender.org/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz' \
+            -o blender.tar.xz; then
+            tar -xJf blender.tar.xz
+            echo "$PWD/blender-4.0.2-linux-x64" >> "$GITHUB_PATH"
+            ./blender-4.0.2-linux-x64/blender --version
+          else
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends blender python3-numpy
+          fi
+      - name: Inspect MakeHuman organic body mesh and skeleton
+        run: |
+          blender --background --threads 2 --python tools/neon_organic_v4.py 2>&1 | tee outputlog.txt
+          grep -q V4_ORGANIC_EXPORT_SUCCESS outputlog.txt
+          test -s output/NEON_BOY_V4_DANCE.glb
+          test -s output/NEON_BOY_V4_STATIC.glb
+          test -s output/NEON_BOY_V4_ORGANIC.blend
+          test -s output/render_front.png
+          test -s output/validation.json
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Organic-Base-Probe
+          path: |
+            output/
+            outputlog.txt
+          if-no-files-found: warn
+          retention-days: 21
