@@ -162,13 +162,13 @@ function meshStatistics(input,meshIndex=0,primitiveIndex=0){
   degenerateTriangles:bad,skinNodes:(ctx.doc.nodes||[]).filter(n=>n.mesh===meshIndex&&n.skin!==undefined).length,
   morphTargets:prim.targets?.length||0,topology:'indexed triangles; no n-gons'};
 }
-function editOnce(ctx,operation){
+function editOnce(ctx,operation,linkedSource=null){
  guard(operation&&Object.getPrototypeOf(operation)===Object.prototype,
   'OPERATION','Expected typed mesh operation');
  const {kind,meshIndex,primitiveIndex}=operation;
  guard(['vertex.move','edge.split','face.flip','face.delete',
   'normal.recalculate','primitive.add','vertex.snap','face.extrude',
-  'face.regionExtrude','face.regionExtrudeLinked'].includes(kind),
+  'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -218,6 +218,114 @@ function editOnce(ctx,operation){
  const prim=target(ctx,meshIndex,primitiveIndex);
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
+ if(kind==='vertex.moveLinkedCap'){
+  // Pass 18 narrow sequential vertex movement over the *already generated*
+  // linked cap, preserving UV/skin/morph attributes and moving all wall
+  // upper corners belonging to the same verified source logical vertex.
+  guard(linkedSource&&linkedSource.operation?.kind==='face.regionExtrudeLinked',
+   'CAP_CONTEXT','Cap move needs a verified first source extrusion');
+  const {operation:first,sourceCount,sourceFaces,capSources}=linkedSource;
+  const {sourceVertex,delta}=operation;
+  guard(nat(sourceVertex)&&sourceVertex<sourceCount&&
+   vec(delta,3)&&delta.every(n=>Math.abs(n)<=2)&&Math.hypot(...delta)>1e-8,
+   'CAP_DELTA','Expected bounded nonzero cap translation');
+  const parents=Array.from({length:sourceCount},(_,i)=>i);
+  const find=i=>{while(parents[i]!==i)i=parents[i];return i;};
+  for(const pair of first.links){
+   const a=find(pair.vertexA),b=find(pair.vertexB);
+   if(a!==b)parents[Math.max(a,b)]=Math.min(a,b);
+  }
+  const root=find(sourceVertex);
+  guard(root===sourceVertex,
+   'CAP_ROOT','Use canonical lowest source attribute index of linked cap');
+  const group=capSources.filter(v=>find(v)===root);
+  guard(group.length>=1,'CAP_NOT_SELECTED',
+   'Stable source vertex is not a selected cap corner');
+  const capCount=capSources.length,topStart=sourceCount+capCount;
+  guard(count>=topStart&&(count-topStart)%4===0,
+   'CAP_LAYOUT','Current mesh no longer matches source-to-cap layout');
+  const capIndex=source=>sourceCount+capSources.indexOf(source);
+  // Detect positional conflicts with *unlinked* groups before associating
+  // side walls; do not infer new welds from accidental coordinate overlap.
+  const key=row=>row.join(',');
+  const capPositions=new Map();
+  for(const source of capSources){
+   const k=key(positions[capIndex(source)]),previous=capPositions.get(k);
+   if(previous!==undefined)
+    guard(previous===find(source),'CAP_AMBIGUOUS',
+     'Unapproved coincident cap vertices prevent safe side-wall remapping');
+   capPositions.set(k,find(source));
+  }
+  const moveSet=new Set(group.map(capIndex));
+  const bottomIndices=[];
+  for(let index=topStart;index<count;index+=4){
+   const [bottomA,bottomB,topB,topA]=
+    positions.slice(index,index+4);
+   const lowerB=capPositions.get(key(topB)),
+    lowerA=capPositions.get(key(topA));
+   guard(lowerA!==undefined&&lowerB!==undefined,
+    'CAP_WALL_MAP','Cannot link a side-wall top to a verified cap');
+   if(lowerB===root)moveSet.add(index+2);
+   if(lowerA===root)moveSet.add(index+3);
+   bottomIndices.push(index);
+  }
+  const revised=positions.map(row=>row.slice());
+  for(const index of moveSet)
+   revised[index]=revised[index].map((value,k)=>value+delta[k]);
+  guard([...moveSet].every(i=>revised[i].every(n=>
+   finite(n)&&Math.abs(n)<10000)),
+   'CAP_BOUNDS','Moved cap coordinates exceed safe domain');
+  const normalIndex=prim.attributes.NORMAL;
+  guard(normalIndex!==undefined,'CAP_NORMAL','Output needs float32 normals');
+  const normalStream=read(ctx,normalIndex);
+  guard(normalStream.type==='VEC3'&&normalStream.componentType===5126&&
+   normalStream.count===count,'CAP_NORMAL','Unsupported output normals');
+  const updatedNormals=normalStream.value.map(row=>row.slice());
+  const cross=(a,b,c)=>{
+   const u=b.map((x,k)=>x-a[k]),v=c.map((x,k)=>x-a[k]);
+   return[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],
+    u[0]*v[1]-u[1]*v[0]];
+  };
+  const normalized=n=>{
+   const length=Math.hypot(...n);
+   guard(length>1e-9,'CAP_DEGENERATE',
+    'Cap translation created a degenerate wall or cap triangle');
+   return n.map(x=>x/length);
+  };
+  // Keep cap face orientation consistent with glTF triangle winding.
+  const capStart=sourceFaces-first.faces.length;
+  const caps=values.slice(capStart*3,(capStart+first.faces.length)*3);
+  const sums=new Map();
+  for(let i=0;i<caps.length;i+=3){
+   const tri=caps.slice(i,i+3);
+   guard(tri.every(x=>x>=sourceCount&&x<topStart),
+    'CAP_FACE_MAP','Cap index topology changed unexpectedly');
+   const normal=cross(...tri.map(index=>revised[index]));
+   normalized(normal);
+   for(const v of tri){
+    const sum=sums.get(v)||[0,0,0];
+    for(let k=0;k<3;k++)sum[k]+=normal[k];
+    sums.set(v,sum);
+   }
+  }
+  for(const [i,normal] of sums)updatedNormals[i]=normalized(normal);
+  for(const index of bottomIndices){
+   const a=revised[index],b=revised[index+1],
+    c=revised[index+2],d=revised[index+3];
+   // Quad may become non-coplanar; two real triangles remain valid.
+   const n1=cross(a,b,c),n2=cross(a,c,d);
+   normalized(n1);normalized(n2);
+   const n=normalized(n1.map((value,k)=>value+n2[k]));
+   for(let k=0;k<4;k++)updatedNormals[index+k]=n.slice();
+  }
+  prim.attributes.POSITION=append(ctx,revised,
+   {type:'VEC3',componentType:5126,target:34962});
+  prim.attributes.NORMAL=append(ctx,updatedNormals,
+   {type:'VEC3',componentType:5126,target:34962});
+  return{kind,sourceVertex,logicalLinkedCapCount:group.length,
+   movedAttributeRows:moveSet.size,delta:delta.slice(),
+   capGeometryVersion:1,unchangedCornerStreams:true};
+ }
  if(kind==='normal.recalculate'){
   const accumulated=Array.from({length:count},()=>[0,0,0]);
   let zeroArea=0;
@@ -724,25 +832,46 @@ export function applyMeshOperations(input,operations=[]){
  guard(Array.isArray(operations)&&operations.length<=64,
   'OPS_BUDGET','Up to 64 typed mesh operations per native scene');
  const linkedOperations=operations.filter(o=>o?.kind==='face.regionExtrudeLinked');
+ let linkedSource=null;
  if(linkedOperations.length){
-  // No stable remapping for subsequent edits yet. Enforce a single, one-shot
-  // operation against the original source, including in imported manifests.
-  guard(linkedOperations.length===1&&operations.length===1,
-   'LINKED_SEQUENCE','Linked region extrusion must be the sole mesh operation');
+  guard(linkedOperations.length===1&&
+   operations[0]?.kind==='face.regionExtrudeLinked'&&
+   operations.length<=17&&
+   operations.slice(1).every(o=>o?.kind==='vertex.moveLinkedCap'),
+   'LINKED_SEQUENCE',
+   'Only up to 16 validated logical-cap moves may follow linked extrusion');
   const op=linkedOperations[0];
   guard(Array.isArray(op.links)&&op.links.length>=1,
-   'LINKED_APPROVAL','Explicit validated seam correspondences required');
-  const canon=normalizeExplicitSeamLinks(input,op.links,[]);
-  guard(JSON.stringify(canon)===JSON.stringify(op.links)&&
-   canon.every(x=>x.meshIndex===op.meshIndex&&
-    x.primitiveIndex===op.primitiveIndex),
-   'LINKED_CANONICAL','Operation must contain canonical links for its target');
+   'LINKED_APPROVAL','Approved source seam links required');
+  const canonical=normalizeExplicitSeamLinks(input,op.links,[]);
+  guard(JSON.stringify(canonical)===JSON.stringify(op.links)&&
+   canonical.every(l=>l.meshIndex===op.meshIndex&&
+    l.primitiveIndex===op.primitiveIndex),
+   'LINKED_CANONICAL','Approved links are not canonical for the source');
+  const originalCtx=begin(input),originalPrim=target(originalCtx,
+   op.meshIndex,op.primitiveIndex);
+  const original=indices(originalCtx,originalPrim);
+  const chosen=[...new Set(op.faces.flatMap(f=>{
+   guard(nat(f)&&f<original.values.length/3,
+    'CAP_SOURCE_FACE','Invalid source face for extrusion');
+   return original.values.slice(f*3,f*3+3);
+  }))].sort((a,b)=>a-b);
+  linkedSource={operation:op,sourceCount:original.positions.length,
+   sourceFaces:original.values.length/3,capSources:chosen};
+  for(const next of operations.slice(1)){
+   guard(next.meshIndex===op.meshIndex&&
+    next.primitiveIndex===op.primitiveIndex,
+    'CAP_TARGET','Cap move must target the source mesh primitive');
+  }
+ }else{
+  guard(!operations.some(o=>o?.kind==='vertex.moveLinkedCap'),
+   'CAP_CONTEXT','Standalone cap move without source extrusion forbidden');
  }
  if(operations.length===0)return bytes(input).slice();
  let current=bytes(input).slice();
  for(let i=0;i<operations.length;i++){
   const ctx=begin(current);
-  try{editOnce(ctx,operations[i]);}
+  try{editOnce(ctx,operations[i],linkedSource);}
   catch(e){if(e.code)throw e;throw Error('Mesh op '+i+': '+e.message);}
   ctx.doc.buffers[0].byteLength=ctx.bin.length;
   const padded=new Uint8Array(align4(ctx.bin.length));padded.set(ctx.bin);
