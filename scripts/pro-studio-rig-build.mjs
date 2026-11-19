@@ -85,6 +85,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <option value="face.flip">Перевернуть грань</option>
 <option value="face.extrude">Выдавить треугольную грань</option>
 <option value="face.regionExtrude">Выдавить группу граней (Region)</option>
+<option value="face.regionExtrudeLinked">Выдавить через подтверждённый UV-шов (один раз)</option>
 <option value="face.delete">Удалить грань</option>
 <option value="normal.recalculate">Пересчитать нормали</option>
 </select></label>

@@ -182,12 +182,13 @@ function normalizeEdits(edits,doc,sourceGLB){
    const kind=input.kind;
    good(['vertex.move','edge.split','face.flip','face.delete',
     'normal.recalculate','primitive.add','vertex.snap','face.extrude',
-    'face.regionExtrude'].includes(kind),
+    'face.regionExtrude','face.regionExtrudeLinked'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
    const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
     kind==='vertex.snap'?['kind','meshIndex','primitiveIndex','vertex','targetVertex']:
     kind==='face.extrude'?['kind','meshIndex','primitiveIndex','face','distance']:
     kind==='face.regionExtrude'?['kind','meshIndex','primitiveIndex','faces','distance']:
+    kind==='face.regionExtrudeLinked'?['kind','meshIndex','primitiveIndex','faces','distance','links']:
     kind==='edge.split'?['kind','meshIndex','primitiveIndex','start','end','factor']:
     kind==='normal.recalculate'?['kind','meshIndex','primitiveIndex']:
     kind==='primitive.add'?['kind','meshIndex','primitiveIndex','shape',
@@ -210,6 +211,23 @@ function normalizeEdits(edits,doc,sourceGLB){
      input.vertex!==input.targetVertex,
      'MESH_SNAP','Expected distinct valid vertex indices');
     op.vertex=input.vertex;op.targetVertex=input.targetVertex;
+   }else if(kind==='face.regionExtrudeLinked'){
+    good(Array.isArray(input.faces)&&input.faces.length>=2&&
+     input.faces.length<=128&&input.faces.every(isUInt)&&
+     new Set(input.faces).size===input.faces.length&&
+     typeof input.distance==='number'&&Number.isFinite(input.distance)&&
+     input.distance>=.001&&input.distance<=50,
+     'MESH_LINKED_REGION','Invalid linked face region or distance');
+    good(sourceGLB,'MESH_LINKED_SOURCE','Approved links require GLB validation');
+    const expected=normalizeExplicitSeamLinks(sourceGLB,input.links,[]);
+    good(expected.length>=2&&expected.every(l=>
+     l.meshIndex===input.meshIndex&&
+     l.primitiveIndex===input.primitiveIndex)&&
+     JSON.stringify(expected)===JSON.stringify(input.links),
+     'MESH_LINKED_APPROVAL','Linked region requires canonical approved link pairs');
+    op.faces=[...input.faces].sort((a,b)=>a-b);
+    op.distance=input.distance;
+    op.links=expected;
    }else if(kind==='face.regionExtrude'){
     good(Array.isArray(input.faces)&&input.faces.length>=1&&
      input.faces.length<=128&&input.faces.every(isUInt)&&
@@ -253,6 +271,10 @@ function normalizeEdits(edits,doc,sourceGLB){
    }
    canonical.push(op);
   }
+  if(canonical.some(op=>op.kind==='face.regionExtrudeLinked')){
+   good(canonical.length===1,'MESH_LINKED_SEQUENCE',
+    'Linked region extrusion must be the sole geometry operation until ID remap');
+  }
   if(sourceGLB&&canonical.length){
    // The exact same binary topology kernel validates each persisted command.
    // No malformed manifest can smuggle a geometry edit into export later.
@@ -267,6 +289,9 @@ function normalizeEdits(edits,doc,sourceGLB){
   try{
    out.meshSeamLinks=normalizeExplicitSeamLinks(sourceGLB,
     edits.meshSeamLinks,out.meshOperations||[]);
+   good(!out.meshOperations?.some(op=>op.kind==='face.regionExtrudeLinked')||
+    out.meshSeamLinks.length===0,
+    'MESH_LINKED_CONSUMED','One-shot linked extrusion must consume source links');
   }catch(error){
    good(false,'MESH_SEAM_LINK',String(error?.message||error));
   }
