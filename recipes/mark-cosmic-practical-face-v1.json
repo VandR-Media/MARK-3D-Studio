@@ -1,0 +1,184 @@
+{
+  "schema": "mark-geometry/0.1",
+  "project": {
+    "id": "mark-cosmic-practical-face-v1",
+    "base": "empty",
+    "description": "Practical MARK Studio production feasibility using user's approved 2D Mark Cosmic concept as private reference. Experiment only: head-level mesh, NOT likeness approval; reference images deliberately not committed."
+  },
+  "commands": [
+    {
+      "operation": "character.createBaseMesh",
+      "parameters": {
+        "type": "stylized-child-head",
+        "rings": 106,
+        "columns": 192
+      }
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "untouched-anatomy"
+    },
+    {
+      "operation": "face.adjustContour",
+      "parameters": {
+        "region": "upper_eyelid_left",
+        "delta": [
+          0,
+          -0.011,
+          -0.006
+        ],
+        "falloff": 0.11,
+        "strength": 0.6,
+        "lockedRegions": [
+          "mouth_lower_lip"
+        ]
+      }
+    },
+    {
+      "operation": "face.adjustContour",
+      "parameters": {
+        "region": "upper_eyelid_right",
+        "delta": [
+          0,
+          -0.011,
+          -0.006
+        ],
+        "falloff": 0.11,
+        "strength": 0.6,
+        "lockedRegions": [
+          "mouth_lower_lip"
+        ]
+      }
+    },
+    {
+      "operation": "face.adjustContour",
+      "parameters": {
+        "region": "eye_left_rim",
+        "delta": [
+          0,
+          0.006,
+          -0.009
+        ],
+        "falloff": 0.1,
+        "strength": 0.36
+      }
+    },
+    {
+      "operation": "face.adjustContour",
+      "parameters": {
+        "region": "eye_right_rim",
+        "delta": [
+          0,
+          0.006,
+          -0.009
+        ],
+        "falloff": 0.1,
+        "strength": 0.36
+      }
+    },
+    {
+      "operation": "face.adjustLandmarks",
+      "parameters": {
+        "name": "nose_tip",
+        "delta": [
+          0,
+          0.004,
+          -0.025
+        ],
+        "strength": 0.6,
+        "radius": 0.19
+      }
+    },
+    {
+      "operation": "sculpt.stroke",
+      "parameters": {
+        "points": [
+          [
+            0.46,
+            -0.06,
+            0.68
+          ],
+          [
+            0.475,
+            -0.04,
+            0.68
+          ],
+          [
+            0.49,
+            -0.025,
+            0.67
+          ]
+        ],
+        "radius": 0.24,
+        "strength": 0.2,
+        "mode": "inflate",
+        "symmetry": true,
+        "delta": [
+          0,
+          0,
+          0.007
+        ]
+      }
+    },
+    {
+      "operation": "face.adjustContour",
+      "parameters": {
+        "region": "mouth_upper_lip",
+        "delta": [
+          0,
+          0.003,
+          -0.012
+        ],
+        "falloff": 0.1,
+        "strength": 0.45
+      }
+    },
+    {
+      "operation": "face.adjustContour",
+      "parameters": {
+        "region": "mouth_lower_lip",
+        "delta": [
+          0,
+          -0.002,
+          -0.008
+        ],
+        "falloff": 0.1,
+        "strength": 0.4
+      }
+    },
+    {
+      "operation": "face.adjustLandmarks",
+      "parameters": {
+        "name": "chin",
+        "delta": [
+          0,
+          0.005,
+          -0.006
+        ],
+        "strength": 0.35,
+        "radius": 0.19
+      }
+    },
+    {
+      "operation": "mesh.inspect"
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "neutral-study"
+    },
+    {
+      "operation": "face.previewPose",
+      "parameters": {
+        "pose": "smile",
+        "amount": 0.34
+      }
+    },
+    {
+      "operation": "project.checkpoint",
+      "target": "soft-smile-study"
+    },
+    {
+      "operation": "project.export"
+    }
+  ]
+}

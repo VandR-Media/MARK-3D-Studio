@@ -1,0 +1,52 @@
+name: MARK Cosmic practical modeling feasibility (real GLB)
+on:
+  push:
+    branches:
+      - experiment/mark-cosmic-practical-feasibility
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mark-cosmic-feasibility
+  cancel-in-progress: true
+jobs:
+  practical-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install core dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate professional geometry and face editing tests
+        run: |
+          npm run test:professional
+          node --test tests/anatomical-stage2.test.mjs tests/facial-precision.test.mjs
+      - name: Construct a real character head with MARK Professional API
+        run: npm run professional:build -- --recipe recipes/mark-cosmic-practical-face-v1.json
+      - name: Build offline browser and check integrity
+        run: |
+          npm run build:standalone
+          npm run test:standalone
+      - name: Install headless Chromium and WebGL renderer
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Render actual base GLB in front, profile and threequarter
+        run: |
+          node scripts/render-character.mjs --runs 1 --glb dist/professional/mark-cosmic-practical-face-v1/checkpoint-untouched-anatomy.glb --out dist/mark-cosmic-feasibility/renders-base --views "front,left,threequarter-left,eyes-close,nose-close,mouth-close,wireframe"
+      - name: Render actual edited GLB using exactly same viewpoints
+        run: |
+          node scripts/render-character.mjs --runs 1 --glb dist/professional/mark-cosmic-practical-face-v1/mark-cosmic-practical-face-v1.glb --out dist/mark-cosmic-feasibility/renders-edited --views "front,left,threequarter-left,eyes-close,nose-close,mouth-close,wireframe"
+      - name: Package head GLB, native MARK3D, actual renders, SHA and diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-cosmic-practical-feasibility-3d
+          path: |
+            dist/professional/mark-cosmic-practical-face-v1/
+            dist/mark-cosmic-feasibility/
+            dist/MARK-3D-Studio-standalone.html
+            dist/build-info.json
+          if-no-files-found: error
