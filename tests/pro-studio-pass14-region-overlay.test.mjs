@@ -72,6 +72,8 @@ function setupPicker(){
 
 test('actual THREE geometry region renders two filled triangles and FOUR outline edges',()=>{
  const {mesh,scene,picker}=setupPicker();
+ const click=picker.projectFace(0,1);
+ picker.pickAt(click.x,click.y,'face');
  const region=picker.setFaceRegion(0,[1,0]);
  assert.deepEqual(region.faces,[0,1]);
  assert.equal(region.boundaryEdges.length,4);
@@ -80,6 +82,9 @@ test('actual THREE geometry region renders two filled triangles and FOUR outline
  const outline=scene.children.find(o=>o.isLineSegments&&o.material?.color?.getHex()===0xffd64a);
  assert.ok(fill?.visible);
  assert.ok(outline?.visible);
+ const singleOutline=scene.children.find(o=>o.isLineLoop);
+ assert.equal(singleOutline?.visible,false,
+  'The previously picked face must NOT reveal a diagonal inside the multi-face outline');
  assert.equal(fill.geometry.getAttribute('position').count,6);
  assert.equal(outline.geometry.getAttribute('position').count,8);
  const oldZ=fill.geometry.getAttribute('position').getZ(0);
