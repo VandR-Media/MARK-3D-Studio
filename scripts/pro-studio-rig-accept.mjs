@@ -498,8 +498,14 @@ try{
  // + per-vertex Float32 NORMAL rewrite, both saved in the native archive.
  await page.locator('#mesh-op').selectOption('face.flip');
  await page.locator('#mesh-apply').click();
+ await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot().
+  edits?.meshOperations?.length===1,null,{timeout:15000});
  await page.locator('#mesh-op').selectOption('normal.recalculate');
  await page.locator('#mesh-apply').click();
+ // The UI issues asynchronous binary mesh edits; a successful physical
+ // click is NOT completion. Wait for the actual committed scene revision.
+ await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot().
+  edits?.meshOperations?.length===2,null,{timeout:15000});
  const nativeFromRealPicker=await page.evaluate(async()=>{
   const api=window.MARK_AI_BRIDGE;
   const req=async(method,params={})=>{
