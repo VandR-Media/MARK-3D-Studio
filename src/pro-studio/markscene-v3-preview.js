@@ -179,10 +179,12 @@ function normalizeEdits(edits,doc,sourceGLB){
   for(const input of edits.meshOperations){
    good(keyed(input),'MESH_EDIT','operation must be typed object');
    const kind=input.kind;
-   good(['vertex.move','edge.split','face.flip','face.delete'].includes(kind),
+   good(['vertex.move','edge.split','face.flip','face.delete',
+    'normal.recalculate'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
    const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
     kind==='edge.split'?['kind','meshIndex','primitiveIndex','start','end','factor']:
+    kind==='normal.recalculate'?['kind','meshIndex','primitiveIndex']:
     ['kind','meshIndex','primitiveIndex','face'];
    good(Object.keys(input).every(k=>allowed.includes(k))&&
     Number.isInteger(input.meshIndex)&&input.meshIndex>=0&&
@@ -203,6 +205,8 @@ function normalizeEdits(edits,doc,sourceGLB){
      'MESH_SPLIT','Invalid edge or interpolation');
     op.start=input.start;op.end=input.end;
     op.factor=input.factor??.5;
+   }else if(kind==='normal.recalculate'){
+    // No optional fields: source-specific face winding defines the normals.
    }else{
     good(Number.isInteger(input.face)&&input.face>=0,
      'MESH_FACE','Invalid face index');
@@ -280,7 +284,7 @@ export async function createPreviewMarkscene(input,{
   dependencies:[],audioBindings:[],checksums:{[FILES[1]]:hash},
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
-   'clip view state','bounded indexed-triangle vertex.move/edge.split/face.flip/face.delete edit log'],
+   'clip view state','bounded indexed-triangle edits + area-weighted normal recalculation'],
   unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
    'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
    'audio graph authoring'],
