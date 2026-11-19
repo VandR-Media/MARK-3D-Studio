@@ -5,6 +5,7 @@
  * Does NOT claim approved Neon Boy, production .markscene v3 or Huawei metrics.
  */
 import * as THREE from 'three';
+import {createViewportPicker} from './viewport-picking.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
@@ -41,6 +42,7 @@ key.position.set(-3,5,6);world.add(key);
 const fill=new THREE.DirectionalLight('#7fb2ff',1.5);
 fill.position.set(3,2,-3);world.add(fill);
 const grid=new THREE.GridHelper(3,12,'#364a60','#263344');grid.position.y=-.065;world.add(grid);
+let cachedSourceDoc=null;
 let root=null,parsed=null,mixer=null,activeAction=null,activeClip=0,playing=false,
  fixtureBytes=null,sourceBytes=null,skinned=null,loadedName='',poseSeconds=0,
  raf=0,lastTick=0,frameCounter=0;
@@ -62,7 +64,9 @@ function frame(now){
   byId('timeline').value=String(Math.round(poseSeconds*1000));
   byId('readout').textContent=poseSeconds.toFixed(2)+' s';
  }
- controls.update();renderer.render(world,camera);frameCounter++;
+ controls.update();
+ if(typeof meshPicker!=='undefined')meshPicker.update();
+ renderer.render(world,camera);frameCounter++;
  raf=requestAnimationFrame(frame);
 }
 function centerView(orientation='front'){
@@ -151,6 +155,7 @@ async function loadBinary(bytes,name='local-rigged.glb'){
  nativeProjectSource=data.slice();nativeProjectOpened=null;
  nativeEdits={nodeTransforms:{},materialPbr:{},selection:{clipIndex:0,timeSeconds:0}};
  const doc=parseGlb(data).json;
+ cachedSourceDoc=doc;
  nativeNodeIndex=Math.max(0,doc.nodes.findIndex(x=>x.skin!==undefined));
  nativeMaterialIndex=0;
  mixer=new THREE.AnimationMixer(root);skinned=skins[0];loadedName=name;
@@ -393,6 +398,62 @@ window.MARK_AI_BRIDGE={
  getSnapshot:()=>bridge.getSnapshot(),
  getAudit:()=>bridge.getAudit()
 };
+const meshPicker=createViewportPicker({
+ canvas,scene:world,camera,
+ getRoot:()=>root,getParsed:()=>parsed,getSourceDoc:()=>cachedSourceDoc,
+ render:()=>renderer.render(world,camera)
+});
+const meshPickState=()=>meshPicker.getSelection();
+function reportPickedElement(selection){
+ const status=byId('mesh-selection');
+ if(!selection){status.textContent='Элемент не выбран. Коснитесь вершины или треугольника на модели.';return;}
+ byId('mesh-id').value=String(selection.meshIndex);
+ byId('mesh-a').value=String(selection.mode==='vertex'?selection.vertex:selection.face);
+ if(selection.mode==='vertex')
+  byId('mesh-op').value='vertex.move';
+ else
+  byId('mesh-op').value='face.flip';
+ status.textContent='Выбрано: '+selection.meshId+' / '+selection.mode+' #'+
+  (selection.mode==='vertex'?selection.vertex:selection.face)+
+  ' (настоящая геометрия WebGL2).';
+}
+byId('mesh-pick-toggle').addEventListener('click',()=>{
+ if(!meshSession){
+  byId('mesh-selection').textContent='Сначала нажмите «Открыть Edit Mode».';
+  return;
+ }
+ const next=!meshPicker.getEnabled();
+ meshPicker.setEnabled(next);
+ byId('mesh-pick-toggle').setAttribute('aria-pressed',String(next));
+ byId('mesh-pick-toggle').textContent='Выделение в 3D: '+(next?'включено':'выключено');
+ if(next)meshPicker.setMode(byId('mesh-pick-mode').value);
+ else reportPickedElement(null);
+});
+byId('mesh-pick-mode').addEventListener('change',e=>{
+ meshPicker.setMode(e.target.value);
+ meshPicker.clear();reportPickedElement(null);
+});
+canvas.addEventListener('click',event=>{
+ if(!meshSession||!meshPicker.getEnabled())return;
+ const rect=canvas.getBoundingClientRect();
+ try{
+  const selected=meshPicker.pickAt(event.clientX-rect.left,event.clientY-rect.top);
+  reportPickedElement(selected);
+ }catch(error){
+  byId('mesh-selection').textContent='Не удалось выбрать элемент: '+String(error?.message||error);
+ }
+});
+window.MARK_MESH_PICK_API={
+ enable:v=>meshPicker.setEnabled(v),
+ setMode:v=>meshPicker.setMode(v),
+ pickAt:(x,y,mode)=>{const hit=meshPicker.pickAt(x,y,mode);reportPickedElement(hit);return hit;},
+ projectVertex:(meshIndex,vertexIndex,primitiveIndex=0)=>
+  meshPicker.projectVertex(meshIndex,vertexIndex,primitiveIndex),
+ projectFace:(meshIndex,faceIndex,primitiveIndex=0)=>
+  meshPicker.projectFace(meshIndex,faceIndex,primitiveIndex),
+ selection:meshPickState
+};
+
 byId('bridge-demo').addEventListener('click',async()=>{
  const outcome=byId('bridge-output');
  outcome.textContent='Выполняется локальная транзакция…';
@@ -461,7 +522,8 @@ byId('mesh-open').addEventListener('click',async()=>{
    name:'mesh-edit-input.glb',type:'glb',data:sourceBytes
   });
   await meshCall('scene.open',{assetId:upload.assetId});
-  meshSession=true;await meshShow('Режим геометрии открыт');
+  meshSession=true;meshPicker.clear();
+  await meshShow('Режим геометрии открыт');
  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
 });
 byId('mesh-apply').addEventListener('click',async()=>{
@@ -474,6 +536,7 @@ byId('mesh-apply').addEventListener('click',async()=>{
   const d=['mesh-dx','mesh-dy','mesh-dz'].map(id=>Number(byId(id).value));
   const operation=kind==='vertex.move'?{kind,vertex:a,delta:d}:
    kind==='edge.split'?{kind,start:a,end:b,factor:.5}:
+   kind==='normal.recalculate'?{kind}:
    {kind,face:a};
   if(kind==='face.delete'&&!window.confirm(
    'Удалить треугольную грань '+a+' из геометрии? Undo будет доступен.'))return;
