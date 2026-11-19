@@ -421,19 +421,53 @@ const meshPicker=createViewportPicker({
  render:()=>renderer.render(world,camera)
 });
 const meshPickState=()=>meshPicker.getSelection();
-let regionFaceMesh=null;
+let regionFaceKey=null;
+function regionInputFaces(){
+ const raw=byId('mesh-region-faces').value.trim();
+ if(!/^\d+(?:\s*,\s*\d+)*$/.test(raw))
+  throw Error('Укажите номера граней через запятую, например 0,1.');
+ const faces=raw.split(',').map(value=>Number(value.trim()));
+ if(faces.length>128||faces.some(i=>!Number.isSafeInteger(i)||i<0)||
+  new Set(faces).size!==faces.length)
+  throw Error('Допустимо не больше 128 разных целых индексов граней.');
+ return faces;
+}
+function refreshRegionOverlay(){
+ if(!meshSession||!meshPicker.getEnabled()||
+  byId('mesh-pick-mode').value!=='face')return;
+ try{
+  const meshIndex=Number(byId('mesh-id').value);
+  const faces=regionInputFaces();
+  const result=meshPicker.setFaceRegion(meshIndex,faces);
+  const d=result.diagnostics;
+  byId('mesh-selection').textContent='Выделена группа: '+faces.length+
+   ' граней, '+d.boundaryEdges+' граничных рёбер. '+
+   (d.validRegion?'Область связная, единый контур.':
+    'ВНИМАНИЕ: контур неоднозначен или группа несвязная; Extrude может быть отклонён.');
+ }catch(error){
+  meshPicker.clearFaceRegion();
+  byId('mesh-selection').textContent='Группа граней: '+String(error?.message||error);
+ }
+}
+byId('mesh-region-faces').addEventListener('change',refreshRegionOverlay);
+byId('mesh-id').addEventListener('change',refreshRegionOverlay);
 function reportPickedElement(selection,{addToRegion=false}={}){
  const status=byId('mesh-selection');
- if(!selection){status.textContent='Элемент не выбран. Коснитесь вершины, ребра или треугольника на модели.';return;}
+ if(!selection){
+  meshPicker.clearFaceRegion();regionFaceKey=null;
+  status.textContent='Элемент не выбран. Коснитесь вершины, ребра или треугольника на модели.';
+  return;
+ }
  byId('mesh-id').value=String(selection.meshIndex);
  if(selection.mode==='face'){
   const field=byId('mesh-region-faces');
-  const current=addToRegion&&regionFaceMesh===selection.meshIndex?
+  const key=selection.meshIndex+':'+selection.primitiveIndex;
+  const current=addToRegion&&regionFaceKey===key?
    field.value.split(',').map(v=>Number(v.trim()))
     .filter(v=>Number.isSafeInteger(v)&&v>=0):[];
   field.value=[...new Set([...current,selection.face])]
    .sort((a,b)=>a-b).join(',');
-  regionFaceMesh=selection.meshIndex;
+  regionFaceKey=key;
  }
  byId('mesh-a').value=String(selection.mode==='vertex'?selection.vertex:
   selection.mode==='edge'?selection.edge[0]:selection.face);
@@ -449,6 +483,8 @@ function reportPickedElement(selection,{addToRegion=false}={}){
    selection.mode==='edge'?selection.edge.join('–'):selection.face)+
   ' (настоящая геометрия WebGL2).'+
   (addToRegion?' Групповое выделение: '+byId('mesh-region-faces').value:'');
+ if(selection.mode==='face')refreshRegionOverlay();
+ else{meshPicker.clearFaceRegion();regionFaceKey=null;}
 }
 byId('mesh-pick-toggle').addEventListener('click',()=>{
  if(!meshSession){
@@ -459,12 +495,13 @@ byId('mesh-pick-toggle').addEventListener('click',()=>{
  meshPicker.setEnabled(next);
  byId('mesh-pick-toggle').setAttribute('aria-pressed',String(next));
  byId('mesh-pick-toggle').textContent='Выделение в 3D: '+(next?'включено':'выключено');
- if(next)meshPicker.setMode(byId('mesh-pick-mode').value);
- else reportPickedElement(null);
+ if(next){meshPicker.setMode(byId('mesh-pick-mode').value);
+  if(byId('mesh-pick-mode').value==='face')refreshRegionOverlay();}
+ else{regionFaceKey=null;reportPickedElement(null);}
 });
 byId('mesh-pick-mode').addEventListener('change',e=>{
  meshPicker.setMode(e.target.value);
- meshPicker.clear();reportPickedElement(null);
+ meshPicker.clear();regionFaceKey=null;reportPickedElement(null);
 });
 canvas.addEventListener('click',event=>{
  if(!meshSession||!meshPicker.getEnabled())return;
@@ -484,6 +521,10 @@ window.MARK_MESH_PICK_API={
   meshPicker.projectVertex(meshIndex,vertexIndex,primitiveIndex),
  projectEdge:(meshIndex,start,end,primitiveIndex=0)=>
   meshPicker.projectEdge(meshIndex,start,end,primitiveIndex),
+ setFaceRegion:(meshIndex,faces,primitiveIndex=0)=>
+  meshPicker.setFaceRegion(meshIndex,faces,primitiveIndex),
+ region:()=>meshPicker.getFaceRegion(),
+ clearRegion:()=>meshPicker.clearFaceRegion(),
  projectFace:(meshIndex,faceIndex,primitiveIndex=0)=>
   meshPicker.projectFace(meshIndex,faceIndex,primitiveIndex),
  selection:meshPickState
@@ -611,10 +652,7 @@ byId('mesh-apply').addEventListener('click',async()=>{
    kind==='edge.split'?{kind,start:a,end:b,factor:.5}:
    kind==='face.extrude'?{kind,face:a,distance:Number(byId('mesh-extrude-distance').value)}:
    kind==='face.regionExtrude'?(()=>{
-    const raw=byId('mesh-region-faces').value.trim();
-    if(!/^\d+(?:\s*,\s*\d+)*$/.test(raw))
-     throw Error('Для Region Extrude укажите номера граней через запятую.');
-    return {kind,faces:raw.split(',').map(v=>Number(v.trim())),
+    return {kind,faces:regionInputFaces(),
      distance:Number(byId('mesh-extrude-distance').value)};
    })():
    kind==='normal.recalculate'?{kind}:
@@ -622,6 +660,10 @@ byId('mesh-apply').addEventListener('click',async()=>{
   if(kind==='face.delete'&&!window.confirm(
    'Удалить треугольную грань '+a+' из геометрии? Undo будет доступен.'))return;
   const result=await meshCall('mesh.edit',{meshId:meshId(),operation});
+  if(['face.extrude','face.regionExtrude','face.delete','edge.split'].includes(kind)){
+   // Topology edits invalidate stored triangle and edge element indices.
+   meshPicker.clear();regionFaceKey=null;
+  }
   await meshShow(kind+' сохранено, scene rev '+result.revision);
  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
 });

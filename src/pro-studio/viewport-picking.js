@@ -6,6 +6,7 @@
  * mesh IDs by display name, never renders a fake screenshot.
  */
 import * as THREE from 'three';
+import {analyzeIndexedFaceRegion} from './topology-selection.js';
 const bad=(code,msg)=>{const e=Error('MARK_PICK_'+code+': '+msg);e.code=code;throw e;};
 const safe=(ok,code,msg)=>{if(!ok)bad(code,msg);};
 const inRange=(n,max)=>Number.isInteger(n)&&n>=0&&n<max;
@@ -30,7 +31,20 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
    depthWrite:false,transparent:true,opacity:1})
  );
  edgeLine.visible=false;edgeLine.renderOrder=502;scene.add(edgeLine);
- let mode='vertex',selection=null,enabled=false;
+ // Group overlay: translucent true triangles + only exterior indexed edges.
+ // No fake 2D rectangles and no duplicate inner diagonal outline.
+ const regionFill=new THREE.Mesh(new THREE.BufferGeometry(),
+  new THREE.MeshBasicMaterial({color:0x14aace,transparent:true,opacity:.28,
+   side:THREE.DoubleSide,depthTest:true,depthWrite:false,
+   polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+ regionFill.visible=false;regionFill.renderOrder=503;regionFill.frustumCulled=false;
+ scene.add(regionFill);
+ const regionBorder=new THREE.LineSegments(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0xffd64a,depthTest:false,
+   depthWrite:false,transparent:true,opacity:1}));
+ regionBorder.visible=false;regionBorder.renderOrder=504;
+ regionBorder.frustumCulled=false;scene.add(regionBorder);
+ let mode='vertex',selection=null,faceRegion=null,enabled=false;
  function locate(meshIndex,primitiveIndex=0){
   const root=getRoot(),parsed=getParsed(),doc=getSourceDoc();
   safe(Boolean(root&&parsed&&doc),'NO_SCENE','Load a glTF scene first');
@@ -107,9 +121,43 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
   return{x:(nd.x+1)*.5*w,y:(1-nd.y)*.5*h,
    world:v.toArray(),depth:nd.z,visible:nd.z>=-1&&nd.z<=1};
  }
+ function writeOverlayGeometry(geometry,vertices){
+  const count=vertices.length;
+  let attribute=geometry.getAttribute('position');
+  if(!attribute||attribute.count!==count){
+   attribute=new THREE.Float32BufferAttribute(new Float32Array(count*3),3);
+   attribute.setUsage(THREE.DynamicDrawUsage);
+   geometry.setAttribute('position',attribute);
+  }
+  for(let i=0;i<count;i++)
+   attribute.setXYZ(i,vertices[i].x,vertices[i].y,vertices[i].z);
+  attribute.needsUpdate=true;
+  if(count)geometry.computeBoundingSphere();
+ }
  function overlay(){
   marker.visible=false;faceLine.visible=false;edgeLine.visible=false;
-  if(!selection)return;
+  regionFill.visible=false;regionBorder.visible=false;
+  if(enabled&&faceRegion){
+   let selectedMesh=null;
+   try{selectedMesh=locate(faceRegion.meshIndex,faceRegion.primitiveIndex);}
+   catch{/* Scene may be reloading; never bind a stale glTF mesh. */}
+   if(selectedMesh){
+    const cache=new Map();
+    const worldVertex=i=>{
+     if(!cache.has(i))cache.set(i,vertexWorld(selectedMesh,i));
+     return cache.get(i);
+    };
+    const triangles=faceRegion.topology.triangles.flatMap(f=>
+     f.vertices.map(i=>worldVertex(i)));
+    const border=faceRegion.topology.boundaryEdges.flatMap(e=>
+     [worldVertex(e.from),worldVertex(e.to)]);
+    writeOverlayGeometry(regionFill.geometry,triangles);
+    writeOverlayGeometry(regionBorder.geometry,border);
+    regionFill.visible=triangles.length>0;
+    regionBorder.visible=border.length>0;
+   }
+  }
+  if(!selection||!enabled)return;
   let mesh;
   try{mesh=locate(selection.meshIndex,selection.primitiveIndex);}
   catch{return;}
@@ -124,14 +172,22 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
    positions.needsUpdate=true;edgeLine.geometry.computeBoundingSphere();
    edgeLine.visible=true;
   }else{
-   const faces=faceIndices(mesh,selection.face);
-   const positions=faceLine.geometry.getAttribute('position');
-   faces.forEach((i,k)=>{
-    const v=vertexWorld(mesh,i);
-    positions.setXYZ(k,v.x,v.y,v.z);
-   });
-   positions.needsUpdate=true;
-   faceLine.geometry.computeBoundingSphere();faceLine.visible=true;
+   // When a multi-face region is active, the single-hit cyan outline
+   // would reintroduce the INTERNAL diagonal and misrepresent the boundary.
+   const groupIncludesHit=faceRegion&&faceRegion.meshIndex===selection.meshIndex&&
+    faceRegion.primitiveIndex===selection.primitiveIndex&&
+    faceRegion.topology.faces.length>1&&
+    faceRegion.topology.faces.includes(selection.face);
+   if(!groupIncludesHit){
+    const faces=faceIndices(mesh,selection.face);
+    const positions=faceLine.geometry.getAttribute('position');
+    faces.forEach((i,k)=>{
+     const v=vertexWorld(mesh,i);
+     positions.setXYZ(k,v.x,v.y,v.z);
+    });
+    positions.needsUpdate=true;
+    faceLine.geometry.computeBoundingSphere();faceLine.visible=true;
+   }
   }
  }
  function selectAt(x,y,pickMode=mode){
@@ -200,6 +256,35 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
   };
   overlay();render();return structuredClone(selection);
  }
+ function setFaceRegion(meshIndex,faces,primitiveIndex=0){
+  safe(enabled,'DISABLED','Open Mesh Edit Mode to select a region');
+  const mesh=locate(meshIndex,primitiveIndex);
+  const geometry=mesh.geometry;
+  safe(Boolean(geometry.index&&geometry.attributes?.position),
+   'REGION_PROFILE','Indexed mesh required for region overlay');
+  // Read currently loaded indexed WebGL geometry, not source GLB metadata:
+  // it contains the actual rendered triangle IDs used by the raycaster.
+  const index=Array.from({length:geometry.index.count},
+   (_,i)=>geometry.index.getX(i));
+  const topology=analyzeIndexedFaceRegion({
+   indices:index,vertexCount:geometry.attributes.position.count,faces
+  });
+  faceRegion={meshIndex,primitiveIndex,topology};
+  overlay();render();
+  return {meshIndex,primitiveIndex,faces:topology.faces.slice(),
+   diagnostics:structuredClone(topology.diagnostics),
+   boundaryEdges:topology.boundaryEdges.map(e=>[e.from,e.to])};
+ }
+ function getFaceRegion(){
+  if(!faceRegion)return null;
+  const {meshIndex,primitiveIndex,topology}=faceRegion;
+  return {meshIndex,primitiveIndex,faces:topology.faces.slice(),
+   diagnostics:structuredClone(topology.diagnostics),
+   boundaryEdges:topology.boundaryEdges.map(e=>[e.from,e.to])};
+ }
+ function clearFaceRegion(){
+  faceRegion=null;overlay();render();
+ }
  function projectVertex(meshIndex,vertexIndex,primitiveIndex=0){
   const mesh=locate(meshIndex,primitiveIndex);camera.updateMatrixWorld(true);
   return {...project(vertexWorld(mesh,vertexIndex)),meshIndex,vertexIndex};
@@ -233,13 +318,14 @@ export function createViewportPicker({canvas,scene,camera,getRoot,getParsed,getS
   return {...project(mid),meshIndex,faceIndex,indices};
  }
  return{
-  setEnabled:v=>{enabled=Boolean(v);if(!enabled)selection=null;overlay();render();},
+  setEnabled:v=>{enabled=Boolean(v);if(!enabled){selection=null;faceRegion=null;}overlay();render();},
   setMode:v=>{safe(['vertex','edge','face'].includes(v),'MODE','Unknown selection mode');mode=v;},
   pickAt:selectAt,
   projectVertex,projectEdge,projectFace,
+  setFaceRegion,getFaceRegion,clearFaceRegion,
   getSelection:()=>selection?structuredClone(selection):null,
   getEnabled:()=>enabled,
   update:overlay,
-  clear:()=>{selection=null;overlay();render();}
+  clear:()=>{selection=null;faceRegion=null;overlay();render();}
  };
 }
