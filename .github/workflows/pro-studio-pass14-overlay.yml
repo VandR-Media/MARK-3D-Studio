@@ -1,0 +1,50 @@
+name: MARK Studio Pass 14 selected region overlay and WebGL2 QA
+
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass14-region-overlay
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  region-overlay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate source syntax
+        run: |
+          node --check src/pro-studio/topology-selection.js
+          node --check src/pro-studio/viewport-picking.js
+          node --check src/pro-studio/rig-viewer.js
+          node --check tests/pro-studio-pass14-region-overlay.test.mjs
+          node --check scripts/pro-studio-pass14-overlay-webgl-accept.mjs
+      - name: Unit geometry, topology, native and Visual Engine v2
+        run: |
+          node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs tests/pro-studio-pass13-region-extrude.test.mjs tests/pro-studio-pass14-region-overlay.test.mjs
+          node --test tests/pro-studio-mesh-edit.test.mjs tests/pro-studio-primitives.test.mjs tests/pro-studio-ai-bridge.test.mjs
+          npm run test:visual-v2
+      - name: Build real offline WebGL2 editor
+        run: npm run pro:rig:viewer
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Check real multi-selection overlay, pixel evidence and native replay
+        run: node scripts/pro-studio-pass14-overlay-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Upload source-matched WebGL2 screenshots and native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass14-region-overlay-webgl
+          path: dist/pro-studio/pass14-acceptance/**
+          if-no-files-found: warn
+          retention-days: 14
