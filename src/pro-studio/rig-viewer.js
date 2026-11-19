@@ -672,6 +672,26 @@ for(const [id,method] of [['mesh-link-seam','mesh.linkSeam'],
   }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
  });
 }
+byId('mesh-move-cap').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const sourceVertex=Number(byId('mesh-a').value);
+  if(!Number.isSafeInteger(sourceVertex)||sourceVertex<0)
+   throw Error('V1 должен быть индексом исходной вершины капа.');
+  const region=await meshCall('mesh.getLinkedRegion',{meshId:meshId()});
+  const cap=region.capRemap?.find(c=>c.sourceVertex===sourceVertex);
+  if(!cap)throw Error('V1 не входит в созданный кап или устарел.');
+  const delta=['mesh-dx','mesh-dy','mesh-dz']
+   .map(id=>Number(byId(id).value));
+  if(!delta.every(n=>Number.isFinite(n)&&Math.abs(n)<=2)||
+   Math.hypot(...delta)<=1e-8)
+   throw Error('ΔXYZ должен содержать ненулевые числа от -2 до +2.');
+  const edit=await meshCall('mesh.moveLinkedCap',{
+   meshId:meshId(),capStableId:cap.capStableId,delta});
+  await meshShow('Логическая вершина капа смещена; ревизия '+edit.revision);
+ }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+});
 byId('mesh-apply').addEventListener('click',async()=>{
  try{
   if(!meshSession)throw Error('Нажмите «Открыть Edit Mode».');
