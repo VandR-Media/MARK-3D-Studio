@@ -180,11 +180,13 @@ function normalizeEdits(edits,doc,sourceGLB){
    good(keyed(input),'MESH_EDIT','operation must be typed object');
    const kind=input.kind;
    good(['vertex.move','edge.split','face.flip','face.delete',
-    'normal.recalculate'].includes(kind),
+    'normal.recalculate','primitive.add'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
    const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
     kind==='edge.split'?['kind','meshIndex','primitiveIndex','start','end','factor']:
     kind==='normal.recalculate'?['kind','meshIndex','primitiveIndex']:
+    kind==='primitive.add'?['kind','meshIndex','primitiveIndex','shape',
+      'size','segments','materialIndex']:
     ['kind','meshIndex','primitiveIndex','face'];
    good(Object.keys(input).every(k=>allowed.includes(k))&&
     Number.isInteger(input.meshIndex)&&input.meshIndex>=0&&
@@ -207,6 +209,17 @@ function normalizeEdits(edits,doc,sourceGLB){
     op.factor=input.factor??.5;
    }else if(kind==='normal.recalculate'){
     // No optional fields: source-specific face winding defines the normals.
+   }else if(kind==='primitive.add'){
+    good(['plane','grid','box','uv-sphere','cylinder'].includes(input.shape)&&
+     typeof input.size==='number'&&Number.isFinite(input.size)&&
+     input.size>=.01&&input.size<=50&&
+     Number.isInteger(input.segments)&&input.segments>=3&&input.segments<=48,
+     'PRIMITIVE_FIELDS','Unsupported shape/size/segments');
+    const materialIndex=input.materialIndex??0;
+    good(Number.isInteger(materialIndex)&&materialIndex>=0,
+     'PRIMITIVE_MATERIAL','Invalid material index');
+    Object.assign(op,{shape:input.shape,size:input.size,
+     segments:input.segments,materialIndex});
    }else{
     good(Number.isInteger(input.face)&&input.face>=0,
      'MESH_FACE','Invalid face index');
@@ -284,7 +297,7 @@ export async function createPreviewMarkscene(input,{
   dependencies:[],audioBindings:[],checksums:{[FILES[1]]:hash},
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
-   'clip view state','bounded indexed-triangle edits + area-weighted normal recalculation'],
+   'clip view state','bounded indexed-triangle edits + normal recalculation + procedural primitive.add'],
   unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
    'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
    'audio graph authoring'],
