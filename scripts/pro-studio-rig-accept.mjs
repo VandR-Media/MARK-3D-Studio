@@ -459,6 +459,9 @@ try{
  await page.locator('#bridge-write-grant').check();
  await page.locator('#mesh-open').click();
  await page.locator('#mesh-pick-toggle').click();
+ // The Edit Mode controls sit below a 3D viewport. Playwright scrolls down
+ // to click the toggle; scroll the ACTUAL canvas back into view before mouse.
+ await page.locator('#viewport').scrollIntoViewIfNeeded();
  const vertex=await page.evaluate(()=>
   window.MARK_MESH_PICK_API.projectVertex(0,2));
  const face=await page.evaluate(()=>
@@ -468,6 +471,9 @@ try{
  await page.mouse.click(box.x+vx,box.y+vy);
  const pickedVertex=await page.evaluate(()=>
   window.MARK_MESH_PICK_API.selection());
+ console.log('MARK PICK DEBUG',JSON.stringify({vertex,face,box,
+  click:{x:vx,y:vy},pickedVertex,
+  status:await page.locator('#mesh-selection').innerText()}));
  assertTest('RIG-MESH-PICK-VERTEX-024',
   pickedVertex?.mode==='vertex'&&
   pickedVertex.meshId==='gltf-mesh-0'&&
@@ -475,7 +481,9 @@ try{
   {projected:vertex,hit:pickedVertex},
   'Pointer click failed to select actual skinned glTF vertex');
  await page.locator('#mesh-pick-mode').selectOption('face');
- await page.mouse.click(box.x+face.x,box.y+face.y);
+ await page.locator('#viewport').scrollIntoViewIfNeeded();
+ const boxFace=await page.locator('#viewport').boundingBox();
+ await page.mouse.click(boxFace.x+face.x,boxFace.y+face.y);
  const pickedFace=await page.evaluate(()=>
   window.MARK_MESH_PICK_API.selection());
  assertTest('RIG-MESH-PICK-FACE-025',
