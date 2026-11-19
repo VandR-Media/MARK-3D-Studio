@@ -1,0 +1,42 @@
+name: MARK Studio Pass 12 real WebGL2 extrusion acceptance
+
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass12-webgl-extrude-qa
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webgl-extrusion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Geometry and native regression
+        run: |
+          node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs
+          npm run test:visual-v2
+      - name: Build real offline WebGL renderer
+        run: npm run pro:rig:viewer
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Test real pointer events, visual extrusion and native roundtrip
+        run: node scripts/pro-studio-pass12-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Upload true WebGL frames and source-matched QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass12-webgl-qa
+          path: dist/pro-studio/pass12-acceptance/**
+          if-no-files-found: warn
+          retention-days: 14
