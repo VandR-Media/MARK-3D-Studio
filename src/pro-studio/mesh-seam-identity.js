@@ -196,10 +196,10 @@ export function inspectExplicitSeamTopology(sourceGLB,{
   stableEdgeIdSample:[...localEdges].sort().slice(0,16)
    .map(key=>{const [a,b]=key.split(':').map(Number);return stableEdgeId(a,b);}),
   ...(selected?{selection:{
+   ...selected.diagnostics,
    faces:selected.faces,
-   boundaryEdges:selected.boundaryEdges.map(e=>[stableId(e.from),stableId(e.to)]),
-   internalEdges:selected.internalEdges.length,
-   ...selected.diagnostics
+   boundaryEdgeCount:selected.diagnostics.boundaryEdges,
+   boundaryEdges:selected.boundaryEdges.map(e=>[stableId(e.from),stableId(e.to)])
   }}:{})
  };
 }
