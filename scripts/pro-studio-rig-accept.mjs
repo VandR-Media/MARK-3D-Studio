@@ -315,7 +315,8 @@ try{
   bridgeResult.caps?.supported.includes('transaction.commit')&&
   bridgeResult.caps?.supported.includes('mesh.edit')&&
   bridgeResult.caps?.supported.includes('mesh.getStats')&&
-  !bridgeResult.caps?.supported.includes('mesh.create')&&
+  bridgeResult.caps?.supported.includes('mesh.create')&&
+  bridgeResult.caps?.supported.includes('scene.new')&&
   bridgeResult.denied==='WRITE_PERMISSION_DENIED'&&
   bridgeResult.deniedAfter==='WRITE_PERMISSION_DENIED',
   {transport:bridgeResult.caps?.transport,writeRequired:true,
