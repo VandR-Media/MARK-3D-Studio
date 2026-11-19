@@ -32,7 +32,7 @@ world=body.matrix_world.copy()
 cut=[]
 for f in bm.faces:
     w=world@f.calc_center_median()
-    if .80<w.z<1.46 and -.25<w.x<.25 and w.y>.143:
+    if .82<w.z<1.43 and -.29<w.x<.29 and w.y>.075:
         cut.append(f)
 bmesh.ops.delete(bm,geom=cut,context="FACES")
 bm.to_mesh(body.data);bm.free();body.data.update()
@@ -52,8 +52,8 @@ def material(n,h,metal=0,rough=.7,emit=0):
         bs.inputs["Emission Strength"].default_value=emit
     return m
 M={
- "cap":material("Crimson baseball cotton","#870C24",rough=.87),
- "cap_edge":material("Cap stitched rim","#58081C",rough=.88),
+ "cap":material("Crimson baseball cotton","#920921",rough=.87),
+ "cap_edge":material("Cap stitched rim","#520719",rough=.88),
  "white":material("White embroidery and laces","#E6E8F5",rough=.75),
  "cyan":material("Cyan emissive LED","#0ACEFC",rough=.35,emit=2.7),
  "pink":material("Magenta emissive LED","#FD41CF",rough=.35,emit=2.3),
@@ -101,12 +101,12 @@ if base:
     if uv:
         for poly in body.data.polygons:
             pt=body.matrix_world@poly.center
-            if not(.92<pt.z<1.47 and abs(pt.x)<.47):
+            if not((.83<pt.z<1.47 and abs(pt.x)<.47) or (.20<pt.z<.85 and abs(pt.x)<.32)):
                 continue
             corners=[]
             for li in poly.loop_indices:
                 co=uv.data[li].uv
-                corners.append((co.x*width,(1-co.y)*height))
+                corners.append((co.x*width,co.y*height))
             if len(corners)<3:continue
             tri=corners[:3]
             xlo=max(0,int(min(p[0] for p in tri)))
@@ -124,12 +124,15 @@ if base:
             inside=(a>=-.05)&(b0>=-.05)&(a+b0<=1.05)
             white_mask[ylo:yhi+1,xlo:xhi+1] |= inside
             filled_triangles+=1
-    nearwhite=(r>.46)&(g>.43)&(b>.38)&(abs(r-g)<.18)
+    nearwhite=(r>.39)&(g>.38)&(b>.35)&(abs(r-g)<.24)
     cover=white_mask&nearwhite
-    new[cover,0]=lum[cover]*.055
-    new[cover,1]=lum[cover]*.066
-    new[cover,2]=lum[cover]*.17
-    print("FABRIC_UV_MASK",filled_triangles,int(cover.sum()),flush=True)
+    new[cover,0]=lum[cover]*.09
+    new[cover,1]=lum[cover]*.095
+    new[cover,2]=lum[cover]*.15
+    # Also reduce bright denim speckles while preserving source material relief.
+    blue_splotch=(blue)&(white_mask)&(lum>.45)
+    new[blue_splotch,0]*=.70;new[blue_splotch,1]*=.70;new[blue_splotch,2]*=.70
+    print("FABRIC_UV_MASK",filled_triangles,int(cover.sum()),int(blue_splotch.sum()),flush=True)
     new_img=bpy.data.images.new("NeonBoy_NavyHoodie_CharcoalCargo_PBR",width=width,height=height,alpha=True)
     new_img.pixels.foreach_set(new.reshape(-1));new_img.file_format="PNG"
     new_img.filepath_raw=str(OUT.joinpath("NeonBoy_ColorTexture.png").absolute())
@@ -281,25 +284,37 @@ for ob in parts:
         for vert in ob.data.vertices:
             k=max(0,min(1,(vert.co.z-1.56)/.18))
             vert.co.z+=.066*k
-# The removed backpack leaves a slit in the rear hoodie. A contoured, sewn
-# cloth panel closes the slit (not a billboard; deformable attached 3D patch).
-nv=22;nz=25;pts=[];fs=[]
+# Organic hoodie's rear surface, reconstructed as a single draped cloth patch.
+# The original CC0 source includes an unwanted backpack, removed above.
+# This patch follows variable torso width and rounded back curvature.
+nv=36;nz=40;pts=[];fs=[]
 for iz in range(nz):
-    z=.80+iz*(.55/(nz-1))
+    zz=.825+iz*(.58/(nz-1))
+    t=(zz-.825)/.58
+    # waist slimmer, shoulders broader; narrow upper neckline
+    width=.188 + .043*sin(pi*t) - .065*(max(0,(t-.76)/.24))**1.2
     for ix in range(nv):
-        x=-.245+ix*(.49/(nv-1))
-        taper=1-(x/.27)**2
-        y=.115+.035*max(0,taper)+.006*sin(z*31+x*16)
-        pts.append((x,y,z))
+        u=2*ix/(nv-1)-1
+        xx=width*u
+        bulge=(1-u*u)**.7
+        # rear surface drapes toward shoulder blades with soft wrinkles
+        yy=.067+.075*bulge+.013*sin(zz*27+u*8)*sin(pi*t)
+        yy+=.01*sin(pi*t)
+        pts.append((xx,yy,zz))
 for iz in range(nz-1):
     for ix in range(nv-1):
         a=iz*nv+ix;fs.append((a,a+1,a+nv+1,a+nv))
-dark_fabric=material("BackHoodie_NavyCotton","#15192D",rough=.9)
-back_panel=create("Hoodie_Sculpted_Rear_Panel",pts,fs,dark_fabric,"Spine01")
-sol=back_panel.modifiers.new("FabricThickness","SOLIDIFY");sol.thickness=.005
-tube("Hoodie_Rear_Seam",[
-    (0,.151,.86),(0,.151,1.00),(0,.151,1.16),(0,.140,1.29)],.0027,
-    "cap_edge","Spine01",8)
+dark_fabric=material("BackHoodie_Matte_Navy","#14182D",rough=.96)
+back_panel=create("Hoodie_Draped_Rear_Cloth",pts,fs,dark_fabric,"Spine01")
+sol=back_panel.modifiers.new("FabricShell","SOLIDIFY");sol.thickness=.003
+# Sew along the neckline and down to the hem, physically in 3D.
+tube("Hoodie_Rear_Center_Stitch",[
+ (0,.145,.84),(0,.143,1.00),(0,.149,1.16),(0,.135,1.32)],.0025,
+ "cap_edge","Spine01",8)
+tube("Hoodie_Rear_Hem_Stitch",[
+ (x,.067+.075*(1-(x/.188)**2)**.7,.836)
+ for x in [-.18,-.13,-.08,0,.08,.13,.18]],.0023,
+ "cap_edge","Spine01",8)
 
 # Keyframe a new rhythmic dance clip, not simple canned walk.
 for pb in rig.pose.bones:
@@ -337,14 +352,14 @@ bpy.context.scene.frame_set(1)
 world=bpy.context.scene.world
 world.use_nodes=True
 world.node_tree.nodes["Background"].inputs["Color"].default_value=(.07,.075,.11,1)
-world.node_tree.nodes["Background"].inputs["Strength"].default_value=.47
+world.node_tree.nodes["Background"].inputs["Strength"].default_value=.70
 def area(n,pos,pow,col,size):
     d=bpy.data.lights.new(n,"AREA");d.energy=pow;d.color=col;d.shape="DISK";d.size=size
     ob=bpy.data.objects.new(n,d);bpy.context.collection.objects.link(ob)
     ob.location=pos;ob.rotation_euler=(Vector((0,0,.91))-ob.location).to_track_quat("-Z","Y").to_euler()
 area("Key_Softbox",(-2.4,-3.8,5),790,(1,.89,.80),4)
 area("Fill_Cyan",(3.2,-2.1,3.8),400,(.38,.78,1),4)
-area("Rim_Pink",(2.4,3.0,3.5),180,(1,.31,.68),3)
+area("Rim_Pink",(2.4,3.0,3.5),90,(1,.31,.68),3)
 def cam(n,pos):
     d=bpy.data.cameras.new(n);d.type="ORTHO";d.ortho_scale=2.23
     ob=bpy.data.objects.new(n,d);bpy.context.collection.objects.link(ob)
