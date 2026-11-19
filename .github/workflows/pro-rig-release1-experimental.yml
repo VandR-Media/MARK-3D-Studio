@@ -38,6 +38,8 @@ jobs:
           node --check src/pro-studio/glb-semantic-diff.js
           node --check tests/pro-studio-release1-v3.test.mjs
           node --check src/pro-studio/glb-texture-qa.js
+          node --check src/pro-studio/ai-bridge-core.js
+          node --check tests/pro-studio-ai-bridge.test.mjs
           node --check tests/pro-studio-texture-qa.test.mjs
           node --check scripts/pro-studio-external-neon-qa.mjs
           node --check scripts/pro-studio-v3-preview.mjs
@@ -46,6 +48,7 @@ jobs:
           npm run test:pro-rig
           node --test tests/pro-studio-release1-v3.test.mjs
           node --test tests/pro-studio-texture-qa.test.mjs
+          node --test tests/pro-studio-ai-bridge.test.mjs
           npm run test:visual-v2
       - name: Build genuine fixture, secure archive and offline Three.js viewer
         run: |
