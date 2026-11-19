@@ -52,8 +52,8 @@ def material(n,h,metal=0,rough=.7,emit=0):
         bs.inputs["Emission Strength"].default_value=emit
     return m
 M={
- "cap":material("Crimson baseball cotton","#C30C39",rough=.78),
- "cap_edge":material("Cap stitched rim","#850E31",rough=.78),
+ "cap":material("Crimson baseball cotton","#870C24",rough=.87),
+ "cap_edge":material("Cap stitched rim","#58081C",rough=.88),
  "white":material("White embroidery and laces","#E6E8F5",rough=.75),
  "cyan":material("Cyan emissive LED","#0ACEFC",rough=.35,emit=2.7),
  "pink":material("Magenta emissive LED","#FD41CF",rough=.35,emit=2.3),
@@ -93,6 +93,43 @@ if base:
     new[blue,0]=lum[blue]*.29
     new[blue,1]=lum[blue]*.29
     new[blue,2]=lum[blue]*.36
+    # Precise torso UV mask: recolor off-white backpack straps and hoodie
+    # stripe without changing white sneakers, irises or peach skin.
+    uv=body.data.uv_layers.active
+    white_mask=np.zeros((height,width),dtype=np.bool_)
+    filled_triangles=0
+    if uv:
+        for poly in body.data.polygons:
+            pt=body.matrix_world@poly.center
+            if not(.92<pt.z<1.47 and abs(pt.x)<.47):
+                continue
+            corners=[]
+            for li in poly.loop_indices:
+                co=uv.data[li].uv
+                corners.append((co.x*width,(1-co.y)*height))
+            if len(corners)<3:continue
+            tri=corners[:3]
+            xlo=max(0,int(min(p[0] for p in tri)))
+            xhi=min(width-1,int(max(p[0] for p in tri))+1)
+            ylo=max(0,int(min(p[1] for p in tri)))
+            yhi=min(height-1,int(max(p[1] for p in tri))+1)
+            if xhi<xlo or yhi<ylo or (xhi-xlo+1)*(yhi-ylo+1)>9000:
+                continue
+            xa,ya=tri[0];xb,yb=tri[1];xc,yc=tri[2]
+            det=(yb-yc)*(xa-xc)+(xc-xb)*(ya-yc)
+            if abs(det)<1e-5:continue
+            yy,xx=np.mgrid[ylo:yhi+1,xlo:xhi+1]
+            a=((yb-yc)*(xx-xc)+(xc-xb)*(yy-yc))/det
+            b0=((yc-ya)*(xx-xc)+(xa-xc)*(yy-yc))/det
+            inside=(a>=-.05)&(b0>=-.05)&(a+b0<=1.05)
+            white_mask[ylo:yhi+1,xlo:xhi+1] |= inside
+            filled_triangles+=1
+    nearwhite=(r>.46)&(g>.43)&(b>.38)&(abs(r-g)<.18)
+    cover=white_mask&nearwhite
+    new[cover,0]=lum[cover]*.055
+    new[cover,1]=lum[cover]*.066
+    new[cover,2]=lum[cover]*.17
+    print("FABRIC_UV_MASK",filled_triangles,int(cover.sum()),flush=True)
     new_img=bpy.data.images.new("NeonBoy_NavyHoodie_CharcoalCargo_PBR",width=width,height=height,alpha=True)
     new_img.pixels.foreach_set(new.reshape(-1));new_img.file_format="PNG"
     new_img.filepath_raw=str(OUT.joinpath("NeonBoy_ColorTexture.png").absolute())
@@ -227,6 +264,43 @@ for sign,side in [(-1,"Left"),(1,"Right")]:
 patch("Smartwatch_Screen",[(-.422,-.064,1.02),(-.376,-.075,1.02),
                            (-.376,-.075,1.06),(-.422,-.064,1.06)],"cyan","LeftHand")
 
+# Artistic QA: eliminate protruding light rods and reveal the eyes.
+for ob in list(parts):
+    if ob.name.startswith(("Sleeve_RGB_","Sneaker_LED_Edge_","Smartwatch_Screen")):
+        parts.remove(ob)
+        bpy.data.objects.remove(ob,do_unlink=True)
+# Cap stays above the brow and follows the real rigged head.
+for ob in parts:
+    if ob.name.startswith(("Crown_","Cap_Panel_","Sculpted_Cap_Visor",
+                           "Cap_Visor_","Real_Embroidered_Logo_")):
+        for vert in ob.data.vertices:
+            vert.co.z+=.079
+            if "Visor" in ob.name and vert.co.y<-.12:
+                vert.co.y=-.12+(vert.co.y+.12)*.78
+    if ob.name.startswith("Headphone_Arch"):
+        for vert in ob.data.vertices:
+            k=max(0,min(1,(vert.co.z-1.56)/.18))
+            vert.co.z+=.066*k
+# The removed backpack leaves a slit in the rear hoodie. A contoured, sewn
+# cloth panel closes the slit (not a billboard; deformable attached 3D patch).
+nv=22;nz=25;pts=[];fs=[]
+for iz in range(nz):
+    z=.80+iz*(.55/(nz-1))
+    for ix in range(nv):
+        x=-.245+ix*(.49/(nv-1))
+        taper=1-(x/.27)**2
+        y=.115+.035*max(0,taper)+.006*sin(z*31+x*16)
+        pts.append((x,y,z))
+for iz in range(nz-1):
+    for ix in range(nv-1):
+        a=iz*nv+ix;fs.append((a,a+1,a+nv+1,a+nv))
+dark_fabric=material("BackHoodie_NavyCotton","#15192D",rough=.9)
+back_panel=create("Hoodie_Sculpted_Rear_Panel",pts,fs,dark_fabric,"Spine01")
+sol=back_panel.modifiers.new("FabricThickness","SOLIDIFY");sol.thickness=.005
+tube("Hoodie_Rear_Seam",[
+    (0,.151,.86),(0,.151,1.00),(0,.151,1.16),(0,.140,1.29)],.0027,
+    "cap_edge","Spine01",8)
+
 # Keyframe a new rhythmic dance clip, not simple canned walk.
 for pb in rig.pose.bones:
     pb.rotation_mode="XYZ";pb.rotation_euler=(0,0,0)
@@ -270,7 +344,7 @@ def area(n,pos,pow,col,size):
     ob.location=pos;ob.rotation_euler=(Vector((0,0,.91))-ob.location).to_track_quat("-Z","Y").to_euler()
 area("Key_Softbox",(-2.4,-3.8,5),790,(1,.89,.80),4)
 area("Fill_Cyan",(3.2,-2.1,3.8),400,(.38,.78,1),4)
-area("Rim_Pink",(2.4,3.0,3.5),510,(1,.31,.68),3)
+area("Rim_Pink",(2.4,3.0,3.5),180,(1,.31,.68),3)
 def cam(n,pos):
     d=bpy.data.cameras.new(n);d.type="ORTHO";d.ortho_scale=2.23
     ob=bpy.data.objects.new(n,d);bpy.context.collection.objects.link(ob)
