@@ -39,7 +39,7 @@ test('vertex.move changes REAL BIN POSITION but source, skins, morph deltas, cli
  const before=mesh0(fixture.bytes),original=fixture.bytes.slice();
  const moved=applyMeshOperations(fixture.bytes,[op('vertex.move',{vertex:2,delta:[.12,.24,.06]})]);
  const after=mesh0(moved);
- assert.equal(after.position[2][0],before.position[2][0]+.12);
+ assert.ok(Math.abs(after.position[2][0]-before.position[2][0]-.12)<1e-6);
  assert.ok(Math.abs(after.position[2][1]-before.position[2][1]-.24)<1e-6);
  assert.deepEqual(after.morph,before.morph);
  assert.deepEqual(after.joints,before.joints);
