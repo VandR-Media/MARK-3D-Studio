@@ -8,6 +8,7 @@
  */
 import {parseGlb,writeGlb,assertSelfContainedGlb} from '../glb.js';
 import {applyMeshOperations} from './mesh-edit-core.js';
+import {normalizeExplicitSeamLinks} from './mesh-seam-identity.js';
 
 const E=new TextEncoder(),D=new TextDecoder('utf-8',{fatal:true});
 const FILES=['manifest.json','assets/source.glb'];
@@ -260,6 +261,16 @@ function normalizeEdits(edits,doc,sourceGLB){
   }
   out.meshOperations=canonical;
  }
+ if(edits.meshSeamLinks!==undefined){
+  good(sourceGLB,'MESH_SEAM_SOURCE',
+   'Seam links must be verified against immutable original GLB');
+  try{
+   out.meshSeamLinks=normalizeExplicitSeamLinks(sourceGLB,
+    edits.meshSeamLinks,out.meshOperations||[]);
+  }catch(error){
+   good(false,'MESH_SEAM_LINK',String(error?.message||error));
+  }
+ }
  return out;
 }
 function summary(doc){return{
@@ -322,7 +333,8 @@ export async function createPreviewMarkscene(input,{
   dependencies:[],audioBindings:[],checksums:{[FILES[1]]:hash},
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
-   'clip view state','bounded indexed-triangle edits, vertex snap, triangle extrusion, normal recalculation and primitive.add'],
+   'clip view state','bounded indexed-triangle edits, vertex snap, triangle extrusion, normal recalculation and primitive.add',
+   'explicit approved seam links (source-bound metadata, not geometry weld)'],
   unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
    'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
    'audio graph authoring'],

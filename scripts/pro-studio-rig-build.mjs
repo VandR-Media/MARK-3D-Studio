@@ -97,6 +97,8 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <label>Extrude (м) <input id="mesh-extrude-distance" type="number" min=".001" max="50" step=".05" value=".25" style="max-width:75px"></label>
 <button id="mesh-open">Открыть Edit Mode</button>
 <button id="mesh-apply">Применить к геометрии</button>
+<button id="mesh-link-seam" type="button" title="Только логическая связь: UV не склеиваются">Связать V1 и V2 через UV-шов</button>
+<button id="mesh-unlink-seam" type="button" title="Удалить подтверждённую связь UV-шва">Удалить связь UV-шва</button>
 <button id="mesh-undo">↶ Undo</button>
 <button id="mesh-redo">↷ Redo</button>
 <button id="mesh-save">Сохранить правки .markscene</button>
