@@ -530,6 +530,43 @@ const meshShow=async(prefix='Mesh Edit')=>{
   stats.morphTargets+' морфа, topology rev '+stats.topologyRevision+
   '. Настоящий GLB, сохраните проект через AI Bridge.';
 };
+async function createPrimitiveInViewport(method){
+ if(!byId('bridge-write-grant').checked)
+  throw Error('Для создания сцены требуется разрешить изменения AI Bridge.');
+ const args={
+  shape:byId('primitive-shape').value,
+  size:Number(byId('primitive-size').value),
+  segments:Number(byId('primitive-segments').value)
+ };
+ const result=await meshCall(method,args);
+ const hierarchy=await meshCall('scene.getHierarchy');
+ const last=[...hierarchy.nodes].reverse().find(n=>n.meshId);
+ if(last){
+  byId('mesh-id').value=last.meshId.replace('gltf-mesh-','');
+ }
+ meshSession=true;meshPicker.clear();
+ const summary=method==='scene.new'?'Создан проект с пустой сцены':'Добавлен новый mesh datablock';
+ const stats=await meshCall('mesh.getStats',{meshId:meshId()});
+ byId('primitive-output').textContent=summary+': '+args.shape+
+  ', '+stats.vertexCount+' вершин / '+stats.triangleCount+
+  ' треугольников. Результат — настоящий GLB, а не концептуальный рендер.';
+ await meshShow(summary);
+ return{...result,meshId:meshId(),stats};
+}
+for(const [id,method] of [
+ ['primitive-new','scene.new'],
+ ['primitive-add','mesh.create']
+]){
+ byId(id).addEventListener('click',async()=>{
+  try{await createPrimitiveInViewport(method);}
+  catch(error){byId('primitive-output').textContent=
+   'Не удалось создать примитив: '+String(error?.message||error);}
+ });
+}
+window.MARK_PRIMITIVE_API={
+ newScene:()=>createPrimitiveInViewport('scene.new'),
+ add:()=>createPrimitiveInViewport('mesh.create')
+};
 byId('mesh-open').addEventListener('click',async()=>{
  try{
   if(!byId('bridge-write-grant').checked)
