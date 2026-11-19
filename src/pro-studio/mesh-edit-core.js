@@ -3,7 +3,8 @@
  * Mesh Edit core. Edits REAL glTF binary accessors (not node transforms).
  *
  * Supported ops: vertex.move, vertex.snap, edge.split, face.flip, face.delete,
- * face.extrude (bounded individual triangle), face.regionExtrude (disk-only),
+ * face.extrude (individual triangle), face.regionExtrude (disk-only),
+ * face.regionExtrudeLinked (explicit UV-seam / one-shot operation),
  * normal.recalculate, primitive.add.
  * Current profile: glTF 2.0 GLB, BIN-only, indexed TRIANGLES, dense accessors,
  * 5126 floats for vertex attributes, JOINTS_0 Uint8/16, WEIGHTS_0 Float32.
@@ -14,6 +15,7 @@
  */
 import {parseGlb,writeGlb,assertSelfContainedGlb} from '../glb.js';
 import {primitiveGeometry} from './primitive-geometry.js';
+import {normalizeExplicitSeamLinks} from './mesh-seam-identity.js';
 const MAX_BYTES=64*1024*1024,MAX_VERTICES=500000,MAX_INDICES=3000000;
 const TYPES={SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16};
 const COMPONENTS={5121:[1,'getUint8','setUint8'],5123:[2,'getUint16','setUint16'],
@@ -166,7 +168,7 @@ function editOnce(ctx,operation){
  const {kind,meshIndex,primitiveIndex}=operation;
  guard(['vertex.move','edge.split','face.flip','face.delete',
   'normal.recalculate','primitive.add','vertex.snap','face.extrude',
-  'face.regionExtrude'].includes(kind),
+  'face.regionExtrude','face.regionExtrudeLinked'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -273,7 +275,21 @@ function editOnce(ctx,operation){
    {type:'VEC3',componentType:5126,target:34962});
   return {kind,changedVertices:1,addedVertices:0,addedTriangles:0};
  }
- if(kind==='face.regionExtrude'){
+ if(kind==='face.regionExtrude'||kind==='face.regionExtrudeLinked'){
+  const linked=kind==='face.regionExtrudeLinked';
+  // Links have been canonicalized against the *immutable* source GLB by
+  // applyMeshOperations. Only this one-shot operation may consume them.
+  const explicitLinks=linked?operation.links:[];
+  const roots=Array.from({length:count},(_,i)=>i);
+  const findRoot=index=>{
+   while(roots[index]!==index)index=roots[index];
+   return index;
+  };
+  for(const pair of explicitLinks){
+   const a=findRoot(pair.vertexA),b=findRoot(pair.vertexB);
+   if(a!==b)roots[Math.max(a,b)]=Math.min(a,b);
+  }
+  const logical=index=>findRoot(index);
   // Pass 13 constrained REGIONAL extrusion: one connected, orientable,
   // single-boundary disk of indexed triangles. Duplicated cap vertices
   // are shared by adjacent selected faces, unlike individual extrusion.
@@ -302,10 +318,11 @@ function editOnce(ctx,operation){
     faceNormals.set(f,cross);
    }
    for(let i=0;i<3;i++){
-    const from=tri[i],to=tri[(i+1)%3],key=
-     Math.min(from,to)+':'+Math.max(from,to);
+    const from=tri[i],to=tri[(i+1)%3],
+     mappedFrom=logical(from),mappedTo=logical(to),key=
+     Math.min(mappedFrom,mappedTo)+':'+Math.max(mappedFrom,mappedTo);
     const list=edges.get(key)||[];
-    list.push({face:f,from,to});edges.set(key,list);
+    list.push({face:f,from,to,mappedFrom,mappedTo});edges.set(key,list);
    }
   }
   const neighbors=new Map(selected.map(f=>[f,new Set()]));
@@ -316,13 +333,31 @@ function editOnce(ctx,operation){
    guard(list.length<=2,'REGION_NONMANIFOLD',
     'An edge touching selected region belongs to over two triangles');
    if(list.length===2)
-    guard(list[0].from===list[1].to&&list[0].to===list[1].from,
+    guard(list[0].mappedFrom===list[1].mappedTo&&
+     list[0].mappedTo===list[1].mappedFrom,
      'REGION_WINDING','Adjacent faces must have opposite edge winding');
    const within=list.filter(e=>selectedSet.has(e.face));
    if(within.length===2){
     neighbors.get(within[0].face).add(within[1].face);
     neighbors.get(within[1].face).add(within[0].face);
    }else if(within.length===1)borders.push(within[0]);
+  }
+  if(linked){
+   // Explicit approval must bridge an actual selected seam, not arbitrary
+   // coincident XYZ elsewhere in the same primitive.
+   const covered=new Set(selected.flatMap(f=>faceTriples[f]));
+   guard(explicitLinks.length>0&&explicitLinks.every(l=>
+    covered.has(l.vertexA)&&covered.has(l.vertexB)),
+    'LINKED_UNUSED','Every approved link must belong to the chosen faces');
+   let newlyJoined=0;
+   for(const list of edges.values()){
+    const within=list.filter(e=>selectedSet.has(e.face));
+    if(within.length===2&&!(
+      within[0].from===within[1].to&&
+      within[0].to===within[1].from))newlyJoined++;
+   }
+   guard(newlyJoined>0,'LINKED_UNUSED',
+    'No selected face edge was joined using approved seam links');
   }
   // Shared vertex alone is NOT an edge connection; reject separate islands.
   const visited=new Set([selected[0]]),pending=[selected[0]];
@@ -340,17 +375,17 @@ function editOnce(ctx,operation){
   // producing non-manifold walls in the limited preview topology engine.
   const outgoing=new Map(),incoming=new Map();
   for(const e of borders){
-   guard(!outgoing.has(e.from)&&!incoming.has(e.to),
+   guard(!outgoing.has(e.mappedFrom)&&!incoming.has(e.mappedTo),
     'REGION_BOUNDARY','Repeated directed perimeter vertex (non-disk region)');
-   outgoing.set(e.from,e);incoming.set(e.to,e);
+   outgoing.set(e.mappedFrom,e);incoming.set(e.mappedTo,e);
   }
-  const ordered=[],start=borders[0].from;
+  const ordered=[],start=borders[0].mappedFrom;
   let current=start;
   for(let i=0;i<borders.length;i++){
    const e=outgoing.get(current);
    guard(e&&!ordered.includes(e),'REGION_BOUNDARY',
     'Perimeter is not one simple closed loop');
-   ordered.push(e);current=e.to;
+   ordered.push(e);current=e.mappedTo;
   }
   guard(current===start&&ordered.length===borders.length,
    'REGION_BOUNDARY','Region has multiple boundary loops or a hole');
@@ -463,7 +498,8 @@ function editOnce(ctx,operation){
   return {kind,faces:selected,distance,addedVertices:newCount,
    addedTriangles:ordered.length*2,boundaryEdges:ordered.length,
    capVertices:capSources.length,changedVertices:0,
-   singleBoundaryLoop:true};
+   singleBoundaryLoop:true,sourceLinksConsumed:linked,
+   seamPairs:explicitLinks.length};
  }
  if(kind==='face.extrude'){
   // Individual indexed TRIANGLE extrusion. No N-gons or region extrusion.
@@ -687,6 +723,21 @@ function editOnce(ctx,operation){
 export function applyMeshOperations(input,operations=[]){
  guard(Array.isArray(operations)&&operations.length<=64,
   'OPS_BUDGET','Up to 64 typed mesh operations per native scene');
+ const linkedOperations=operations.filter(o=>o?.kind==='face.regionExtrudeLinked');
+ if(linkedOperations.length){
+  // No stable remapping for subsequent edits yet. Enforce a single, one-shot
+  // operation against the original source, including in imported manifests.
+  guard(linkedOperations.length===1&&operations.length===1,
+   'LINKED_SEQUENCE','Linked region extrusion must be the sole mesh operation');
+  const op=linkedOperations[0];
+  guard(Array.isArray(op.links)&&op.links.length>=1,
+   'LINKED_APPROVAL','Explicit validated seam correspondences required');
+  const canon=normalizeExplicitSeamLinks(input,op.links,[]);
+  guard(JSON.stringify(canon)===JSON.stringify(op.links)&&
+   canon.every(x=>x.meshIndex===op.meshIndex&&
+    x.primitiveIndex===op.primitiveIndex),
+   'LINKED_CANONICAL','Operation must contain canonical links for its target');
+ }
  if(operations.length===0)return bytes(input).slice();
  let current=bytes(input).slice();
  for(let i=0;i<operations.length;i++){
