@@ -219,6 +219,10 @@ function editOnce(ctx,operation,linkedSource=null){
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
  if(kind==='vertex.moveLinkedCap'){
+  guard(Object.keys(operation).length===5&&
+   Object.keys(operation).every(k=>['kind','meshIndex','primitiveIndex',
+    'sourceVertex','delta'].includes(k)),
+   'CAP_FIELDS','Unknown or omitted cap move fields');
   // Pass 18 narrow sequential vertex movement over the *already generated*
   // linked cap, preserving UV/skin/morph attributes and moving all wall
   // upper corners belonging to the same verified source logical vertex.
