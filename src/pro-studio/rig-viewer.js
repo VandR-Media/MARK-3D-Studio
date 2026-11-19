@@ -421,10 +421,20 @@ const meshPicker=createViewportPicker({
  render:()=>renderer.render(world,camera)
 });
 const meshPickState=()=>meshPicker.getSelection();
-function reportPickedElement(selection){
+let regionFaceMesh=null;
+function reportPickedElement(selection,{addToRegion=false}={}){
  const status=byId('mesh-selection');
  if(!selection){status.textContent='Элемент не выбран. Коснитесь вершины, ребра или треугольника на модели.';return;}
  byId('mesh-id').value=String(selection.meshIndex);
+ if(selection.mode==='face'){
+  const field=byId('mesh-region-faces');
+  const current=addToRegion&&regionFaceMesh===selection.meshIndex?
+   field.value.split(',').map(v=>Number(v.trim()))
+    .filter(v=>Number.isSafeInteger(v)&&v>=0):[];
+  field.value=[...new Set([...current,selection.face])]
+   .sort((a,b)=>a-b).join(',');
+  regionFaceMesh=selection.meshIndex;
+ }
  byId('mesh-a').value=String(selection.mode==='vertex'?selection.vertex:
   selection.mode==='edge'?selection.edge[0]:selection.face);
  if(selection.mode==='edge')byId('mesh-b').value=String(selection.edge[1]);
@@ -433,11 +443,12 @@ function reportPickedElement(selection){
  else if(selection.mode==='edge')
   byId('mesh-op').value='edge.split';
  else
-  byId('mesh-op').value='face.flip';
+  byId('mesh-op').value=addToRegion?'face.regionExtrude':'face.flip';
  status.textContent='Выбрано: '+selection.meshId+' / '+selection.mode+' #'+
   (selection.mode==='vertex'?selection.vertex:
    selection.mode==='edge'?selection.edge.join('–'):selection.face)+
-  ' (настоящая геометрия WebGL2).';
+  ' (настоящая геометрия WebGL2).'+
+  (addToRegion?' Групповое выделение: '+byId('mesh-region-faces').value:'');
 }
 byId('mesh-pick-toggle').addEventListener('click',()=>{
  if(!meshSession){
@@ -460,7 +471,7 @@ canvas.addEventListener('click',event=>{
  const rect=canvas.getBoundingClientRect();
  try{
   const selected=meshPicker.pickAt(event.clientX-rect.left,event.clientY-rect.top);
-  reportPickedElement(selected);
+  reportPickedElement(selected,{addToRegion:event.shiftKey&&selected?.mode==='face'});
  }catch(error){
   byId('mesh-selection').textContent='Не удалось выбрать элемент: '+String(error?.message||error);
  }
@@ -599,6 +610,13 @@ byId('mesh-apply').addEventListener('click',async()=>{
    kind==='vertex.snap'?{kind,vertex:a,targetVertex:b}:
    kind==='edge.split'?{kind,start:a,end:b,factor:.5}:
    kind==='face.extrude'?{kind,face:a,distance:Number(byId('mesh-extrude-distance').value)}:
+   kind==='face.regionExtrude'?(()=>{
+    const raw=byId('mesh-region-faces').value.trim();
+    if(!/^\d+(?:\s*,\s*\d+)*$/.test(raw))
+     throw Error('Для Region Extrude укажите номера граней через запятую.');
+    return {kind,faces:raw.split(',').map(v=>Number(v.trim())),
+     distance:Number(byId('mesh-extrude-distance').value)};
+   })():
    kind==='normal.recalculate'?{kind}:
    {kind,face:a};
   if(kind==='face.delete'&&!window.confirm(

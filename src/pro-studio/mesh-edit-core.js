@@ -3,7 +3,8 @@
  * Mesh Edit core. Edits REAL glTF binary accessors (not node transforms).
  *
  * Supported ops: vertex.move, vertex.snap, edge.split, face.flip, face.delete,
- * face.extrude (bounded individual triangle), normal.recalculate, primitive.add.
+ * face.extrude (bounded individual triangle), face.regionExtrude (disk-only),
+ * normal.recalculate, primitive.add.
  * Current profile: glTF 2.0 GLB, BIN-only, indexed TRIANGLES, dense accessors,
  * 5126 floats for vertex attributes, JOINTS_0 Uint8/16, WEIGHTS_0 Float32.
  * Sparse/Draco/interleaved targets are REJECTED with structured diagnostics.
@@ -164,7 +165,8 @@ function editOnce(ctx,operation){
   'OPERATION','Expected typed mesh operation');
  const {kind,meshIndex,primitiveIndex}=operation;
  guard(['vertex.move','edge.split','face.flip','face.delete',
-  'normal.recalculate','primitive.add','vertex.snap','face.extrude'].includes(kind),
+  'normal.recalculate','primitive.add','vertex.snap','face.extrude',
+  'face.regionExtrude'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -270,6 +272,198 @@ function editOnce(ctx,operation){
   prim.attributes.POSITION=append(ctx,revised,
    {type:'VEC3',componentType:5126,target:34962});
   return {kind,changedVertices:1,addedVertices:0,addedTriangles:0};
+ }
+ if(kind==='face.regionExtrude'){
+  // Pass 13 constrained REGIONAL extrusion: one connected, orientable,
+  // single-boundary disk of indexed triangles. Duplicated cap vertices
+  // are shared by adjacent selected faces, unlike individual extrusion.
+  // Each boundary quad gets four seam-specific wall vertices.
+  const {faces,distance}=operation,totalFaces=values.length/3;
+  guard(Array.isArray(faces)&&faces.length>=1&&faces.length<=128&&
+   faces.every(i=>nat(i)&&i<totalFaces)&&
+   new Set(faces).size===faces.length,
+   'REGION_FACES','Expected 1–128 distinct triangle indices');
+  guard(finite(distance)&&distance>=.001&&distance<=50,
+   'EXTRUDE_DISTANCE','Distance must be within [0.001, 50] meters');
+  const selected=[...faces].sort((a,b)=>a-b),selectedSet=new Set(selected);
+  const edges=new Map(),faceNormals=new Map();
+  const faceTriples=Array.from({length:totalFaces},(_,f)=>values.slice(f*3,f*3+3));
+  for(let f=0;f<totalFaces;f++){
+   const tri=faceTriples[f];
+   if(selectedSet.has(f)){
+    guard(new Set(tri).size===3,
+     'REGION_DEGENERATE','Repeated vertex in selected triangle');
+    const [a,b,c]=tri.map(i=>positions[i]),ab=b.map((x,i)=>x-a[i]),
+     ac=c.map((x,i)=>x-a[i]);
+    const cross=[ab[1]*ac[2]-ab[2]*ac[1],
+     ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
+    guard(Math.hypot(...cross)>1e-9,'REGION_DEGENERATE',
+     'Selected face has zero area');
+    faceNormals.set(f,cross);
+   }
+   for(let i=0;i<3;i++){
+    const from=tri[i],to=tri[(i+1)%3],key=
+     Math.min(from,to)+':'+Math.max(from,to);
+    const list=edges.get(key)||[];
+    list.push({face:f,from,to});edges.set(key,list);
+   }
+  }
+  const neighbors=new Map(selected.map(f=>[f,new Set()]));
+  const borders=[];
+  for(const list of edges.values()){
+   const hasSelected=list.some(e=>selectedSet.has(e.face));
+   if(!hasSelected)continue;
+   guard(list.length<=2,'REGION_NONMANIFOLD',
+    'An edge touching selected region belongs to over two triangles');
+   if(list.length===2)
+    guard(list[0].from===list[1].to&&list[0].to===list[1].from,
+     'REGION_WINDING','Adjacent faces must have opposite edge winding');
+   const within=list.filter(e=>selectedSet.has(e.face));
+   if(within.length===2){
+    neighbors.get(within[0].face).add(within[1].face);
+    neighbors.get(within[1].face).add(within[0].face);
+   }else if(within.length===1)borders.push(within[0]);
+  }
+  // Shared vertex alone is NOT an edge connection; reject separate islands.
+  const visited=new Set([selected[0]]),pending=[selected[0]];
+  while(pending.length){
+   for(const adjacent of neighbors.get(pending.pop())){
+    if(!visited.has(adjacent)){visited.add(adjacent);pending.push(adjacent);}
+   }
+  }
+  guard(visited.size===selected.length,'REGION_DISCONNECTED',
+   'Faces must be connected through common indexed edges');
+  guard(borders.length>=3&&borders.length<=256,
+   'REGION_BOUNDARY','Expected 3–256 exposed directed region edges');
+  // A single simple perimeter: each boundary vertex one incoming/outgoing.
+  // Reject bow-tie vertices, open chains and holes rather than silently
+  // producing non-manifold walls in the limited preview topology engine.
+  const outgoing=new Map(),incoming=new Map();
+  for(const e of borders){
+   guard(!outgoing.has(e.from)&&!incoming.has(e.to),
+    'REGION_BOUNDARY','Repeated directed perimeter vertex (non-disk region)');
+   outgoing.set(e.from,e);incoming.set(e.to,e);
+  }
+  const ordered=[],start=borders[0].from;
+  let current=start;
+  for(let i=0;i<borders.length;i++){
+   const e=outgoing.get(current);
+   guard(e&&!ordered.includes(e),'REGION_BOUNDARY',
+    'Perimeter is not one simple closed loop');
+   ordered.push(e);current=e.to;
+  }
+  guard(current===start&&ordered.length===borders.length,
+   'REGION_BOUNDARY','Region has multiple boundary loops or a hole');
+  const sum=[0,0,0];
+  for(const face of selected){
+   const norm=faceNormals.get(face);
+   for(let j=0;j<3;j++)sum[j]+=norm[j];
+  }
+  const length=Math.hypot(...sum);
+  guard(length>1e-9,'REGION_NORMAL','Region normals cancel each other');
+  const normal=sum.map(x=>x/length);
+  for(const cross of faceNormals.values()){
+   guard(cross.reduce((v,x,i)=>v+x*normal[i],0)/
+    Math.hypot(...cross)>=.2,'REGION_FOLD',
+    'Selected faces have incompatible normals for a uniform offset');
+  }
+  const offset=normal.map(x=>x*distance);
+  const capSources=[...new Set(selected.flatMap(i=>faceTriples[i]))]
+   .sort((a,b)=>a-b);
+  const newCount=capSources.length+ordered.length*4;
+  guard(count+newCount<=MAX_VERTICES&&
+   values.length+ordered.length*6<=MAX_INDICES,
+   'TOPOLOGY_LIMIT','Region extrusion exceeds mesh budgets');
+  const sourceAttributes={};
+  for(const [name,index] of Object.entries(prim.attributes)){
+   guard(name!=='TANGENT','TANGENT_PROFILE',
+    'Region extrusion cannot preserve precomputed tangent frames');
+   const stream=read(ctx,index);
+   guard(stream.count===count&&
+    (stream.componentType===5126||
+     name==='JOINTS_0'&&[5121,5123].includes(stream.componentType)),
+    'ATTRIBUTE_PROFILE','Unsupported attribute format: '+name);
+   sourceAttributes[name]=stream;
+  }
+  guard(sourceAttributes.POSITION?.type==='VEC3'&&
+   sourceAttributes.NORMAL?.type==='VEC3'&&
+   sourceAttributes.NORMAL?.componentType===5126,
+   'NORMAL_PROFILE','Region extrusion requires Float32 VEC3 normals');
+  guard(Boolean(sourceAttributes.JOINTS_0)===
+   Boolean(sourceAttributes.WEIGHTS_0),
+   'SKIN_PROFILE','JOINTS_0 and WEIGHTS_0 must coexist');
+  for(const [name,stream] of Object.entries(sourceAttributes)){
+   if(/^TEXCOORD_/.test(name))guard(stream.type==='VEC2',
+    'UV_PROFILE','Region extrusion expects VEC2 UV sets');
+  }
+  const morphs=(prim.targets||[]).map(target=>{
+   const result={};
+   for(const [name,index] of Object.entries(target)){
+    guard(name==='POSITION','MORPH_PROFILE',
+     'Region extrusion supports POSITION morph deltas only');
+    const stream=read(ctx,index);
+    guard(stream.componentType===5126&&stream.type==='VEC3'&&
+     stream.count===count,'MORPH_PROFILE','Invalid morph buffer');
+    result[name]=stream;
+   }
+   return result;
+  });
+  const cap=new Map(capSources.map((v,i)=>[v,count+i]));
+  const sourceForNew=capSources.slice();
+  const capCount=sourceForNew.length;
+  const wallNormals=new Map(),wallUvs=new Map(),wallTriangles=[];
+  for(let e=0;e<ordered.length;e++){
+   const {from,to}=ordered[e],base=count+capCount+4*e;
+   const ids=[base,base+1,base+2,base+3];
+   sourceForNew.push(from,to,to,from);
+   const dir=positions[to].map((x,i)=>x-positions[from][i]);
+   const cross=[dir[1]*offset[2]-dir[2]*offset[1],
+    dir[2]*offset[0]-dir[0]*offset[2],
+    dir[0]*offset[1]-dir[1]*offset[0]];
+   const scale=Math.hypot(...cross);
+   guard(scale>1e-9,'REGION_WALL',
+    'Perimeter direction parallel to extrusion offset');
+   const sideNormal=cross.map(x=>x/scale);
+   for(const id of ids)wallNormals.set(id,sideNormal);
+   [[0,0],[1,0],[1,1],[0,1]].forEach((uv,i)=>wallUvs.set(ids[i],uv));
+   wallTriangles.push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
+  }
+  for(const [name,stream] of Object.entries(sourceAttributes)){
+   const expanded=stream.value.map(row=>row.slice());
+   for(let j=0;j<sourceForNew.length;j++){
+    const index=count+j,source=sourceForNew[j];
+    let row=stream.value[source].slice();
+    if(name==='POSITION'&&(j<capCount||
+      ((j-capCount)%4)>=2))
+     row=row.map((v,i)=>v+offset[i]);
+    else if(name==='NORMAL'&&wallNormals.has(index))
+     row=wallNormals.get(index).slice();
+    else if(/^TEXCOORD_/.test(name)&&wallUvs.has(index))
+     row=wallUvs.get(index).slice();
+    expanded.push(row);
+   }
+   prim.attributes[name]=append(ctx,expanded,
+    {type:stream.type,componentType:stream.componentType,target:34962});
+  }
+  (prim.targets||[]).forEach((targets,i)=>{
+   for(const [name,stream] of Object.entries(morphs[i])){
+    targets[name]=append(ctx,[
+     ...stream.value.map(row=>row.slice()),
+     ...sourceForNew.map(source=>stream.value[source].slice())
+    ],{type:stream.type,componentType:5126,target:34962});
+   }
+  });
+  const newer=[];
+  for(let i=0;i<totalFaces;i++)
+   if(!selectedSet.has(i))newer.push(...faceTriples[i]);
+  for(const face of selected)
+   newer.push(...faceTriples[face].map(v=>cap.get(v)));
+  newer.push(...wallTriangles);
+  writeIndices(ctx,prim,newer,oldIndex.componentType);
+  return {kind,faces:selected,distance,addedVertices:newCount,
+   addedTriangles:ordered.length*2,boundaryEdges:ordered.length,
+   capVertices:capSources.length,changedVertices:0,
+   singleBoundaryLoop:true};
  }
  if(kind==='face.extrude'){
   // Individual indexed TRIANGLE extrusion. No N-gons or region extrusion.

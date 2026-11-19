@@ -180,11 +180,13 @@ function normalizeEdits(edits,doc,sourceGLB){
    good(keyed(input),'MESH_EDIT','operation must be typed object');
    const kind=input.kind;
    good(['vertex.move','edge.split','face.flip','face.delete',
-    'normal.recalculate','primitive.add','vertex.snap','face.extrude'].includes(kind),
+    'normal.recalculate','primitive.add','vertex.snap','face.extrude',
+    'face.regionExtrude'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
    const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
     kind==='vertex.snap'?['kind','meshIndex','primitiveIndex','vertex','targetVertex']:
     kind==='face.extrude'?['kind','meshIndex','primitiveIndex','face','distance']:
+    kind==='face.regionExtrude'?['kind','meshIndex','primitiveIndex','faces','distance']:
     kind==='edge.split'?['kind','meshIndex','primitiveIndex','start','end','factor']:
     kind==='normal.recalculate'?['kind','meshIndex','primitiveIndex']:
     kind==='primitive.add'?['kind','meshIndex','primitiveIndex','shape',
@@ -207,6 +209,15 @@ function normalizeEdits(edits,doc,sourceGLB){
      input.vertex!==input.targetVertex,
      'MESH_SNAP','Expected distinct valid vertex indices');
     op.vertex=input.vertex;op.targetVertex=input.targetVertex;
+   }else if(kind==='face.regionExtrude'){
+    good(Array.isArray(input.faces)&&input.faces.length>=1&&
+     input.faces.length<=128&&input.faces.every(isUInt)&&
+     new Set(input.faces).size===input.faces.length&&
+     typeof input.distance==='number'&&Number.isFinite(input.distance)&&
+     input.distance>=.001&&input.distance<=50,
+     'MESH_REGION_EXTRUDE','Invalid region face list or distance');
+    op.faces=[...input.faces].sort((a,b)=>a-b);
+    op.distance=input.distance;
    }else if(kind==='face.extrude'){
     good(Number.isInteger(input.face)&&input.face>=0&&
      typeof input.distance==='number'&&Number.isFinite(input.distance)&&
