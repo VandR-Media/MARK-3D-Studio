@@ -65,9 +65,9 @@ export function primitiveGeometry({
    for(let lon=0;lon<meridians;lon++){
     const a=lat*(meridians+1)+lon,b=a+1,
      c=(lat+1)*(meridians+1)+lon+1,d=c-1;
-    // Reverse winding for polar grid to point outward.
-    if(lat>0)tri(a,d,b);
-    if(lat<parallels-1)tri(b,d,c);
+    // Both rings are wound outward; pole caps omit zero-area triangles.
+    if(lat>0)tri(a,b,d);
+    if(lat<parallels-1)tri(b,c,d);
    }
  }
  if(shape==='cylinder'){
