@@ -688,12 +688,23 @@ byId('mesh-apply').addEventListener('click',async()=>{
     return {kind,faces:regionInputFaces(),
      distance:Number(byId('mesh-extrude-distance').value)};
    })():
+   kind==='face.regionExtrudeLinked'?{kind}:
    kind==='normal.recalculate'?{kind}:
    {kind,face:a};
   if(kind==='face.delete'&&!window.confirm(
    'Удалить треугольную грань '+a+' из геометрии? Undo будет доступен.'))return;
-  const result=await meshCall('mesh.edit',{meshId:meshId(),operation});
-  if(['face.extrude','face.regionExtrude','face.delete','edge.split'].includes(kind)){
+  if(kind==='face.regionExtrudeLinked'&&!window.confirm(
+   'Выдавить выбранные грани через уже подтверждённые UV-швы? '+
+   'Исходные связи перейдут в историю операции. Последующее редактирование '+
+   'топологии будет заблокировано до реализации безопасного remap ID.'))return;
+  const result=kind==='face.regionExtrudeLinked'?
+   await meshCall('mesh.extrudeLinkedRegion',{
+    meshId:meshId(),faces:regionInputFaces(),
+    distance:Number(byId('mesh-extrude-distance').value)
+   }):
+   await meshCall('mesh.edit',{meshId:meshId(),operation});
+  if(['face.extrude','face.regionExtrude','face.regionExtrudeLinked',
+   'face.delete','edge.split'].includes(kind)){
    // Topology edits invalidate stored triangle and edge element indices.
    meshPicker.clear();regionFaceKey=null;
   }
