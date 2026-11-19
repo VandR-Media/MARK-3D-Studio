@@ -1,0 +1,60 @@
+name: MARK Neon Boy V5 — source asset validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/neon-boy-reference-v5.yml'
+      - 'tools/neon_reference_v5.py'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download CC0 rigged, sculpted hoodie teen
+        run: |
+          mkdir -p output
+          curl --fail --location --retry 2 --connect-timeout 20 --max-time 160 \
+            'https://grab3d.com/dl/hoodie-teen-rigged/hoodie-teen-rigged.glb' -o teen_rigged.glb
+          python - <<'PY'
+          import os
+          p='teen_rigged.glb'
+          assert open(p,'rb').read(4)==b'glTF' and os.path.getsize(p)>1000000
+          print('TEEN_3D_BASE_OK',os.path.getsize(p))
+          PY
+      - name: Blender 4.0.2
+        run: |
+          if curl --fail --location --retry 2 --connect-timeout 20 --max-time 200 \
+            'https://download.blender.org/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz' -o blender.tar.xz; then
+            tar -xJf blender.tar.xz
+            echo "$PWD/blender-4.0.2-linux-x64" >> "$GITHUB_PATH"
+          else
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends blender python3-numpy
+          fi
+      - name: Inspect and render rigged character
+        run: |
+          blender --background --threads 2 --python tools/neon_reference_v5.py 2>&1 | tee outputlog.txt
+          grep -q NEON_V5_FINAL_SUCCESS outputlog.txt
+          test -s output/render_front.png
+          test -s output/render_side.png
+          test -s output/render_back.png
+          test -s output/NEON_BOY_V5_DANCE.glb
+          test -s output/NEON_BOY_V5_STATIC.glb
+          test -s output/NEON_BOY_V5_MASTER.blend
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Source-Research
+          path: |
+            output/
+            outputlog.txt
+          if-no-files-found: warn
+          retention-days: 15
