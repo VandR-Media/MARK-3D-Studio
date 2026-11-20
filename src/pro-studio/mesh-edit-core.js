@@ -220,7 +220,9 @@ function editOnce(ctx,operation,linkedSource=null){
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
  if(kind==='face.pokeLinkedCap'){
-  // One bounded cap-face 'poke': add a true centroid row and two triangles.
+  // Each bounded source-cap face may be poked exactly once. Center rows
+  // append in command order; original cap and wall attribute IDs do not move.
+  // A true centroid row and two triangles are added per approved face.
   // No existing vertex/cap/wall indices are renumbered. This preserves all
   // pre-existing source-scoped IDs except corners/halfedges replaced in the
   // selected triangle. No T-junction: the point lies inside this triangle.
@@ -968,17 +970,20 @@ export function applyMeshOperations(input,operations=[]){
  if(linkedOperations.length){
   guard(linkedOperations.length===1&&
    operations[0]?.kind==='face.regionExtrudeLinked'&&
-   operations.length<=18,
-   'LINKED_SEQUENCE','One source-approved linked extrusion is required');
-  const following=operations.slice(1);
-  const pokeIndex=following.findIndex(o=>o?.kind==='face.pokeLinkedCap');
-  guard(following.every((op,i)=>op?.kind==='vertex.moveLinkedCap'&&
-    i<(pokeIndex<0?following.length:pokeIndex)||
-    op?.kind==='face.pokeLinkedCap'&&i===following.length-1)&&
+   operations.length<=25,
+   'LINKED_SEQUENCE','One approved linked extrusion is required');
+  const following=operations.slice(1),
+   pokeIndex=following.findIndex(o=>o?.kind==='face.pokeLinkedCap'),
+   pokes=following.filter(o=>o?.kind==='face.pokeLinkedCap');
+  guard(following.every((op,i)=>
+    op?.kind==='vertex.moveLinkedCap'&&
+     i<(pokeIndex<0?following.length:pokeIndex)||
+    op?.kind==='face.pokeLinkedCap'&&i>=pokeIndex)&&
    following.filter(x=>x?.kind==='vertex.moveLinkedCap').length<=16&&
-   following.filter(x=>x?.kind==='face.pokeLinkedCap').length<=1,
+   pokes.length<=8&&
+   new Set(pokes.map(o=>o.sourceFace)).size===pokes.length,
    'LINKED_SEQUENCE',
-   'At most 16 cap moves followed by one final approved cap poke');
+   'At most 16 stable-cap moves, then up to 8 Pokes of distinct original faces');
   const op=linkedOperations[0];
   guard(Array.isArray(op.links)&&op.links.length>=1,
    'LINKED_APPROVAL','Approved source seam links required');
