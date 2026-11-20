@@ -682,8 +682,35 @@ try{
  // A second genuine user-approved Edge Split on a DIFFERENT Poke face.
  // Edge IDs come from the actual current WebGL2-backed MeshData graph;
  // the split is not a visual-only overlay and cannot reuse the first edge.
- await page.locator('#mesh-a').fill('1');
- await page.locator('#mesh-b').fill('3');
+ // User picks an ACTUAL radial edge in the real WebGL2 canvas.
+ // Text source index fields are deliberately corrupted afterwards: the
+ // editor must resolve the correct source face/corner from the picked
+ // glTF attribute-row edge and read-only source-scoped MeshData.
+ await page.locator('#mesh-pick-mode').selectOption('edge');
+ await page.evaluate(()=>window.MARK_MESH_PICK_API.enable(true));
+ await page.evaluate(()=>window.MARK_RIG_VIEWER_API.centerView('front'));
+ const pickedEdgeProjection=await page.evaluate(()=>
+  window.MARK_MESH_PICK_API.projectEdge(0,9,29));
+ await page.locator('#viewport').scrollIntoViewIfNeeded();
+ const pickedEdgeBox=await page.locator('#viewport').boundingBox();
+ assertCheck('P22-RADIAL-EDGE-ONSCREEN-019A',
+  Boolean(pickedEdgeBox)&&pickedEdgeProjection.visible&&
+  pickedEdgeProjection.x>0&&pickedEdgeProjection.y>0&&
+  pickedEdgeProjection.x<pickedEdgeBox.width&&
+  pickedEdgeProjection.y<pickedEdgeBox.height&&
+  pickedEdgeBox.y>=0&&pickedEdgeBox.y+pickedEdgeBox.height<=780,
+  {pickedEdgeBox,pickedEdgeProjection},
+  'The real sourceFace1 radial edge should be projected inside the viewport');
+ await page.mouse.click(pickedEdgeBox.x+pickedEdgeProjection.x,
+  pickedEdgeBox.y+pickedEdgeProjection.y);
+ const pickedEdge=await page.evaluate(()=>
+  window.MARK_MESH_PICK_API.selection());
+ assertCheck('P22-RADIAL-EDGE-MOUSE-PICK-019B',
+  pickedEdge?.mode==='edge'&&pickedEdge?.edge?.join(',')==='9,29',
+  {pickedEdge,pickedEdgeProjection},
+  'The second radial edge must be selected by a REAL Chromium mouse click');
+ await page.locator('#mesh-a').fill('999');
+ await page.locator('#mesh-b').fill('999');
  await page.locator('#mesh-split-cap-edge').click();
  await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot()
   .edits?.meshOperations?.[5]?.kind==='edge.splitPokedCap',
