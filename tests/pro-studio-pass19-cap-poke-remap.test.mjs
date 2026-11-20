@@ -157,7 +157,7 @@ test('reject unapproved, unsupported, duplicated, stale or wrongly sequenced cap
   [poke(0)],
   [first,poke(77)],
   [first,poke(0),move(1,[.1,0,0])],
-  [first,poke(0),poke(1)],
+  [first,poke(0),poke(0)],
   [first,{...poke(0),payload:'unexpected'}],
   [first,move(1,[.1,0,0]),{...poke(0),sourceFace:-1}]
  ];

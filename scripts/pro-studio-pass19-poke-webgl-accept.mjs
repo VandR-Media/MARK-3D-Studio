@@ -436,11 +436,11 @@ try{
    requestId:'p19.second-poke',method:'mesh.pokeLinkedCap',
    params:{meshId:'gltf-mesh-0',
     capFaceId:'mark-face-'+window.MARK_AI_BRIDGE.getSnapshot()
-     .sourceSha256+'-m0-p0-cap-face-1'}});
+     .sourceSha256+'-m0-p0-cap-face-0'}});
   return{ok:r.ok,diagnostics:r.diagnostics};
  });
  assertCheck('P19-POKE-ONCE-GUARD-005',illegal.ok===false,illegal,
-  'A second unsupported Poke operation was accepted');
+  'Repeating an already poked source face must be rejected');
  await page.locator('#mesh-undo').click();
  await page.waitForFunction(()=>window.MARK_AI_BRIDGE.getSnapshot()
   .edits?.meshOperations?.length===2,null,{timeout:30000});

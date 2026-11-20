@@ -92,24 +92,28 @@ export function buildMeshDataSnapshot({
  const logical=Array.from({length:edited.positions.length},
   (_,index)=>'mark-attr-'+namespace+'-v'+index);
  const capMap=[],mappedWalls=[];
- const poke=operations.find(op=>op.kind==='face.pokeLinkedCap'&&
+ const pokes=operations.filter(op=>op.kind==='face.pokeLinkedCap'&&
   op.meshIndex===meshIndex&&op.primitiveIndex===primitiveIndex);
- if(poke)yes(Boolean(first)&&operations[operations.length-1]===poke,
-  'POKE_SEQUENCE','Poke is only supported as the final linked cap operation');
- let wallEnd=edited.positions.length;
- let pokeCenterId=null;
- if(poke){
-  wallEnd--;
-  pokeCenterId='mark-poke-center-'+sourceSha256+'-m'+meshIndex+
+ const firstPokeIndex=operations.findIndex(op=>op.kind==='face.pokeLinkedCap');
+ if(pokes.length)yes(Boolean(first)&&pokes.length<=8&&
+  new Set(pokes.map(p=>p.sourceFace)).size===pokes.length&&
+  operations.slice(firstPokeIndex).every(op=>
+   op.kind==='face.pokeLinkedCap'),
+  'POKE_SEQUENCE','Up to eight distinct source cap Pokes must be terminal');
+ const wallEnd=edited.positions.length-pokes.length;
+ const centers=new Map(pokes.map((poke,i)=>{
+  const id='mark-poke-center-'+sourceSha256+'-m'+meshIndex+
    '-p'+primitiveIndex+'-f'+poke.sourceFace;
-  logical[wallEnd]=pokeCenterId;
- }
+  logical[wallEnd+i]=id;
+  return[poke.sourceFace,{id,attributeVertex:wallEnd+i,ordinal:i}];
+ }));
  if(first){
   yes(operations[0]===first&&operations.every((op,i)=>i===0||
-   (op.kind==='vertex.moveLinkedCap'||
-    op.kind==='face.pokeLinkedCap'&&operations.length-1===i)&&
+   (op.kind==='vertex.moveLinkedCap'&&
+    (firstPokeIndex<0||i<firstPokeIndex)||
+    op.kind==='face.pokeLinkedCap'&&i>=firstPokeIndex)&&
    op.meshIndex===meshIndex&&op.primitiveIndex===primitiveIndex),
-  'OP_SEQUENCE','Source extrusion, stable moves and optional final cap Poke required');
+  'OP_SEQUENCE','Source extrusion, stable moves and distinct terminal Pokes required');
   const consumed=inspectConsumedSeamExtrude(sourceGLB,{
    sourceSha256,operation:first});
   const sourceCount=source.positions.length;
@@ -167,9 +171,9 @@ export function buildMeshDataSnapshot({
  const originalFaces=source.indices.length/3;
  const baseTriangleCount=first?originalFaces+
   2*(wallEnd-source.positions.length-capMap.length)/4:originalFaces;
- if(poke)yes(edited.indices.length/3===baseTriangleCount+2,
-  'POKE_LAYOUT','Poke must add exactly two faces without shifting originals');
- const pokeFaceName='cap-face-'+poke?.sourceFace;
+ if(pokes.length)yes(edited.indices.length/3===baseTriangleCount+2*pokes.length,
+  'POKE_LAYOUT','Every approved Poke must add exactly two cap triangles');
+ const pokeFaceNames=new Set(pokes.map(p=>'cap-face-'+p.sourceFace));
  const faceNameFor=(f)=>{
   if(!first)return 'source-face-'+f;
   const selected=new Set(first.faces);
@@ -178,37 +182,46 @@ export function buildMeshDataSnapshot({
   if(f<unselected.length)return 'source-face-'+unselected[f];
   if(f<unselected.length+first.faces.length)
    return 'cap-face-'+[...first.faces].sort((a,b)=>a-b)[f-unselected.length];
-  if(poke&&f>=baseTriangleCount)
-   return 'cap-poke-face-'+poke.sourceFace+'-child'+
-    (f-baseTriangleCount+1);
+  if(f>=baseTriangleCount){
+   const index=f-baseTriangleCount;
+   const poke=pokes[Math.floor(index/2)];
+   yes(poke,'POKE_INDEX','Unexpected new cap triangle outside command log');
+   return 'cap-poke-face-'+poke.sourceFace+'-child'+(index%2+1);
+  }
   const wall=f-unselected.length-first.faces.length;
   return 'wall-'+Math.floor(wall/2)+'-tri'+wall%2;
  };
  const faceIdFor=name=>'mark-face-'+namespace+'-'+name;
  const halfedgeIdFor=(name,k)=>{
-  const suffix=poke&&name===pokeFaceName&&k!==0?
+  const suffix=pokeFaceNames.has(name)&&k!==0?
    '-poke-k'+k:'-k'+k;
   return 'mark-halfedge-'+faceIdFor(name)+suffix;
  };
  const cornerIdFor=(name,k)=>{
-  const suffix=poke&&name===pokeFaceName&&k===2?
+  const suffix=pokeFaceNames.has(name)&&k===2?
    '-poke-center':'-k'+k;
   return 'mark-corner-'+faceIdFor(name)+suffix;
  };
- const topologyRemap=poke?{
-  schema:'mark.cap-poke-remap/1',sourceFace:poke.sourceFace,
-  originalFaceId:faceIdFor(pokeFaceName),
-  createdFaceIds:[1,2].map(i=>faceIdFor(
-   'cap-poke-face-'+poke.sourceFace+'-child'+i)),
-  centerAttributeVertex:wallEnd,
-  centerLogicalVertexId:pokeCenterId,
-  retainedCornerIds:[0,1].map(i=>cornerIdFor(pokeFaceName,i)),
-  invalidatedCornerIds:['mark-corner-'+faceIdFor(pokeFaceName)+'-k2'],
-  invalidatedHalfedgeIds:[1,2].map(i=>
-   'mark-halfedge-'+faceIdFor(pokeFaceName)+'-k'+i),
-  preservedSourceCapAndWallAttributeRows:true,
-  futureUnvalidatedTopologyEditsBlocked:true
- }:null;
+ const topologyRemaps=pokes.map(poke=>{
+  const name='cap-face-'+poke.sourceFace,center=centers.get(poke.sourceFace);
+  return{
+   schema:'mark.cap-poke-remap/1',sourceFace:poke.sourceFace,
+   originalFaceId:faceIdFor(name),
+   createdFaceIds:[1,2].map(i=>faceIdFor(
+    'cap-poke-face-'+poke.sourceFace+'-child'+i)),
+   centerAttributeVertex:center.attributeVertex,
+   centerLogicalVertexId:center.id,
+   retainedCornerIds:[0,1].map(i=>cornerIdFor(name,i)),
+   invalidatedCornerIds:['mark-corner-'+faceIdFor(name)+'-k2'],
+   invalidatedHalfedgeIds:[1,2].map(i=>
+    'mark-halfedge-'+faceIdFor(name)+'-k'+i),
+   preservedSourceCapAndWallAttributeRows:true,
+   futureUnvalidatedTopologyEditsBlocked:true
+  };
+ });
+ // Backward compatible summary of most recent Poke; full provenance and
+ // deterministic IDs for every executed operation live in topologyRemaps.
+ const topologyRemap=topologyRemaps.at(-1)||null;
  const capSources=new Set(first?.faces||[]);
  const nonSelected=Array.from({length:originalFaces},(_,i)=>i)
   .filter(i=>!capSources.has(i));
@@ -292,14 +305,14 @@ export function buildMeshDataSnapshot({
   persistedAs:'deterministic reconstruction from source GLB and native typed edit log',
   stableIdScope:'source hash + mesh/primitive + immutable topology + logical-cap moves',
   faces,edges,halfedges,corners,materialSlots,uvSets,colorSets,
-  capMap,mappedWalls,topologyRemap,
+  capMap,mappedWalls,topologyRemap,topologyRemaps,
   diagnostics:{triangleCount:faces.length,cornerCount:corners.length,
    halfedgeCount:halfedges.length,edgeCount:edges.length,
    boundaryEdges:boundaries.length,nonManifoldEdges:nonManifold.length,
    windingConflicts:badWinding.length,uvDiscontinuityEdges:uvSeamEdges.length,
    capAttributeRows:capMap.length,
    linkedCapMoveCount:operations.filter(x=>x.kind==='vertex.moveLinkedCap').length,
-   capPokeCount:poke?1:0,createdLogicalVertices:poke?1:0,
+   capPokeCount:pokes.length,createdLogicalVertices:pokes.length,
    topologyRemapAvailable:Boolean(topologyRemap),
    proceduralHalfedgeReconstruction:true,editableOnlyViaBoundedCapMove:true,
    fullyWeldedGLB:false},

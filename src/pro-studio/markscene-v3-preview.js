@@ -288,18 +288,21 @@ function normalizeEdits(edits,doc,sourceGLB){
   }
   if(canonical.some(op=>op.kind==='face.regionExtrudeLinked')){
    const first=canonical[0],following=canonical.slice(1),
-    poke=following.findIndex(op=>op.kind==='face.pokeLinkedCap');
+    firstPoke=following.findIndex(op=>op.kind==='face.pokeLinkedCap'),
+    pokes=following.filter(op=>op.kind==='face.pokeLinkedCap');
    good(first?.kind==='face.regionExtrudeLinked'&&
-    canonical.length<=18&&
+    canonical.length<=25&&
     following.filter(op=>op.kind==='vertex.moveLinkedCap').length<=16&&
-    following.filter(op=>op.kind==='face.pokeLinkedCap').length<=1&&
+    pokes.length<=8&&
+    new Set(pokes.map(op=>op.sourceFace)).size===pokes.length&&
     following.every((op,i)=>
-     (op.kind==='vertex.moveLinkedCap'&&(poke<0||i<poke)||
-      op.kind==='face.pokeLinkedCap'&&i===following.length-1)&&
+     (op.kind==='vertex.moveLinkedCap'&&
+       (firstPoke<0||i<firstPoke)||
+      op.kind==='face.pokeLinkedCap'&&i>=firstPoke)&&
      op.meshIndex===first.meshIndex&&
      op.primitiveIndex===first.primitiveIndex),
     'MESH_LINKED_SEQUENCE',
-    'Only sixteen cap moves and one final cap Poke are permitted');
+    'One linked extrusion, up to 16 moves, then up to 8 distinct face Pokes');
   }else{
    good(!canonical.some(op=>['vertex.moveLinkedCap','face.pokeLinkedCap']
     .includes(op.kind)),
