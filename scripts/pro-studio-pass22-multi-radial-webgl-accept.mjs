@@ -764,7 +764,7 @@ try{
   return{native:Array.from(native.data),glb:Array.from(glb.data),stats};
  });
  const radialTwoNative=artifact('two-radial-splits.markscene',twoFiles.native),
-  twoGlb=artifact('two-radial-splits-edited.glb',twoFiles.glb);
+  radialTwoGlb=artifact('two-radial-splits-edited.glb',twoFiles.glb);
  const secondOpen=await openPreviewMarkscene(Buffer.from(twoFiles.native)),
   secondReplay=await exportEditedSourceGlb(secondOpen),
   secondRig=inspectRiggedGlb(Buffer.from(twoFiles.glb));
