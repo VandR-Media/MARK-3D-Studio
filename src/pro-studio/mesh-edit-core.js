@@ -169,7 +169,7 @@ function editOnce(ctx,operation,linkedSource=null){
  guard(['vertex.move','edge.split','face.flip','face.delete',
   'normal.recalculate','primitive.add','vertex.snap','face.extrude',
   'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap',
-  'face.pokeLinkedCap'].includes(kind),
+  'face.pokeLinkedCap','edge.splitPokedCap'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -219,6 +219,153 @@ function editOnce(ctx,operation,linkedSource=null){
  const prim=target(ctx,meshIndex,primitiveIndex);
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
+ if(kind==='edge.splitPokedCap'){
+  // One terminal split of a Poke radial edge. Both incident cap triangles
+  // share identical attribute rows for its endpoints; no UV-seam welding,
+  // no T-junction, and no lossy truncation of skin weights.
+  guard(linkedSource?.operation?.kind==='face.regionExtrudeLinked'&&
+   Array.isArray(linkedSource.pokes)&&linkedSource.pokes.length>=1,
+   'RADIAL_CONTEXT','Split needs previous validated source cap Poke');
+  guard(Object.keys(operation).length===5&&
+   ['kind','meshIndex','primitiveIndex','sourceFace','sourceVertex']
+    .every(k=>Object.hasOwn(operation,k)),'RADIAL_FIELDS',
+   'Radial edge split requires exact typed provenance fields');
+  const {sourceFace,sourceVertex}=operation,
+   pokeIndex=linkedSource.pokes.findIndex(p=>p.sourceFace===sourceFace);
+  guard(nat(sourceFace)&&nat(sourceVertex)&&pokeIndex>=0,
+   'RADIAL_SOURCE','Source face has not been Poked');
+  const tri=linkedSource.sourceFaceVertices.get(sourceFace);
+  guard(tri?.includes(sourceVertex),'RADIAL_SOURCE',
+   'Radial edge endpoint is not a verified source face corner');
+  const capIndex=linkedSource.capSources.indexOf(sourceVertex);
+  guard(capIndex>=0,'RADIAL_CAP','Unknown canonical cap attribute row');
+  const cap=linkedSource.sourceCount+capIndex,
+   center=count-linkedSource.pokes.length+pokeIndex;
+  guard(center>cap&&center<count,'RADIAL_LAYOUT',
+   'Center source-scoped index does not match appended Poke layout');
+  const affected=[];
+  for(let face=0;face<values.length/3;face++){
+   const t=values.slice(face*3,face*3+3),i=t.indexOf(cap),j=t.indexOf(center);
+   if(i>=0&&j>=0){
+    const k=t.findIndex((v,index)=>v===cap&&t[(index+1)%3]===center||
+     v===center&&t[(index+1)%3]===cap);
+    guard(k>=0,'RADIAL_WINDING','Incident edge is not directed in its triangle');
+    affected.push({face,tri:t,k,from:t[k],to:t[(k+1)%3],
+     opposite:t[(k+2)%3]});
+   }
+  }
+  guard(affected.length===2&&
+   affected[0].from===affected[1].to&&
+   affected[0].to===affected[1].from,
+   'RADIAL_INCIDENCE','Expected exactly two oppositely oriented cap triangles');
+  const wallFree=affected.every(e=>
+   e.tri.every(v=>v>=linkedSource.sourceCount&&v<count));
+  guard(wallFree,'RADIAL_FACE_PROFILE','Cannot split a side-wall or original face');
+  guard(count+1<=MAX_VERTICES&&values.length+6<=MAX_INDICES,
+   'RADIAL_BUDGET','New split vertex or two triangles exceed mesh budget');
+  const midpoint=(a,b)=>a.map((v,i)=>(v+b[i])/2);
+  const x=positions[cap],y=positions[center],point=midpoint(x,y);
+  const cross=(a,b,c)=>{
+   const u=b.map((v,k)=>v-a[k]),v=c.map((w,k)=>w-a[k]);
+   return[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],
+    u[0]*v[1]-u[1]*v[0]];
+  };
+  const newIndex=count,mergedSkin={};
+  guard(!prim.attributes.TANGENT,
+   'RADIAL_TANGENT','Precomputed tangents require accurate re-computation');
+  for(const morph of prim.targets||[])
+   guard(Object.keys(morph).every(k=>k==='POSITION'),
+    'RADIAL_MORPH','Only POSITION morph deltas supported');
+  if(prim.attributes.JOINTS_0!==undefined||
+   prim.attributes.WEIGHTS_0!==undefined){
+   guard(prim.attributes.JOINTS_0!==undefined&&
+    prim.attributes.WEIGHTS_0!==undefined&&
+    Object.keys(prim.attributes).every(name=>
+     !/^(JOINTS|WEIGHTS)_[1-9][0-9]*$/.test(name)),
+    'RADIAL_SKIN','Only complete JOINTS_0/WEIGHTS_0 supported');
+   const j=read(ctx,prim.attributes.JOINTS_0),
+    w=read(ctx,prim.attributes.WEIGHTS_0);
+   guard(j.type==='VEC4'&&[5121,5123].includes(j.componentType)&&
+    w.type==='VEC4'&&w.componentType===5126&&
+    j.count===count&&w.count===count,
+    'RADIAL_SKIN','Expected dense four-influence skin streams');
+   const influences=new Map();
+   for(const v of [cap,center]){
+    const sum=w.value[v].reduce((n,k)=>n+k,0);
+    guard(Math.abs(sum-1)<.02&&w.value[v].every(n=>n>=0&&finite(n)),
+     'RADIAL_WEIGHT','Invalid source skin weight vector');
+    for(let i=0;i<4;i++){
+     const joint=j.value[v][i],weight=w.value[v][i]/2;
+     influences.set(joint,(influences.get(joint)||0)+weight);
+    }
+   }
+   const active=[...influences].filter(x=>x[1]>1e-7)
+    .sort((a,b)=>b[1]-a[1]||a[0]-b[0]);
+   guard(active.length>=1&&active.length<=4,
+    'RADIAL_INFLUENCES',
+    'Exact midpoint requires >4 bones; no lossy influence truncation allowed');
+   const total=active.reduce((n,row)=>n+row[1],0);
+   const joints=active.map(x=>x[0]),
+    weights=active.map(x=>x[1]/total);
+   while(joints.length<4){joints.push(0);weights.push(0);}
+   mergedSkin.JOINTS_0=joints;mergedSkin.WEIGHTS_0=weights;
+  }
+  for(const [name,accessor] of Object.entries({...prim.attributes})){
+   const stream=read(ctx,accessor);
+   guard(stream.count===count,'RADIAL_ATTRIBUTE',
+    'Source attribute count mismatch');
+   let row;
+   if(name==='POSITION')row=point;
+   else if(name==='JOINTS_0'||name==='WEIGHTS_0')
+    row=mergedSkin[name];
+   else{
+    guard(stream.componentType===5126&&
+     ['SCALAR','VEC2','VEC3','VEC4'].includes(stream.type),
+     'RADIAL_ATTRIBUTE','Only float corner UV/colors/normals interpolated');
+    row=midpoint(stream.value[cap],stream.value[center]);
+    if(name==='NORMAL'){
+     guard(row.length===3,'RADIAL_NORMAL','Expected vec3 source normals');
+     const mag=Math.hypot(...row);
+     guard(mag>1e-9,'RADIAL_NORMAL','Opposed split normals cannot be merged');
+     row=row.map(n=>n/mag);
+    }
+   }
+   prim.attributes[name]=append(ctx,[...stream.value,row],{
+    type:stream.type,componentType:stream.componentType,target:34962
+   });
+  }
+  for(const morph of prim.targets||[])
+   for(const [name,accessor] of Object.entries({...morph})){
+    const stream=read(ctx,accessor);
+    guard(name==='POSITION'&&stream.type==='VEC3'&&
+     stream.componentType===5126&&stream.count===count,
+     'RADIAL_MORPH','Only dense float32 POSITION morph accepted');
+    morph[name]=append(ctx,[...stream.value,
+     midpoint(stream.value[cap],stream.value[center])],{
+     type:'VEC3',componentType:5126,target:34962
+    });
+   }
+  const next=values.slice(),added=[];
+  for(const e of affected){
+   const replacement=e.tri.slice();
+   replacement[(e.k+1)%3]=newIndex;
+   const child=[];
+   child[e.k]=newIndex;child[(e.k+1)%3]=e.to;
+   child[(e.k+2)%3]=e.opposite;
+   for(const t of [replacement,child]){
+    const area=Math.hypot(...cross(...t.map(v=>
+     v===newIndex?point:positions[v])));
+    guard(area>1e-9,'RADIAL_DEGENERATE','Split creates zero-area triangle');
+   }
+   next.splice(e.face*3,3,...replacement);
+   added.push(...child);
+  }
+  next.push(...added);
+  writeIndices(ctx,prim,next,oldIndex.componentType);
+  return{kind,sourceFace,sourceVertex,newVertexIndex:newIndex,
+   parentFaceIndices:affected.map(x=>x.face),addedVertices:1,
+   addedTriangles:2,splitIncidentFaces:2};
+ }
  if(kind==='face.pokeLinkedCap'){
   // Each bounded source-cap face may be poked exactly once. Center rows
   // append in command order; original cap and wall attribute IDs do not move.
@@ -970,20 +1117,24 @@ export function applyMeshOperations(input,operations=[]){
  if(linkedOperations.length){
   guard(linkedOperations.length===1&&
    operations[0]?.kind==='face.regionExtrudeLinked'&&
-   operations.length<=25,
+   operations.length<=26,
    'LINKED_SEQUENCE','One approved linked extrusion is required');
   const following=operations.slice(1),
-   pokeIndex=following.findIndex(o=>o?.kind==='face.pokeLinkedCap'),
-   pokes=following.filter(o=>o?.kind==='face.pokeLinkedCap');
-  guard(following.every((op,i)=>
+   split=following.at(-1)?.kind==='edge.splitPokedCap'?
+    following.at(-1):null,
+   earlier=split?following.slice(0,-1):following,
+   pokeIndex=earlier.findIndex(o=>o?.kind==='face.pokeLinkedCap'),
+   pokes=earlier.filter(o=>o?.kind==='face.pokeLinkedCap');
+  guard(earlier.every((op,i)=>
     op?.kind==='vertex.moveLinkedCap'&&
-     i<(pokeIndex<0?following.length:pokeIndex)||
+     i<(pokeIndex<0?earlier.length:pokeIndex)||
     op?.kind==='face.pokeLinkedCap'&&i>=pokeIndex)&&
-   following.filter(x=>x?.kind==='vertex.moveLinkedCap').length<=16&&
-   pokes.length<=8&&
-   new Set(pokes.map(o=>o.sourceFace)).size===pokes.length,
+   earlier.filter(x=>x?.kind==='vertex.moveLinkedCap').length<=16&&
+   pokes.length>=Number(Boolean(split))&&pokes.length<=8&&
+   new Set(pokes.map(o=>o.sourceFace)).size===pokes.length&&
+   (!split||nat(split.sourceFace)&&nat(split.sourceVertex)),
    'LINKED_SEQUENCE',
-   'At most 16 stable-cap moves, then up to 8 Pokes of distinct original faces');
+   'Up to 16 cap moves and 8 distinct Pokes followed by one radial split');
   const op=linkedOperations[0];
   guard(Array.isArray(op.links)&&op.links.length>=1,
    'LINKED_APPROVAL','Approved source seam links required');
@@ -1000,13 +1151,15 @@ export function applyMeshOperations(input,operations=[]){
    return original.values.slice(f*3,f*3+3);
   }))].sort((a,b)=>a-b);
   linkedSource={operation:op,sourceCount:original.positions.length,
-   sourceFaces:original.values.length/3,capSources:chosen};
+   sourceFaces:original.values.length/3,capSources:chosen,pokes,
+   sourceFaceVertices:new Map(op.faces.map(f=>[
+    f,original.values.slice(f*3,f*3+3)]))};
   for(const next of following)guard(next.meshIndex===op.meshIndex&&
    next.primitiveIndex===op.primitiveIndex,'CAP_TARGET',
    'All cap edits must remain on the approved source primitive');
  }else{
   guard(!operations.some(o=>['vertex.moveLinkedCap',
-   'face.pokeLinkedCap'].includes(o?.kind)),
+   'face.pokeLinkedCap','edge.splitPokedCap'].includes(o?.kind)),
    'CAP_CONTEXT','Source-approved linked extrusion required for cap changes');
  }
  if(operations.length===0)return bytes(input).slice();
