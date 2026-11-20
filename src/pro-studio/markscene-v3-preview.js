@@ -294,27 +294,30 @@ function normalizeEdits(edits,doc,sourceGLB){
   }
   if(canonical.some(op=>op.kind==='face.regionExtrudeLinked')){
    const first=canonical[0],following=canonical.slice(1),
-    split=following.at(-1)?.kind==='edge.splitPokedCap'?
-     following.at(-1):null,
-    earlier=split?following.slice(0,-1):following,
+    firstSplit=following.findIndex(op=>op.kind==='edge.splitPokedCap'),
+    earlier=firstSplit<0?following:following.slice(0,firstSplit),
+    splits=firstSplit<0?[]:following.slice(firstSplit),
     firstPoke=earlier.findIndex(op=>op.kind==='face.pokeLinkedCap'),
     pokes=earlier.filter(op=>op.kind==='face.pokeLinkedCap');
    good(first?.kind==='face.regionExtrudeLinked'&&
-    canonical.length<=26&&
+    canonical.length<=33&&
     earlier.filter(op=>op.kind==='vertex.moveLinkedCap').length<=16&&
-    pokes.length<=8&&pokes.length>=Number(Boolean(split))&&
+    pokes.length<=8&&pokes.length>=splits.length&&
     new Set(pokes.map(op=>op.sourceFace)).size===pokes.length&&
-    (!split||pokes.some(p=>p.sourceFace===split.sourceFace))&&
     earlier.every((op,i)=>
      (op.kind==='vertex.moveLinkedCap'&&
        (firstPoke<0||i<firstPoke)||
       op.kind==='face.pokeLinkedCap'&&i>=firstPoke)&&
      op.meshIndex===first.meshIndex&&
      op.primitiveIndex===first.primitiveIndex)&&
-    (!split||split.meshIndex===first.meshIndex&&
-     split.primitiveIndex===first.primitiveIndex),
+    splits.length<=8&&
+    new Set(splits.map(op=>op.sourceFace)).size===splits.length&&
+    splits.every(op=>op.kind==='edge.splitPokedCap'&&
+     pokes.some(p=>p.sourceFace===op.sourceFace)&&
+     op.meshIndex===first.meshIndex&&
+     op.primitiveIndex===first.primitiveIndex),
     'MESH_LINKED_SEQUENCE',
-    'One extrusion, <=16 moves, <=8 distinct Pokes, terminal radial split');
+    'One extrusion, <=16 moves, <=8 distinct Pokes and radial splits');
   }else{
    good(!canonical.some(op=>['vertex.moveLinkedCap','face.pokeLinkedCap',
     'edge.splitPokedCap'].includes(op.kind)),
