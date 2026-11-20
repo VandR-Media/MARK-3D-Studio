@@ -763,7 +763,7 @@ try{
    stats=await request('mesh.getStats',{meshId:'gltf-mesh-0'});
   return{native:Array.from(native.data),glb:Array.from(glb.data),stats};
  });
- const twoNative=artifact('two-radial-splits.markscene',twoFiles.native),
+ const radialTwoNative=artifact('two-radial-splits.markscene',twoFiles.native),
   twoGlb=artifact('two-radial-splits-edited.glb',twoFiles.glb);
  const secondOpen=await openPreviewMarkscene(Buffer.from(twoFiles.native)),
   secondReplay=await exportEditedSourceGlb(secondOpen),
@@ -777,7 +777,7 @@ try{
   twoFiles.stats.triangleCount===18&&twoFiles.stats.vertexCount===32&&
   secondRig.skins[0].joints===70&&
   secondRig.morphs[0].targets===2&&secondRig.animations.length===3,
-  {twoNative,twoGlb,stats:twoFiles.stats},
+  {twoNative:radialTwoNative,twoGlb:radialTwoGlb,stats:twoFiles.stats},
   'Second split damaged native save, skinned geometry or replay');
  const duplicate=await page.evaluate(async()=>{
   const r=await window.MARK_AI_BRIDGE.request({
