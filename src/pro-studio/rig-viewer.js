@@ -706,7 +706,7 @@ byId('mesh-poke-cap').addEventListener('click',async()=>{
    '-m'+Number(byId('mesh-id').value)+'-p0-cap-face-'+sourceFace;
   if(!window.confirm('Разделить верхнюю грань '+sourceFace+
    ' на три треугольника? Новая центральная вершина сохранит UV и риг. '+
-   'Пока это последняя разрешённая топологическая операция.'))return;
+   'Разрешено до 8 Poke разных исходных граней, без иных дальнейших правок.'))return;
   const result=await meshCall('mesh.pokeLinkedCap',{
    meshId:meshId(),capFaceId});
   meshPicker.clear();regionFaceKey=null;
