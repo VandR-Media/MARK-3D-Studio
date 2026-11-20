@@ -29,7 +29,7 @@ const OP_NAMES=[
  'object.setTransform','material.setPbr','animation.preview',
  'mesh.getStats','mesh.getTopology','mesh.getLinkedRegion','mesh.getMeshData',
  'mesh.linkSeam','mesh.unlinkSeam','mesh.extrudeLinkedRegion',
- 'mesh.moveLinkedCap',
+ 'mesh.moveLinkedCap','mesh.pokeLinkedCap',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -439,7 +439,7 @@ export function createAiBridge({
     profile:result.profile,diagnostics:result.diagnostics,
     uvSets:result.uvSets,colorSets:result.colorSets,
     materialSlots:result.materialSlots,stableIdScope:result.stableIdScope,
-    persistedAs:result.persistedAs,
+    persistedAs:result.persistedAs,topologyRemap:result.topologyRemap,
     ...(full?{faces:result.faces,edges:result.edges,
      halfedges:result.halfedges,corners:result.corners,
      capMap:result.capMap,mappedWalls:result.mappedWalls}:{
@@ -546,6 +546,43 @@ export function createAiBridge({
      sourceRoot=Math.min(pair.vertexA,pair.vertexB);
    const op={kind:'vertex.moveLinkedCap',meshIndex,primitiveIndex,
     sourceVertex:sourceRoot,delta:params.delta.slice()};
+   const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
+   edits.meshOperations=next.operations;
+  }),
+  'mesh.pokeLinkedCap':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-'),
+    primitiveIndex=params?.primitiveIndex??0;
+   guard(plain(params)&&Object.keys(params).every(k=>
+    ['meshId','primitiveIndex','capFaceId'].includes(k))&&
+    ['meshId','capFaceId'].every(k=>Object.hasOwn(params,k))&&
+    Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    typeof params.capFaceId==='string'&&
+    params.capFaceId.length<=256,'POKE_ARGS',
+    'Expected exact source-bound stable cap face ID');
+   const existing=edits.meshOperations||[],first=existing[0];
+   guard(first?.kind==='face.regionExtrudeLinked'&&
+    first.meshIndex===meshIndex&&first.primitiveIndex===primitiveIndex&&
+    existing.length<=17&&existing.slice(1).every(o=>
+     o.kind==='vertex.moveLinkedCap'),
+    'POKE_SEQUENCE',
+    'One cap poke allowed only after approved extrusion and bounded cap moves');
+   const geometry=applyMeshOperations(engine.opened.sourceGLB,existing);
+   const data=buildMeshDataSnapshot({
+    sourceGLB:engine.opened.sourceGLB,editedGLB:geometry,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex,primitiveIndex,operations:existing
+   });
+   const cap=data.faces.find(face=>face.id===params.capFaceId&&
+    /^mark-face-.*-cap-face-[0-9]+$/.test(face.id));
+   guard(cap,'POKE_STABLE_FACE',
+    'Cap stable face ID missing or no longer supports Poke');
+   const suffix=cap.id.split('-cap-face-')[1];
+   guard(/^(0|[1-9][0-9]*)$/.test(suffix),
+    'POKE_STABLE_FACE','Invalid source provenance for cap face');
+   const sourceFace=Number(suffix);
+   guard(first.faces.includes(sourceFace),
+    'POKE_STABLE_FACE','Face was not part of approved source region');
+   const op={kind:'face.pokeLinkedCap',meshIndex,primitiveIndex,sourceFace};
    const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
    edits.meshOperations=next.operations;
   }),
