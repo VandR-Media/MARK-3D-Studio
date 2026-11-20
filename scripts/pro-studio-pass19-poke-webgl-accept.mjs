@@ -410,13 +410,13 @@ try{
  const pokeArchive=artifact('cap-poke-editable.markscene',physical.native);
  const pokeGlb=artifact('cap-poke-real.glb',physical.glb);
  const opened=await openPreviewMarkscene(Buffer.from(physical.native));
- const replay=await exportEditedSourceGlb(opened);
+ const pokeReplay=await exportEditedSourceGlb(opened);
  const pokedRig=inspectRiggedGlb(Buffer.from(physical.glb));
  assertCheck('P19-POKE-NATIVE-RIG-004',
   opened.sourceSha256===sourceSha&&
   opened.edits.meshOperations.length===3&&
   opened.edits.meshOperations[2].sourceFace===0&&
-  SHA(replay.glb)===SHA(physical.glb)&&
+  SHA(pokeReplay.glb)===SHA(physical.glb)&&
   physical.stats.triangleCount===12&&physical.stats.vertexCount===29&&
   pokedRig.skins[0].joints===70&&
   pokedRig.animations.length===3&&pokedRig.morphs[0].targets===2,
