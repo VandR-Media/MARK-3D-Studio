@@ -373,7 +373,13 @@ try{
  await page.evaluate(()=>window.MARK_MESH_PICK_API.enable(true));
  const child=await page.evaluate(()=>
   window.MARK_MESH_PICK_API.projectFace(0,10));
+ await page.locator('#viewport').scrollIntoViewIfNeeded();
  const vp=await page.locator('#viewport').boundingBox();
+ assertCheck('P19-CANVAS-VISIBLE-000',
+  Boolean(vp)&&child.x>0&&child.x<vp.width&&
+  child.y>0&&child.y<vp.height&&
+  vp.y>=0&&vp.y+vp.height<=780,
+  {vp,child},'Real ray pick target is outside scrolled viewport canvas');
  await page.mouse.click(vp.x+child.x,vp.y+child.y);
  const selectedChild=await page.evaluate(()=>({
   selection:window.MARK_MESH_PICK_API.selection(),
@@ -383,7 +389,7 @@ try{
   selectedChild.selection?.face===10&&
   selectedChild.region?.faces?.join(',')==='10'&&
   selectedChild.region.boundaryEdges.length===3,
-  {selectedChild,child},
+  {selectedChild,child,vp},
   'New cap Poke child was not actually selectable in WebGL2');
  const chosenShot=await screenshot(page,'cap-poke-new-child-selected-webgl.png',
   'New real indexed cap triangle #10 selected by Chromium mouse click');
