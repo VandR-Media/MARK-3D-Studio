@@ -440,6 +440,7 @@ export function createAiBridge({
     uvSets:result.uvSets,colorSets:result.colorSets,
     materialSlots:result.materialSlots,stableIdScope:result.stableIdScope,
     persistedAs:result.persistedAs,topologyRemap:result.topologyRemap,
+    topologyRemaps:result.topologyRemaps,
     ...(full?{faces:result.faces,edges:result.edges,
      halfedges:result.halfedges,corners:result.corners,
      capMap:result.capMap,mappedWalls:result.mappedWalls}:{
@@ -560,12 +561,18 @@ export function createAiBridge({
     params.capFaceId.length<=256,'POKE_ARGS',
     'Expected exact source-bound stable cap face ID');
    const existing=edits.meshOperations||[],first=existing[0];
+   const afterExtrude=existing.slice(1),
+    firstPoke=afterExtrude.findIndex(op=>op.kind==='face.pokeLinkedCap'),
+    earlierPokes=afterExtrude.filter(op=>op.kind==='face.pokeLinkedCap');
    guard(first?.kind==='face.regionExtrudeLinked'&&
     first.meshIndex===meshIndex&&first.primitiveIndex===primitiveIndex&&
-    existing.length<=17&&existing.slice(1).every(o=>
-     o.kind==='vertex.moveLinkedCap'),
+    existing.length<25&&earlierPokes.length<8&&
+    afterExtrude.every((op,i)=>
+     (op.kind==='vertex.moveLinkedCap'&&
+      (firstPoke<0||i<firstPoke))||
+     (op.kind==='face.pokeLinkedCap'&&i>=firstPoke)),
     'POKE_SEQUENCE',
-    'One cap poke allowed only after approved extrusion and bounded cap moves');
+    'Up to eight distinct cap face Pokes after stable-cap moves');
    const geometry=applyMeshOperations(engine.opened.sourceGLB,existing);
    const data=buildMeshDataSnapshot({
     sourceGLB:engine.opened.sourceGLB,editedGLB:geometry,
@@ -582,6 +589,8 @@ export function createAiBridge({
    const sourceFace=Number(suffix);
    guard(first.faces.includes(sourceFace),
     'POKE_STABLE_FACE','Face was not part of approved source region');
+   guard(!earlierPokes.some(op=>op.sourceFace===sourceFace),
+    'POKE_ALREADY_SPLIT','Source cap face already poked; use another face');
    const op={kind:'face.pokeLinkedCap',meshIndex,primitiveIndex,sourceFace};
    const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
    edits.meshOperations=next.operations;
