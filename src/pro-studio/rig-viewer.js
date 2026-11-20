@@ -761,6 +761,56 @@ byId('mesh-split-cap-edge').addEventListener('click',async()=>{
   await meshShow('Внутреннее ребро капа разделено; ревизия '+result.revision);
  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
 });
+byId('mesh-split-daughter-edge').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const graph=await meshCall('mesh.getMeshData',{
+   meshId:meshId(),full:true});
+  const picked=meshPickState();
+  let sourceFace=Number(byId('mesh-a').value),
+   sourceVertex=Number(byId('mesh-b').value);
+  if(picked?.mode==='edge'){
+   if(picked.meshId!==meshId()||picked.primitiveIndex!==0)
+    throw Error('Выделено ребро другого меша или примитива.');
+   const entry=graph.edgeSplitRemaps?.find(r=>{
+    const cap=graph.capMap?.find(c=>c.sourceVertex===r.sourceVertex);
+    return cap&&picked.edge.includes(r.newAttributeVertex)&&
+     picked.edge.includes(cap.attributeVertex);
+   });
+   if(!entry)throw Error('Выберите дочернее ребро, соединяющее '+
+    'вершину капа с серединой предыдущего Edge Split.');
+   sourceFace=entry.sourceFace;sourceVertex=entry.sourceVertex;
+   byId('mesh-a').value=String(sourceFace);
+   byId('mesh-b').value=String(sourceVertex);
+  }
+  if(!Number.isSafeInteger(sourceFace)||sourceFace<0||
+   !Number.isSafeInteger(sourceVertex)||sourceVertex<0)
+   throw Error('V1 и V2 должны быть исходными номерами грани и вершины.');
+  const parent=graph.edgeSplitRemaps?.find(r=>
+   r.sourceFace===sourceFace&&r.sourceVertex===sourceVertex),
+   cap=graph.capMap?.find(r=>r.sourceVertex===sourceVertex);
+  if(!parent||!cap)throw Error('Не найден подтверждённый родительский Edge Split.');
+  const edge=graph.edges?.find(e=>e.halfedgeIds.length===2&&
+   !e.nonManifold&&!e.windingConflict&&
+   parent.createdEdgeIds.includes(e.id)&&
+   graph.halfedges.some(h=>e.halfedgeIds.includes(h.id)&&
+    (h.origin===cap.logicalVertexId&&
+     h.destination===parent.newLogicalVertexId||
+     h.destination===cap.logicalVertexId&&
+     h.origin===parent.newLogicalVertexId)));
+  if(!edge)throw Error('Родительское двухгранное ребро не найдено в текущем GLB.');
+  if(!window.confirm('Разделить дочернее ребро капа? '+
+   'Оба его треугольника получат новые вершины и UV-углы. '+
+   'Повторное разделение этого дочернего ребра пока недоступно.'))return;
+  const result=await meshCall('mesh.splitPokedCapChildEdge',{
+   meshId:meshId(),sourceFace,sourceVertex,parentEdgeId:edge.id});
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('Дочернее ребро разделено; ревизия '+result.revision);
+ }catch(error){
+  meshOutput().textContent='Ошибка: '+String(error?.message||error);
+ }
+});
 byId('mesh-apply').addEventListener('click',async()=>{
  try{
   if(!meshSession)throw Error('Нажмите «Открыть Edit Mode».');
