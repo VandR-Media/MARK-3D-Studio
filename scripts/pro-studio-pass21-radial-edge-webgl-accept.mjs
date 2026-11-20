@@ -591,7 +591,7 @@ try{
  await page.locator('#mesh-pick-mode').selectOption('face');
  await page.evaluate(()=>window.MARK_MESH_PICK_API.enable(true));
  const radialChild=await page.evaluate(()=>
-  window.MARK_MESH_PICK_API.projectFace(0,16));
+  window.MARK_MESH_PICK_API.projectFace(0,14));
  await page.locator('#viewport').scrollIntoViewIfNeeded();
  const radialBox=await page.locator('#viewport').boundingBox();
  assertCheck('P21-RADIAL-CHILD-ONSCREEN-013',
@@ -608,11 +608,11 @@ try{
   region:window.MARK_MESH_PICK_API.region()
  }));
  assertCheck('P21-RADIAL-CHILD-RAYPICK-014',
-  selectedRadial.selection?.face===16&&
-  selectedRadial.region?.faces?.join(',')==='16',
+  selectedRadial.selection?.face===14&&
+  selectedRadial.region?.faces?.join(',')==='14',
   {selectedRadial,radialChild,radialBox},
   'The real new radial triangle is not ray-pickable');
- const splitSelected=await screenshot(page,'radial-child16-selected-webgl.png',
+ const splitSelected=await screenshot(page,'radial-child14-selected-webgl.png',
   'Face #16 physically created by radial Edge Split, selected by mouse click');
  const radialBefore=PNG.sync.read(readFileSync(join(root,splitUnselected.name))),
   radialAfter=PNG.sync.read(readFileSync(join(root,splitSelected.name)));
