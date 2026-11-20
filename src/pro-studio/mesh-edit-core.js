@@ -169,7 +169,8 @@ function editOnce(ctx,operation,linkedSource=null){
  guard(['vertex.move','edge.split','face.flip','face.delete',
   'normal.recalculate','primitive.add','vertex.snap','face.extrude',
   'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap',
-  'face.pokeLinkedCap','edge.splitPokedCap'].includes(kind),
+  'face.pokeLinkedCap','edge.splitPokedCap',
+  'edge.splitPokedCapChild'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -219,8 +220,10 @@ function editOnce(ctx,operation,linkedSource=null){
  const prim=target(ctx,meshIndex,primitiveIndex);
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
- if(kind==='edge.splitPokedCap'){
-  // One of up to eight source-distinct radial splits after all Pokes.
+ if(kind==='edge.splitPokedCap'||kind==='edge.splitPokedCapChild'){
+  const child=kind==='edge.splitPokedCapChild';
+  // Primary: up to eight distinct source-face splits. Child: at most one
+  // terminal re-split of the daughter edge joining source cap and midpoint.
   // Both incident cap triangles
   // share identical attribute rows for its endpoints; no UV-seam welding,
   // no T-junction, and no lossy truncation of skin weights.
@@ -230,7 +233,7 @@ function editOnce(ctx,operation,linkedSource=null){
   guard(Object.keys(operation).length===5&&
    ['kind','meshIndex','primitiveIndex','sourceFace','sourceVertex']
     .every(k=>Object.hasOwn(operation,k)),'RADIAL_FIELDS',
-   'Radial edge split requires exact typed provenance fields');
+   'Radial split requires exact source face and cap vertex provenance');
   const {sourceFace,sourceVertex}=operation,
    pokeIndex=linkedSource.pokes.findIndex(p=>p.sourceFace===sourceFace);
   guard(nat(sourceFace)&&nat(sourceVertex)&&pokeIndex>=0,
@@ -241,15 +244,19 @@ function editOnce(ctx,operation,linkedSource=null){
   const capIndex=linkedSource.capSources.indexOf(sourceVertex);
   guard(capIndex>=0,'RADIAL_CAP','Unknown canonical cap attribute row');
   const splitOrdinal=linkedSource.splits.findIndex(op=>op===operation);
-  guard(splitOrdinal>=0&&
-   linkedSource.splits[splitOrdinal].sourceFace===sourceFace,
-   'RADIAL_SEQUENCE','Radial split ordinal is missing from approved log');
-  // Prior radial operations appended one vertex each AFTER every Poke
-  // centroid. Never mistake an older midpoint row for the next center.
+  const parentOrdinal=linkedSource.splits.findIndex(op=>
+   op.sourceFace===sourceFace&&op.sourceVertex===sourceVertex);
+  guard(child?linkedSource.childSplit===operation&&parentOrdinal>=0:
+   splitOrdinal>=0,'RADIAL_SEQUENCE',
+   'Split must belong to the approved source-bound radial lineage');
+  // Before a primary split, count includes preceding primaries only;
+  // after the full primary sequence, the parent midpoint is in the
+  // source-linked split row suffix. No child index can alias a Poke center.
   const cap=linkedSource.sourceCount+capIndex,
-   center=count-linkedSource.pokes.length-splitOrdinal+pokeIndex;
+   center=child?count-linkedSource.splits.length+parentOrdinal:
+    count-linkedSource.pokes.length-splitOrdinal+pokeIndex;
   guard(center>cap&&center<count,'RADIAL_LAYOUT',
-   'Center source-scoped index does not match appended Poke layout');
+   'Verified Poke center / existing parent midpoint row not found');
   const affected=[];
   for(let face=0;face<values.length/3;face++){
    const t=values.slice(face*3,face*3+3),i=t.indexOf(cap),j=t.indexOf(center);
@@ -369,7 +376,8 @@ function editOnce(ctx,operation,linkedSource=null){
   }
   next.push(...added);
   writeIndices(ctx,prim,next,oldIndex.componentType);
-  return{kind,sourceFace,sourceVertex,newVertexIndex:newIndex,
+  return{kind,sourceFace,sourceVertex,parentMidpointRow:child?center:null,
+   newVertexIndex:newIndex,
    parentFaceIndices:affected.map(x=>x.face),addedVertices:1,
    addedTriangles:2,splitIncidentFaces:2};
  }
@@ -1124,12 +1132,15 @@ export function applyMeshOperations(input,operations=[]){
  if(linkedOperations.length){
   guard(linkedOperations.length===1&&
    operations[0]?.kind==='face.regionExtrudeLinked'&&
-   operations.length<=33,
+   operations.length<=34,
    'LINKED_SEQUENCE','One approved linked extrusion is required');
   const following=operations.slice(1),
    firstSplit=following.findIndex(o=>o?.kind==='edge.splitPokedCap'),
    earlier=firstSplit<0?following:following.slice(0,firstSplit),
-   splits=firstSplit<0?[]:following.slice(firstSplit),
+   rest=firstSplit<0?[]:following.slice(firstSplit),
+   childSplit=rest.at(-1)?.kind==='edge.splitPokedCapChild'?
+    rest.at(-1):null,
+   splits=childSplit?rest.slice(0,-1):rest,
    pokeIndex=earlier.findIndex(o=>o?.kind==='face.pokeLinkedCap'),
    pokes=earlier.filter(o=>o?.kind==='face.pokeLinkedCap');
   guard(earlier.every((op,i)=>
@@ -1143,9 +1154,13 @@ export function applyMeshOperations(input,operations=[]){
    splits.every(o=>o?.kind==='edge.splitPokedCap'&&
     nat(o.sourceFace)&&nat(o.sourceVertex)&&
     pokes.some(p=>p.sourceFace===o.sourceFace))&&
-   new Set(splits.map(o=>o.sourceFace)).size===splits.length,
+   new Set(splits.map(o=>o.sourceFace)).size===splits.length&&
+   (!childSplit||
+    nat(childSplit.sourceFace)&&nat(childSplit.sourceVertex)&&
+    splits.some(o=>o.sourceFace===childSplit.sourceFace&&
+     o.sourceVertex===childSplit.sourceVertex)),
    'LINKED_SEQUENCE',
-   'One extrusion, <=16 moves, <=8 distinct Pokes and source-distinct radial splits');
+   'Approved sequence: cap moves, distinct Pokes, primaries, one final daughter-edge split');
   const op=linkedOperations[0];
   guard(Array.isArray(op.links)&&op.links.length>=1,
    'LINKED_APPROVAL','Approved source seam links required');
@@ -1163,6 +1178,7 @@ export function applyMeshOperations(input,operations=[]){
   }))].sort((a,b)=>a-b);
   linkedSource={operation:op,sourceCount:original.positions.length,
    sourceFaces:original.values.length/3,capSources:chosen,pokes,splits,
+   childSplit,
    sourceFaceVertices:new Map(op.faces.map(f=>[
     f,original.values.slice(f*3,f*3+3)]))};
   for(const next of following)guard(next.meshIndex===op.meshIndex&&
@@ -1170,7 +1186,8 @@ export function applyMeshOperations(input,operations=[]){
    'All cap edits must remain on the approved source primitive');
  }else{
   guard(!operations.some(o=>['vertex.moveLinkedCap',
-   'face.pokeLinkedCap','edge.splitPokedCap'].includes(o?.kind)),
+   'face.pokeLinkedCap','edge.splitPokedCap',
+   'edge.splitPokedCapChild'].includes(o?.kind)),
    'CAP_CONTEXT','Source-approved linked extrusion required for cap changes');
  }
  if(operations.length===0)return bytes(input).slice();
