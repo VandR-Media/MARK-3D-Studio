@@ -692,6 +692,27 @@ byId('mesh-move-cap').addEventListener('click',async()=>{
   await meshShow('Логическая вершина капа смещена; ревизия '+edit.revision);
  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
 });
+byId('mesh-poke-cap').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const sourceFace=Number(byId('mesh-a').value);
+  if(!Number.isSafeInteger(sourceFace)||sourceFace<0)
+   throw Error('V1 должен быть исходным номером грани капа.');
+  const region=await meshCall('mesh.getLinkedRegion',{meshId:meshId()});
+  if(!region.sourceLinksConsumed||!region.sourceFaceIDs?.includes(sourceFace))
+   throw Error('Укажите исходную грань подтверждённого Extrude.');
+  const capFaceId='mark-face-'+region.sourceSha256+
+   '-m'+Number(byId('mesh-id').value)+'-p0-cap-face-'+sourceFace;
+  if(!window.confirm('Разделить верхнюю грань '+sourceFace+
+   ' на три треугольника? Новая центральная вершина сохранит UV и риг. '+
+   'Пока это последняя разрешённая топологическая операция.'))return;
+  const result=await meshCall('mesh.pokeLinkedCap',{
+   meshId:meshId(),capFaceId});
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('Кап разделён на три грани; ревизия '+result.revision);
+ }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+});
 byId('mesh-apply').addEventListener('click',async()=>{
  try{
   if(!meshSession)throw Error('Нажмите «Открыть Edit Mode».');
