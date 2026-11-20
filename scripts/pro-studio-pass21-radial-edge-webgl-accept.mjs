@@ -614,13 +614,13 @@ try{
   'The real new radial triangle is not ray-pickable');
  const splitSelected=await screenshot(page,'radial-child16-selected-webgl.png',
   'Face #16 physically created by radial Edge Split, selected by mouse click');
- const a=PNG.sync.read(readFileSync(join(root,splitUnselected.name))),
-  b=PNG.sync.read(readFileSync(join(root,splitSelected.name)));
+ const radialBefore=PNG.sync.read(readFileSync(join(root,splitUnselected.name))),
+  radialAfter=PNG.sync.read(readFileSync(join(root,splitSelected.name)));
  let changed=0;
- for(let i=0;i<a.data.length;i+=4)
-  if(Math.abs(a.data[i]-b.data[i])+
-   Math.abs(a.data[i+1]-b.data[i+1])+
-   Math.abs(a.data[i+2]-b.data[i+2])>24)changed++;
+ for(let i=0;i<radialBefore.data.length;i+=4)
+  if(Math.abs(radialBefore.data[i]-radialAfter.data[i])+
+   Math.abs(radialBefore.data[i+1]-radialAfter.data[i+1])+
+   Math.abs(radialBefore.data[i+2]-radialAfter.data[i+2])>24)changed++;
  assertCheck('P21-RADIAL-CANVAS-PIXELS-015',changed>100,
   {changed,before:splitUnselected.sha256,after:splitSelected.sha256},
   'No visible highlight for newly created real cap triangle');
