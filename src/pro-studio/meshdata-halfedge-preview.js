@@ -106,9 +106,10 @@ export function buildMeshDataSnapshot({
  }
  if(first){
   yes(operations[0]===first&&operations.every((op,i)=>i===0||
-   op.kind==='vertex.moveLinkedCap'&&
+   (op.kind==='vertex.moveLinkedCap'||
+    op.kind==='face.pokeLinkedCap'&&operations.length-1===i)&&
    op.meshIndex===meshIndex&&op.primitiveIndex===primitiveIndex),
-  'OP_SEQUENCE','Source extrusion and bounded stable cap moves required');
+  'OP_SEQUENCE','Source extrusion, stable moves and optional final cap Poke required');
   const consumed=inspectConsumedSeamExtrude(sourceGLB,{
    sourceSha256,operation:first});
   const sourceCount=source.positions.length;
