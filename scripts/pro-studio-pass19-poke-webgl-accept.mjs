@@ -367,7 +367,10 @@ try{
   'Actual physical Poke on skinned cap, no overlays');
  // Use real raycaster click at face 10, which exists ONLY after Poke.
  await page.locator('#mesh-pick-mode').selectOption('face');
- await page.locator('#mesh-pick-toggle').click();
+ // Earlier CI steps disable the picker through its debug API without
+ // changing the visible button state. Enable the real raycaster explicitly
+ // here so the pointer click is an actual viewport face selection.
+ await page.evaluate(()=>window.MARK_MESH_PICK_API.enable(true));
  const child=await page.evaluate(()=>
   window.MARK_MESH_PICK_API.projectFace(0,10));
  const vp=await page.locator('#viewport').boundingBox();
@@ -394,7 +397,7 @@ try{
  assertCheck('P19-CHILD-WEBGL-PIXELS-003',
   selectedPixels>100,{changedPixels:selectedPixels},
   'New real selected triangle did not create visible viewport overlay');
- await page.locator('#mesh-pick-toggle').click();
+ await page.evaluate(()=>window.MARK_MESH_PICK_API.enable(false));
  const physical=await page.evaluate(async()=>{
   const request=async(method,params={})=>{
    const r=await window.MARK_AI_BRIDGE.request({
