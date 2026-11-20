@@ -102,6 +102,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="mesh-unlink-seam" type="button" title="Удалить подтверждённую связь UV-шва">Удалить связь UV-шва</button>
 <button id="mesh-move-cap" type="button" title="Смещение логической вершины капа, включая её UV-шов и боковые стенки. V1 — исходный индекс.">Сместить вершину нового капа (V1, ΔXYZ)</button>
 <button id="mesh-poke-cap" type="button" title="Разбить верхнюю грань созданного капа на три треугольника, сохранив риг и UV. V1 — исходный номер грани 0/1.">Poke: разделить грань капа (V1)</button>
+<button id="mesh-split-cap-edge" type="button" title="Разделить внутреннее радиальное ребро после Poke. V1 — исходная грань; V2 — исходная атрибутная вершина на этой грани.">Edge Split: ребро капа (V1, V2)</button>
 <button id="mesh-undo">↶ Undo</button>
 <button id="mesh-redo">↷ Redo</button>
 <button id="mesh-save">Сохранить правки .markscene</button>

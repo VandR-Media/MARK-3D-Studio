@@ -97,10 +97,20 @@ export function buildMeshDataSnapshot({
  const firstPokeIndex=operations.findIndex(op=>op.kind==='face.pokeLinkedCap');
  if(pokes.length)yes(Boolean(first)&&pokes.length<=8&&
   new Set(pokes.map(p=>p.sourceFace)).size===pokes.length&&
-  operations.slice(firstPokeIndex).every(op=>
-   op.kind==='face.pokeLinkedCap'),
+  operations.slice(firstPokeIndex).every((op,i)=>
+   op.kind==='face.pokeLinkedCap'||
+   op.kind==='edge.splitPokedCap'&&
+    i===operations.length-firstPokeIndex-1),
   'POKE_SEQUENCE','Up to eight distinct source cap Pokes must be terminal');
- const wallEnd=edited.positions.length-pokes.length;
+ const split=operations.at(-1)?.kind==='edge.splitPokedCap'?
+  operations.at(-1):null;
+ const wallEnd=edited.positions.length-pokes.length-Number(Boolean(split));
+ const splitAttributeVertex=split?wallEnd+pokes.length:null;
+ if(split)yes(pokes.some(p=>p.sourceFace===split.sourceFace),
+  'RADIAL_SEQUENCE','Radial split needs source-approved Poke');
+ const splitLogicalVertexId=split?
+  'mark-radial-mid-'+namespace+'-f'+split.sourceFace+'-v'+split.sourceVertex:null;
+ if(split)logical[splitAttributeVertex]=splitLogicalVertexId;
  const centers=new Map(pokes.map((poke,i)=>{
   const id='mark-poke-center-'+sourceSha256+'-m'+meshIndex+
    '-p'+primitiveIndex+'-f'+poke.sourceFace;
@@ -111,7 +121,8 @@ export function buildMeshDataSnapshot({
   yes(operations[0]===first&&operations.every((op,i)=>i===0||
    (op.kind==='vertex.moveLinkedCap'&&
     (firstPokeIndex<0||i<firstPokeIndex)||
-    op.kind==='face.pokeLinkedCap'&&i>=firstPokeIndex)&&
+    op.kind==='face.pokeLinkedCap'&&i>=firstPokeIndex||
+    op.kind==='edge.splitPokedCap'&&i===operations.length-1)&&
    op.meshIndex===meshIndex&&op.primitiveIndex===primitiveIndex),
   'OP_SEQUENCE','Source extrusion, stable moves and distinct terminal Pokes required');
   const consumed=inspectConsumedSeamExtrude(sourceGLB,{
@@ -171,8 +182,9 @@ export function buildMeshDataSnapshot({
  const originalFaces=source.indices.length/3;
  const baseTriangleCount=first?originalFaces+
   2*(wallEnd-source.positions.length-capMap.length)/4:originalFaces;
- if(pokes.length)yes(edited.indices.length/3===baseTriangleCount+2*pokes.length,
-  'POKE_LAYOUT','Every approved Poke must add exactly two cap triangles');
+ if(pokes.length)yes(edited.indices.length/3===
+  baseTriangleCount+2*pokes.length+Number(Boolean(split))*2,
+  'POKE_LAYOUT','Pokes and terminal radial split have exact face counts');
  const pokeFaceNames=new Set(pokes.map(p=>'cap-face-'+p.sourceFace));
  const faceNameFor=(f)=>{
   if(!first)return 'source-face-'+f;
@@ -182,6 +194,10 @@ export function buildMeshDataSnapshot({
   if(f<unselected.length)return 'source-face-'+unselected[f];
   if(f<unselected.length+first.faces.length)
    return 'cap-face-'+[...first.faces].sort((a,b)=>a-b)[f-unselected.length];
+  if(split&&f>=baseTriangleCount+2*pokes.length)
+   return 'cap-radial-split-face-'+split.sourceFace+
+    '-source-v'+split.sourceVertex+'-child'+
+    (f-(baseTriangleCount+2*pokes.length)+1);
   if(f>=baseTriangleCount){
    const index=f-baseTriangleCount;
    const poke=pokes[Math.floor(index/2)];
@@ -191,16 +207,45 @@ export function buildMeshDataSnapshot({
   const wall=f-unselected.length-first.faces.length;
   return 'wall-'+Math.floor(wall/2)+'-tri'+wall%2;
  };
+ const sourceFaceVertices=split?
+  source.indices.slice(split.sourceFace*3,split.sourceFace*3+3):[];
+ const selectedCapRow=split?
+  source.positions.length+capMap.findIndex(c=>c.sourceVertex===split.sourceVertex):null;
+ const radialCenter=split?centers.get(split.sourceFace)?.attributeVertex:null;
+ if(split)yes(sourceFaceVertices.includes(split.sourceVertex)&&
+  selectedCapRow>=source.positions.length&&radialCenter!==undefined,
+  'RADIAL_SOURCE','Invalid source-bound radial endpoints');
+ const radialAffected=new Map();
+ if(split){
+  for(let f=0;f<baseTriangleCount+2*pokes.length;f++){
+   const tri=edited.indices.slice(f*3,f*3+3);
+   const at=tri.indexOf(splitAttributeVertex);
+   if(at>=0)radialAffected.set(faceNameFor(f),{faceIndex:f,changedSlot:at});
+  }
+  yes(radialAffected.size===2,'RADIAL_INCIDENCE',
+   'Split must modify exactly two existing Poke cap triangles');
+  const capPrefix=new Set(['cap-face-'+split.sourceFace,
+   'cap-poke-face-'+split.sourceFace+'-child1',
+   'cap-poke-face-'+split.sourceFace+'-child2']);
+  yes([...radialAffected.keys()].every(name=>capPrefix.has(name)),
+   'RADIAL_FACE_PROFILE','Only the source Poke cap triangles may be split');
+ }
  const faceIdFor=name=>'mark-face-'+namespace+'-'+name;
  const halfedgeIdFor=(name,k)=>{
   const suffix=pokeFaceNames.has(name)&&k!==0?
    '-poke-k'+k:'-k'+k;
-  return 'mark-halfedge-'+faceIdFor(name)+suffix;
+  const affected=radialAffected.get(name);
+  const changed=affected&&(k===affected.changedSlot||
+   k===(affected.changedSlot+2)%3);
+  return 'mark-halfedge-'+faceIdFor(name)+suffix+
+   (changed?'-radial':'');
  };
  const cornerIdFor=(name,k)=>{
   const suffix=pokeFaceNames.has(name)&&k===2?
    '-poke-center':'-k'+k;
-  return 'mark-corner-'+faceIdFor(name)+suffix;
+  const changed=radialAffected.get(name)?.changedSlot===k;
+  return 'mark-corner-'+faceIdFor(name)+suffix+
+   (changed?'-radial':'');
  };
  const topologyRemaps=pokes.map(poke=>{
   const name='cap-face-'+poke.sourceFace,center=centers.get(poke.sourceFace);
@@ -222,6 +267,28 @@ export function buildMeshDataSnapshot({
  // Backward compatible summary of most recent Poke; full provenance and
  // deterministic IDs for every executed operation live in topologyRemaps.
  const topologyRemap=topologyRemaps.at(-1)||null;
+ const baseHalfedgeId=(name,k)=>'mark-halfedge-'+faceIdFor(name)+
+  (pokeFaceNames.has(name)&&k!==0?'-poke-k'+k:'-k'+k);
+ const baseCornerId=(name,k)=>'mark-corner-'+faceIdFor(name)+
+  (pokeFaceNames.has(name)&&k===2?'-poke-center':'-k'+k);
+ const edgeSplitRemap=split?{
+  schema:'mark.radial-cap-edge-split/1',
+  sourceFace:split.sourceFace,sourceVertex:split.sourceVertex,
+  newAttributeVertex:splitAttributeVertex,
+  newLogicalVertexId:splitLogicalVertexId,
+  sourceEdgeId:'mark-edge-'+namespace+'-'+normKey(
+   logical[selectedCapRow],logical[radialCenter]),
+  modifiedFaceIds:[...radialAffected.keys()].map(faceIdFor),
+  newFaceIds:[1,2].map(i=>faceIdFor('cap-radial-split-face-'+
+   split.sourceFace+'-source-v'+split.sourceVertex+'-child'+i)),
+  invalidatedCornerIds:[...radialAffected].map(([name,v])=>
+   baseCornerId(name,v.changedSlot)),
+  invalidatedHalfedgeIds:[...radialAffected].flatMap(([name,v])=>
+   [baseHalfedgeId(name,v.changedSlot),
+    baseHalfedgeId(name,(v.changedSlot+2)%3)]),
+  createdEdgeIds:[],stableAcrossUnrelatedCapPokes:true,
+  laterTopologyEditsBlocked:true
+ }:null;
  const capSources=new Set(first?.faces||[]);
  const nonSelected=Array.from({length:originalFaces},(_,i)=>i)
   .filter(i=>!capSources.has(i));
@@ -297,6 +364,13 @@ export function buildMeshDataSnapshot({
    boundary:list.length===1,nonManifold:list.length>2,
    windingConflict:badWinding.includes(id),uvSeamSets:uvs});
  }
+ if(edgeSplitRemap){
+  edgeSplitRemap.createdEdgeIds=edges.filter(edge=>
+   edge.id.includes(splitLogicalVertexId)).map(edge=>edge.id).sort();
+  yes(edgeSplitRemap.createdEdgeIds.length>=3&&
+   !edges.some(e=>e.id===edgeSplitRemap.sourceEdgeId),
+   'RADIAL_GRAPH','Old radial edge must be replaced by new halfedges');
+ }
  return{
   schema:'mark.meshdata-halfedge-preview/1',
   sourceSha256,meshIndex,primitiveIndex,
@@ -305,14 +379,16 @@ export function buildMeshDataSnapshot({
   persistedAs:'deterministic reconstruction from source GLB and native typed edit log',
   stableIdScope:'source hash + mesh/primitive + immutable topology + logical-cap moves',
   faces,edges,halfedges,corners,materialSlots,uvSets,colorSets,
-  capMap,mappedWalls,topologyRemap,topologyRemaps,
+  capMap,mappedWalls,topologyRemap,topologyRemaps,edgeSplitRemap,
   diagnostics:{triangleCount:faces.length,cornerCount:corners.length,
    halfedgeCount:halfedges.length,edgeCount:edges.length,
    boundaryEdges:boundaries.length,nonManifoldEdges:nonManifold.length,
    windingConflicts:badWinding.length,uvDiscontinuityEdges:uvSeamEdges.length,
    capAttributeRows:capMap.length,
    linkedCapMoveCount:operations.filter(x=>x.kind==='vertex.moveLinkedCap').length,
-   capPokeCount:pokes.length,createdLogicalVertices:pokes.length,
+   capPokeCount:pokes.length,
+   radialSplitCount:Number(Boolean(split)),
+   createdLogicalVertices:pokes.length+Number(Boolean(split)),
    topologyRemapAvailable:Boolean(topologyRemap),
    proceduralHalfedgeReconstruction:true,editableOnlyViaBoundedCapMove:true,
    fullyWeldedGLB:false},

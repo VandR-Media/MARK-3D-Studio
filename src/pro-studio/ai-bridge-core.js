@@ -29,7 +29,7 @@ const OP_NAMES=[
  'object.setTransform','material.setPbr','animation.preview',
  'mesh.getStats','mesh.getTopology','mesh.getLinkedRegion','mesh.getMeshData',
  'mesh.linkSeam','mesh.unlinkSeam','mesh.extrudeLinkedRegion',
- 'mesh.moveLinkedCap','mesh.pokeLinkedCap',
+ 'mesh.moveLinkedCap','mesh.pokeLinkedCap','mesh.splitPokedCapEdge',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -440,7 +440,7 @@ export function createAiBridge({
     uvSets:result.uvSets,colorSets:result.colorSets,
     materialSlots:result.materialSlots,stableIdScope:result.stableIdScope,
     persistedAs:result.persistedAs,topologyRemap:result.topologyRemap,
-    topologyRemaps:result.topologyRemaps,
+    topologyRemaps:result.topologyRemaps,edgeSplitRemap:result.edgeSplitRemap,
     ...(full?{faces:result.faces,edges:result.edges,
      halfedges:result.halfedges,corners:result.corners,
      capMap:result.capMap,mappedWalls:result.mappedWalls}:{
@@ -592,6 +592,49 @@ export function createAiBridge({
    guard(!earlierPokes.some(op=>op.sourceFace===sourceFace),
     'POKE_ALREADY_SPLIT','Source cap face already poked; use another face');
    const op={kind:'face.pokeLinkedCap',meshIndex,primitiveIndex,sourceFace};
+   const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
+   edits.meshOperations=next.operations;
+  }),
+  'mesh.splitPokedCapEdge':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-'),
+    primitiveIndex=params?.primitiveIndex??0;
+   guard(plain(params)&&Object.keys(params).every(k=>[
+    'meshId','primitiveIndex','sourceFace','sourceVertex','edgeId'
+   ].includes(k))&&
+    ['meshId','sourceFace','sourceVertex','edgeId']
+     .every(k=>Object.hasOwn(params,k))&&
+    Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    Number.isSafeInteger(params.sourceFace)&&params.sourceFace>=0&&
+    Number.isSafeInteger(params.sourceVertex)&&params.sourceVertex>=0&&
+    typeof params.edgeId==='string'&&params.edgeId.length<=320,
+    'RADIAL_ARGS','Expected source face/vertex and actual stable radial edge ID');
+   const existing=edits.meshOperations||[],first=existing[0],
+    poke=existing.filter(op=>op.kind==='face.pokeLinkedCap');
+   guard(first?.kind==='face.regionExtrudeLinked'&&
+    first.meshIndex===meshIndex&&first.primitiveIndex===primitiveIndex&&
+    poke.some(op=>op.sourceFace===params.sourceFace)&&
+    existing.length<26&&!existing.some(op=>op.kind==='edge.splitPokedCap'),
+    'RADIAL_SEQUENCE','One final radial split after a confirmed cap Poke');
+   const current=applyMeshOperations(engine.opened.sourceGLB,existing);
+   const data=buildMeshDataSnapshot({
+    sourceGLB:engine.opened.sourceGLB,editedGLB:current,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex,primitiveIndex,operations:existing
+   });
+   const center=data.topologyRemaps.find(r=>
+    r.sourceFace===params.sourceFace)?.centerLogicalVertexId;
+   const matching=data.capMap.find(r=>r.sourceVertex===params.sourceVertex);
+   guard(center&&matching,'RADIAL_SOURCE',
+    'Radial endpoints must reference a verified Poked source cap face');
+   const requested=data.edges.find(e=>e.id===params.edgeId&&
+    e.halfedgeIds.length===2&&!e.windingConflict&&!e.nonManifold);
+   guard(requested,'RADIAL_STALE','Stable edge ID absent or not two-manifold');
+   const from=data.halfedges.find(h=>h.id===requested.halfedgeIds[0]);
+   guard(from&&(from.origin===center&&from.destination===matching.logicalVertexId||
+    from.destination===center&&from.origin===matching.logicalVertexId),
+    'RADIAL_STALE','Selected radial edge differs from approved cap source');
+   const op={kind:'edge.splitPokedCap',meshIndex,primitiveIndex,
+    sourceFace:params.sourceFace,sourceVertex:params.sourceVertex};
    const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
    edits.meshOperations=next.operations;
   }),

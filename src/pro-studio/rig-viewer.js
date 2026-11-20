@@ -713,6 +713,38 @@ byId('mesh-poke-cap').addEventListener('click',async()=>{
   await meshShow('Кап разделён на три грани; ревизия '+result.revision);
  }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
 });
+byId('mesh-split-cap-edge').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const sourceFace=Number(byId('mesh-a').value),
+   sourceVertex=Number(byId('mesh-b').value);
+  if(!Number.isSafeInteger(sourceFace)||sourceFace<0||
+   !Number.isSafeInteger(sourceVertex)||sourceVertex<0)
+   throw Error('V1 и V2 должны быть целыми неотрицательными индексами.');
+  const graph=await meshCall('mesh.getMeshData',{
+   meshId:meshId(),full:true});
+  const center=graph.topologyRemaps?.find(r=>
+   r.sourceFace===sourceFace)?.centerLogicalVertexId;
+  const vertex=graph.capMap?.find(r=>
+   r.sourceVertex===sourceVertex)?.logicalVertexId;
+  if(!center||!vertex)
+   throw Error('Нет одобренного Poke или исходной вершины в созданном капе.');
+  const edge=graph.edges?.find(e=>e.halfedgeIds.length===2&&
+   !e.nonManifold&&!e.windingConflict&&
+   graph.halfedges.some(h=>e.halfedgeIds.includes(h.id)&&
+    (h.origin===center&&h.destination===vertex||
+     h.origin===vertex&&h.destination===center)));
+  if(!edge)throw Error('Такое двухгранное радиальное ребро капа не найдено.');
+  if(!window.confirm('Разделить внутреннее ребро капа? '+
+   'Оба прилегающих треугольника будут изменены. '+
+   'Это последняя разрешённая топологическая операция в данном профиле.'))return;
+  const result=await meshCall('mesh.splitPokedCapEdge',{
+   meshId:meshId(),sourceFace,sourceVertex,edgeId:edge.id});
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('Внутреннее ребро капа разделено; ревизия '+result.revision);
+ }catch(error){meshOutput().textContent='Ошибка: '+String(error?.message||error);}
+});
 byId('mesh-apply').addEventListener('click',async()=>{
  try{
   if(!meshSession)throw Error('Нажмите «Открыть Edit Mode».');
