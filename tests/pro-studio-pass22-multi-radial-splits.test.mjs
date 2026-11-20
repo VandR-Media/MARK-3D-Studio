@@ -180,8 +180,10 @@ test('source-face logical midpoint IDs are invariant when independent splits rev
  assert.deepEqual(semantic(forward),semantic(backwards));
  assert.deepEqual(forward.faces.map(f=>f.id).sort(),
   backwards.faces.map(f=>f.id).sort());
- assert.notDeepEqual(forward.edgeSplitRemaps.map(r=>r.newAttributeVertex),
-  backwards.edgeSplitRemaps.map(r=>r.newAttributeVertex));
+ const physicalOffsets=m=>Object.fromEntries(m.edgeSplitRemaps.map(r=>
+  [r.sourceFace,r.newAttributeVertex]));
+ assert.notDeepEqual(physicalOffsets(forward),physicalOffsets(backwards),
+  'Source-keyed physical glTF row indices vary with edit order; IDs must not');
 });
 
 test('native .markscene saves two splits and restores byte-for-byte GLB and all ID records',async()=>{
