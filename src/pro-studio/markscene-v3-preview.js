@@ -182,11 +182,13 @@ function normalizeEdits(edits,doc,sourceGLB){
    const kind=input.kind;
    good(['vertex.move','edge.split','face.flip','face.delete',
     'normal.recalculate','primitive.add','vertex.snap','face.extrude',
-    'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap'].includes(kind),
+    'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap',
+    'face.pokeLinkedCap'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
    const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
     kind==='vertex.snap'?['kind','meshIndex','primitiveIndex','vertex','targetVertex']:
     kind==='vertex.moveLinkedCap'?['kind','meshIndex','primitiveIndex','sourceVertex','delta']:
+    kind==='face.pokeLinkedCap'?['kind','meshIndex','primitiveIndex','sourceFace']:
     kind==='face.extrude'?['kind','meshIndex','primitiveIndex','face','distance']:
     kind==='face.regionExtrude'?['kind','meshIndex','primitiveIndex','faces','distance']:
     kind==='face.regionExtrudeLinked'?['kind','meshIndex','primitiveIndex','faces','distance','links']:
@@ -206,6 +208,10 @@ function normalizeEdits(edits,doc,sourceGLB){
      input.delta.every(x=>Number.isFinite(x)&&Math.abs(x)<10000),
      'MESH_MOVE','Invalid vertex/delta');
     op.vertex=input.vertex;op.delta=input.delta.slice();
+   }else if(kind==='face.pokeLinkedCap'){
+    good(isUInt(input.sourceFace),
+     'MESH_CAP_POKE','Cap Poke requires source-face provenance');
+    op.sourceFace=input.sourceFace;
    }else if(kind==='vertex.moveLinkedCap'){
     good(isUInt(input.sourceVertex)&&
      Array.isArray(input.delta)&&input.delta.length===3&&
@@ -281,17 +287,23 @@ function normalizeEdits(edits,doc,sourceGLB){
    canonical.push(op);
   }
   if(canonical.some(op=>op.kind==='face.regionExtrudeLinked')){
-   const first=canonical[0];
+   const first=canonical[0],following=canonical.slice(1),
+    poke=following.findIndex(op=>op.kind==='face.pokeLinkedCap');
    good(first?.kind==='face.regionExtrudeLinked'&&
-    canonical.length<=17&&canonical.slice(1).every(op=>
-     op.kind==='vertex.moveLinkedCap'&&
+    canonical.length<=18&&
+    following.filter(op=>op.kind==='vertex.moveLinkedCap').length<=16&&
+    following.filter(op=>op.kind==='face.pokeLinkedCap').length<=1&&
+    following.every((op,i)=>
+     (op.kind==='vertex.moveLinkedCap'&&(poke<0||i<poke)||
+      op.kind==='face.pokeLinkedCap'&&i===following.length-1)&&
      op.meshIndex===first.meshIndex&&
      op.primitiveIndex===first.primitiveIndex),
     'MESH_LINKED_SEQUENCE',
-    'Only 16 logical-cap moves may follow a canonical linked region extrusion');
+    'Only sixteen cap moves and one final cap Poke are permitted');
   }else{
-   good(!canonical.some(op=>op.kind==='vertex.moveLinkedCap'),
-    'MESH_CAP_SEQUENCE','Cap move needs a validated source extrusion');
+   good(!canonical.some(op=>['vertex.moveLinkedCap','face.pokeLinkedCap']
+    .includes(op.kind)),
+    'MESH_CAP_SEQUENCE','Cap changes need a source-approved extrusion');
   }
   if(sourceGLB&&canonical.length){
    // The exact same binary topology kernel validates each persisted command.
