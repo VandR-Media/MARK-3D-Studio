@@ -1,0 +1,60 @@
+name: MARK Studio Pass 21 safe radial cap Edge Split
+
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass21-radial-edge-split
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  radial-edge-split:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install JS dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check new syntax and stable APIs
+        run: |
+          node --check src/pro-studio/mesh-edit-core.js
+          node --check src/pro-studio/markscene-v3-preview.js
+          node --check src/pro-studio/meshdata-halfedge-preview.js
+          node --check src/pro-studio/ai-bridge-core.js
+          node --check src/pro-studio/rig-viewer.js
+          node --check tests/pro-studio-pass21-radial-edge-split.test.mjs
+          node --check scripts/pro-studio-pass21-radial-edge-webgl-accept.mjs
+      - name: Real two-incidence Edge Split, exact skin/morph and native checks
+        run: node --test tests/pro-studio-pass21-radial-edge-split.test.mjs
+      - name: Pass9-20 regressions and Visual Engine v2
+        run: |
+          node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs tests/pro-studio-pass13-region-extrude.test.mjs tests/pro-studio-pass14-region-overlay.test.mjs tests/pro-studio-pass15-corner-topology.test.mjs tests/pro-studio-pass16-explicit-seam-links.test.mjs tests/pro-studio-pass17-seam-region-extrude.test.mjs tests/pro-studio-pass18-halfedge-cap-move.test.mjs tests/pro-studio-pass19-cap-poke-remap.test.mjs tests/pro-studio-pass20-multi-poke-remap.test.mjs
+          node --test tests/pro-studio-mesh-edit.test.mjs tests/pro-studio-primitives.test.mjs tests/pro-studio-ai-bridge.test.mjs
+          npm run test:visual-v2
+      - name: Build offline WebGL2 viewer
+        run: npm run pro:rig:viewer
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Previous Pass20 two-Poke true Chromium regression
+        run: node scripts/pro-studio-pass20-multi-poke-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Pass21 GUI physical radial split, new face mouse pick and native proof
+        run: node scripts/pro-studio-pass21-radial-edge-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Upload PNG, GLB, native scene and stable source SHA reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass21-radial-edge-webgl
+          path: |
+            dist/pro-studio/pass20-acceptance/**
+            dist/pro-studio/pass21-acceptance/**
+          if-no-files-found: warn
+          retention-days: 14
