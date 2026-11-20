@@ -198,14 +198,14 @@ test('reject missing Poke, repeated radial split, original wall edge and unknown
   [...originalOps,split(7,1)],
   [...originalOps,split(0,99)],
   [...originalOps,split(0,4)],
-  [...originalOps,split(0,1),split(1,4)],
+  [...originalOps,split(0,1),split(0,1)],
   [...originalOps,split(0,1),poke(0)],
   [...originalOps,{...split(0,1),script:'bad'}]
  ];
  for(const list of bad)
   assert.throws(()=>applyMeshOperations(source,list),/MARK_MESH_/);
  await assert.rejects(()=>createPreviewMarkscene(source,{
-  edits:{meshOperations:[...originalOps,split(0,1),split(1,4)]}
+  edits:{meshOperations:[...originalOps,split(0,1),split(0,1)]}
  }),/MARK_SCENE3_MESH_LINKED_SEQUENCE/);
  await assert.rejects(()=>createPreviewMarkscene(source,{
   edits:{meshOperations:[...originalOps,{...split(0,1),evil:true}]}

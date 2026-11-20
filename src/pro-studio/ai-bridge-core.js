@@ -440,7 +440,8 @@ export function createAiBridge({
     uvSets:result.uvSets,colorSets:result.colorSets,
     materialSlots:result.materialSlots,stableIdScope:result.stableIdScope,
     persistedAs:result.persistedAs,topologyRemap:result.topologyRemap,
-    topologyRemaps:result.topologyRemaps,edgeSplitRemap:result.edgeSplitRemap,
+    topologyRemaps:result.topologyRemaps,
+    edgeSplitRemap:result.edgeSplitRemap,edgeSplitRemaps:result.edgeSplitRemaps,
     ...(full?{faces:result.faces,edges:result.edges,
      halfedges:result.halfedges,corners:result.corners,
      capMap:result.capMap,mappedWalls:result.mappedWalls}:{
@@ -609,12 +610,17 @@ export function createAiBridge({
     typeof params.edgeId==='string'&&params.edgeId.length<=320,
     'RADIAL_ARGS','Expected source face/vertex and actual stable radial edge ID');
    const existing=edits.meshOperations||[],first=existing[0],
-    poke=existing.filter(op=>op.kind==='face.pokeLinkedCap');
+    pokes=existing.filter(op=>op.kind==='face.pokeLinkedCap'),
+    splits=existing.filter(op=>op.kind==='edge.splitPokedCap');
    guard(first?.kind==='face.regionExtrudeLinked'&&
     first.meshIndex===meshIndex&&first.primitiveIndex===primitiveIndex&&
-    poke.some(op=>op.sourceFace===params.sourceFace)&&
-    existing.length<26&&!existing.some(op=>op.kind==='edge.splitPokedCap'),
-    'RADIAL_SEQUENCE','One final radial split after a confirmed cap Poke');
+    pokes.some(op=>op.sourceFace===params.sourceFace)&&
+    existing.length<33&&splits.length<8&&
+    !splits.some(op=>op.sourceFace===params.sourceFace)&&
+    existing.every((op,i)=>i===0||
+     ['vertex.moveLinkedCap','face.pokeLinkedCap','edge.splitPokedCap']
+      .includes(op.kind)),
+    'RADIAL_SEQUENCE','Only different already-Poked source faces may be split');
    const current=applyMeshOperations(engine.opened.sourceGLB,existing);
    const data=buildMeshDataSnapshot({
     sourceGLB:engine.opened.sourceGLB,editedGLB:current,

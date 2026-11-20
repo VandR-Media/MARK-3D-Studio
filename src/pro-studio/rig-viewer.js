@@ -717,13 +717,29 @@ byId('mesh-split-cap-edge').addEventListener('click',async()=>{
  try{
   if(!meshSession||!byId('bridge-write-grant').checked)
    throw Error('Откройте Edit Mode и разрешите запись.');
-  const sourceFace=Number(byId('mesh-a').value),
+  const graph=await meshCall('mesh.getMeshData',{
+   meshId:meshId(),full:true});
+  // Prefer a real WebGL2 edge picked by mouse, never interpret the visible
+  // triangle index as a stable source identifier. V1/V2 remain a fallback.
+  const picked=meshPickState();
+  let sourceFace=Number(byId('mesh-a').value),
    sourceVertex=Number(byId('mesh-b').value);
+  if(picked?.mode==='edge'){
+   if(picked.meshId!==meshId()||picked.primitiveIndex!==0)
+    throw Error('Выделено ребро другого меша или примитива.');
+   const center=graph.topologyRemaps?.find(r=>
+    picked.edge.includes(r.centerAttributeVertex));
+   const cap=graph.capMap?.find(r=>
+    picked.edge.includes(r.attributeVertex));
+   if(!center||!cap)
+    throw Error('Выделенное ребро не радиальное ребро исходного Poke.');
+   sourceFace=center.sourceFace;sourceVertex=cap.sourceVertex;
+   byId('mesh-a').value=String(sourceFace);
+   byId('mesh-b').value=String(sourceVertex);
+  }
   if(!Number.isSafeInteger(sourceFace)||sourceFace<0||
    !Number.isSafeInteger(sourceVertex)||sourceVertex<0)
    throw Error('V1 и V2 должны быть целыми неотрицательными индексами.');
-  const graph=await meshCall('mesh.getMeshData',{
-   meshId:meshId(),full:true});
   const center=graph.topologyRemaps?.find(r=>
    r.sourceFace===sourceFace)?.centerLogicalVertexId;
   const vertex=graph.capMap?.find(r=>
@@ -738,7 +754,7 @@ byId('mesh-split-cap-edge').addEventListener('click',async()=>{
   if(!edge)throw Error('Такое двухгранное радиальное ребро капа не найдено.');
   if(!window.confirm('Разделить внутреннее ребро капа? '+
    'Оба прилегающих треугольника будут изменены. '+
-   'Это последняя разрешённая топологическая операция в данном профиле.'))return;
+   'Разрешены последовательные разрезы только других Poke-граней.'))return;
   const result=await meshCall('mesh.splitPokedCapEdge',{
    meshId:meshId(),sourceFace,sourceVertex,edgeId:edge.id});
   meshPicker.clear();regionFaceKey=null;
