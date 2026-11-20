@@ -1,0 +1,60 @@
+name: MARK Studio Pass 19 stable cap Poke and halfedge remap
+
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass19-cap-poke-remap
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cap-poke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install JS dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check source and tests syntax
+        run: |
+          node --check src/pro-studio/mesh-edit-core.js
+          node --check src/pro-studio/meshdata-halfedge-preview.js
+          node --check src/pro-studio/markscene-v3-preview.js
+          node --check src/pro-studio/ai-bridge-core.js
+          node --check src/pro-studio/rig-viewer.js
+          node --check scripts/pro-studio-pass19-poke-webgl-accept.mjs
+          node --check tests/pro-studio-pass19-cap-poke-remap.test.mjs
+      - name: Verify real skinned cap Poke geometry and deterministic remap
+        run: node --test tests/pro-studio-pass19-cap-poke-remap.test.mjs
+      - name: Regression Pass9–18 and Visual Engine v2
+        run: |
+          node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs tests/pro-studio-pass13-region-extrude.test.mjs tests/pro-studio-pass14-region-overlay.test.mjs tests/pro-studio-pass15-corner-topology.test.mjs tests/pro-studio-pass16-explicit-seam-links.test.mjs tests/pro-studio-pass17-seam-region-extrude.test.mjs tests/pro-studio-pass18-halfedge-cap-move.test.mjs
+          node --test tests/pro-studio-mesh-edit.test.mjs tests/pro-studio-primitives.test.mjs tests/pro-studio-ai-bridge.test.mjs
+          npm run test:visual-v2
+      - name: Build offline Three.js/WebGL2 editor
+        run: npm run pro:rig:viewer
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Regression real cap move and rig in WebGL2
+        run: node scripts/pro-studio-pass18-cap-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Real mouse Poke, ray-picked new triangle, native GLB proof
+        run: node scripts/pro-studio-pass19-poke-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Upload physical PNG GLB native .markscene and JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass19-cap-poke-remap-webgl
+          path: |
+            dist/pro-studio/pass18-acceptance/**
+            dist/pro-studio/pass19-acceptance/**
+          if-no-files-found: warn
+          retention-days: 14
