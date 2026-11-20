@@ -139,9 +139,10 @@ test('reverse Poke order yields same semantic logical IDs per original face',()=
    kept:r.retainedCornerIds,invalid:r.invalidatedHalfedgeIds}]));
  assert.deepEqual(ids(a),ids(b),'Stable IDs must not depend on click/order');
  assert.deepEqual(a.faces.map(f=>f.id).sort(),b.faces.map(f=>f.id).sort());
- assert.notDeepEqual(a.topologyRemaps.map(x=>x.centerAttributeVertex),
-  b.topologyRemaps.map(x=>x.centerAttributeVertex),
-  'Real glTF row offsets are not stable IDs and should not be misrepresented');
+ const offsets=m=>Object.fromEntries(m.topologyRemaps.map(x=>
+  [x.sourceFace,x.centerAttributeVertex]));
+ assert.notDeepEqual(offsets(a),offsets(b),
+  'glTF center row offsets differ with edit order, semantic IDs must not');
 });
 
 test('markscene ZIP save/reopen and binary exported GLB remain deterministic',async()=>{
