@@ -455,6 +455,46 @@ export function buildMeshDataSnapshot({
   parentEdgeLineage:'source cap -> primary radial midpoint -> daughter midpoint',
   furtherDaughterEditsBlocked:true
  }:null;
+ const beforeGrandchildHalfedge=(name,k)=>{
+  const suffix=pokeFaceNames.has(name)&&k!==0?'-poke-k'+k:'-k'+k;
+  const affected=radialAffected.get(name);
+  const primary=affected&&(k===affected.changedSlot||
+   k===(affected.changedSlot+2)%3);
+  const down=daughterAffected.get(name);
+  const secondary=down&&(k===down.changedSlot||
+   k===(down.changedSlot+2)%3);
+  return 'mark-halfedge-'+faceIdFor(name)+suffix+
+   (primary?'-radial':'')+(secondary?'-daughter':'');
+ };
+ const beforeGrandchildCorner=(name,k)=>{
+  const suffix=pokeFaceNames.has(name)&&k===2?'-poke-center':'-k'+k;
+  return 'mark-corner-'+faceIdFor(name)+suffix+
+   (radialAffected.get(name)?.changedSlot===k?'-radial':'')+
+   (daughterAffected.get(name)?.changedSlot===k?'-daughter':'');
+ };
+ const grandchildRemap=grandchild?{
+  schema:'mark.radial-grandchild-split-remap/1',
+  generation:2,sourceFace:grandchild.sourceFace,
+  sourceVertex:grandchild.sourceVertex,
+  parentSplitNewLogicalVertexId:daughterLogicalVertexId,
+  parentEdgeId:'mark-edge-'+namespace+'-'+normKey(
+   parentCapId,daughterLogicalVertexId),
+  newAttributeVertex:grandchildAttributeVertex,
+  newLogicalVertexId:grandchildLogicalVertexId,
+  modifiedFaceIds:[...grandchildAffected.keys()].map(faceIdFor),
+  newFaceIds:[1,2].map(i=>faceIdFor(
+   'cap-radial-grandchild-face-'+grandchild.sourceFace+
+   '-source-v'+grandchild.sourceVertex+'-depth2-child'+i)),
+  invalidatedCornerIds:[...grandchildAffected].map(([name,v])=>
+   beforeGrandchildCorner(name,v.changedSlot)),
+  invalidatedHalfedgeIds:[...grandchildAffected].flatMap(([name,v])=>
+   [beforeGrandchildHalfedge(name,v.changedSlot),
+    beforeGrandchildHalfedge(name,(v.changedSlot+2)%3)]),
+  createdEdgeIds:[],
+  ancestors:[daughterRemap.parentEdgeId,
+   'mark-edge-'+namespace+'-'+normKey(parentCapId,daughterLogicalVertexId)],
+  futureUnvalidatedEditsBlocked:true
+ }:null;
  const capSources=new Set(first?.faces||[]);
  const nonSelected=Array.from({length:originalFaces},(_,i)=>i)
   .filter(i=>!capSources.has(i));
@@ -552,11 +592,22 @@ export function buildMeshDataSnapshot({
  }
  if(daughterRemap){
   daughterRemap.createdEdgeIds=edges.filter(edge=>
-   edge.id.includes(daughterRemap.newLogicalVertexId))
-    .map(edge=>edge.id).sort();
+   edge.id.includes(daughterRemap.newLogicalVertexId)&&
+   (!grandchild||!edge.id.includes(grandchildLogicalVertexId)))
+    .map(edge=>edge.id);
+  if(grandchild)daughterRemap.createdEdgeIds.push(
+   grandchildRemap.parentEdgeId);
+  daughterRemap.createdEdgeIds=[...new Set(daughterRemap.createdEdgeIds)].sort();
   yes(daughterRemap.createdEdgeIds.length>=3&&
    !edges.some(e=>e.id===daughterRemap.parentEdgeId),
-   'DAUGHTER_GRAPH','Daughter edges must replace verified parent edge');
+   'DAUGHTER_GRAPH','Historical daughter edge IDs must survive the next split');
+ }
+ if(grandchildRemap){
+  grandchildRemap.createdEdgeIds=edges.filter(edge=>
+   edge.id.includes(grandchildLogicalVertexId)).map(edge=>edge.id).sort();
+  yes(grandchildRemap.createdEdgeIds.length>=3&&
+   !edges.some(e=>e.id===grandchildRemap.parentEdgeId),
+   'GRANDCHILD_GRAPH','Depth-two midpoint must replace its parent edge');
  }
  return{
   schema:'mark.meshdata-halfedge-preview/1',
@@ -567,7 +618,8 @@ export function buildMeshDataSnapshot({
   stableIdScope:'source hash + mesh/primitive + immutable topology + logical-cap moves',
   faces,edges,halfedges,corners,materialSlots,uvSets,colorSets,
   capMap,mappedWalls,topologyRemap,topologyRemaps,
-  edgeSplitRemap,edgeSplitRemaps,daughterRemap,
+  edgeSplitRemap,edgeSplitRemaps,daughterRemap,grandchildRemap,
+  descendantRemaps:[daughterRemap,grandchildRemap].filter(Boolean),
   diagnostics:{triangleCount:faces.length,cornerCount:corners.length,
    halfedgeCount:halfedges.length,edgeCount:edges.length,
    boundaryEdges:boundaries.length,nonManifoldEdges:nonManifold.length,
@@ -575,8 +627,11 @@ export function buildMeshDataSnapshot({
    capAttributeRows:capMap.length,
    linkedCapMoveCount:operations.filter(x=>x.kind==='vertex.moveLinkedCap').length,
    capPokeCount:pokes.length,
-   radialSplitCount:splits.length,daughterSplitCount:daughterCount,
-   createdLogicalVertices:pokes.length+splits.length+daughterCount,
+   radialSplitCount:splits.length,
+   daughterSplitCount:daughterCount+grandchildCount,
+   deepestSplitGeneration:daughterCount+grandchildCount,
+   createdLogicalVertices:pokes.length+splits.length+
+    daughterCount+grandchildCount,
    topologyRemapAvailable:Boolean(topologyRemap),
    proceduralHalfedgeReconstruction:true,editableOnlyViaBoundedCapMove:true,
    fullyWeldedGLB:false},
