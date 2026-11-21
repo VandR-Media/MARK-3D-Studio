@@ -170,7 +170,8 @@ function editOnce(ctx,operation,linkedSource=null){
   'normal.recalculate','primitive.add','vertex.snap','face.extrude',
   'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap',
   'face.pokeLinkedCap','edge.splitPokedCap',
-  'edge.splitPokedCapChild','edge.splitPokedCapGrandchild'].includes(kind),
+  'edge.splitPokedCapChild','edge.splitPokedCapGrandchild',
+  'uv.offsetFaceCorners'].includes(kind),
   'OPERATION','Unsupported mesh edit operation');
  if(kind==='primitive.add'){
   const geometry=primitiveGeometry({
@@ -220,6 +221,76 @@ function editOnce(ctx,operation,linkedSource=null){
  const prim=target(ctx,meshIndex,primitiveIndex);
  const {values,positions}=indices(ctx,prim);
  const oldIndex=read(ctx,prim.indices),count=positions.length;
+ if(kind==='uv.offsetFaceCorners'){
+  // First persistent UV per-corner editing profile. Source face IDs and
+  // corner IDs remain stable; all 3 triangle corners get independent
+  // glTF attribute rows so NO shared UV, skin or morph data is mutated.
+  // Geometry indices remain triangle-order stable for subsequent UV edits.
+  guard(!linkedSource,'UV_TOPOLOGY_PROFILE',
+   'UV face-corner editing currently requires source-only topology');
+  const allowed=['kind','meshIndex','primitiveIndex','faceIndex','uvSet','delta'];
+  guard(Object.keys(operation).length===allowed.length&&
+   allowed.every(k=>Object.hasOwn(operation,k)),
+   'UV_FIELDS','Exact typed UV operation required');
+  const {faceIndex,uvSet,delta}=operation;
+  guard(nat(faceIndex)&&faceIndex<values.length/3&&
+   nat(uvSet)&&uvSet<=1&&Array.isArray(delta)&&delta.length===2&&
+   delta.every(x=>finite(x)&&Math.abs(x)<=1)&&
+   Math.hypot(...delta)>1e-8,
+   'UV_ARGS','Valid face, UV0/UV1 and nonzero bounded delta required');
+  const semantic='TEXCOORD_'+uvSet;
+  guard(Object.hasOwn(prim.attributes,semantic),
+   'UV_SET','Target UV set not present in physical GLB');
+  const uv=read(ctx,prim.attributes[semantic]);
+  guard(uv.type==='VEC2'&&uv.componentType===5126&&
+   uv.count===count,
+   'UV_PROFILE','Dense float32 VEC2 UV stream required');
+  guard(count+3<=MAX_VERTICES,'UV_BUDGET',
+   'Copy-on-write UV corner rows exceed vertex budget');
+  const start=faceIndex*3,parents=values.slice(start,start+3),
+   childRows=[count,count+1,count+2];
+  guard(new Set(parents).size===3,'UV_FACE',
+   'Degenerate indexed triangle cannot be UV-edited safely');
+  // Clone EVERY vertex stream and morph stream. This preserves JOINTS,
+  // WEIGHTS, POSITION, normals, tangents and texture UV1 unchanged,
+  // except the selected UV set in three newly appended rows.
+  for(const [name,accessor] of Object.entries({...prim.attributes})){
+   const stream=read(ctx,accessor);
+   guard(stream.count===count,'UV_ATTRIBUTE_COUNT',
+    'All vertex streams must have matching dense attribute rows');
+   // For this initial profile require lossless copyable component types.
+   guard([5121,5123,5125,5126].includes(stream.componentType)&&
+    stream.value.every(row=>row.every(finite)),
+    'UV_ATTRIBUTE','Unsupported vertex stream');
+   const additions=parents.map(row=>{
+    const x=stream.value[row].slice();
+    if(name===semantic)for(let j=0;j<2;j++){
+     x[j]+=delta[j];
+     guard(finite(x[j])&&Math.abs(x[j])<=1e4,
+      'UV_RANGE','UV translation creates invalid coordinates');
+    }
+    return x;
+   });
+   prim.attributes[name]=append(ctx,[...stream.value,...additions],{
+    type:stream.type,componentType:stream.componentType,target:34962});
+  }
+  for(const morph of prim.targets||[])
+   for(const [name,accessor] of Object.entries({...morph})){
+    const stream=read(ctx,accessor);
+    guard(stream.count===count&&stream.componentType===5126&&
+     ['POSITION','NORMAL','TANGENT'].includes(name),
+     'UV_MORPH','Unsupported morph target stream profile');
+    morph[name]=append(ctx,[
+     ...stream.value,...parents.map(i=>stream.value[i].slice())
+    ],{type:stream.type,componentType:stream.componentType,target:34962});
+   }
+  const newer=values.slice();
+  newer.splice(start,3,...childRows);
+  writeIndices(ctx,prim,newer,oldIndex.componentType);
+  return{kind,faceIndex,uvSet,delta:delta.slice(),
+   previousAttributeRows:parents,newAttributeRows:childRows,
+   addedVertices:3,addedTriangles:0,preservedFaceAndCornerIds:true};
+ }
  if(['edge.splitPokedCap','edge.splitPokedCapChild',
   'edge.splitPokedCapGrandchild'].includes(kind)){
   const child=kind==='edge.splitPokedCapChild',
@@ -1136,6 +1207,14 @@ export function applyMeshOperations(input,operations=[]){
  guard(Array.isArray(operations)&&operations.length<=64,
   'OPS_BUDGET','Up to 64 typed mesh operations per native scene');
  const linkedOperations=operations.filter(o=>o?.kind==='face.regionExtrudeLinked');
+ const uvOps=operations.filter(o=>o?.kind==='uv.offsetFaceCorners');
+ guard(!uvOps.length||
+  !linkedOperations.length&&operations.length<=8&&
+  operations.every(op=>op?.kind==='uv.offsetFaceCorners'&&
+   op.meshIndex===operations[0].meshIndex&&
+   op.primitiveIndex===operations[0].primitiveIndex),
+  'UV_SEQUENCE',
+  'Up to eight persistent UV-only face-corner edits on a source primitive');
  let linkedSource=null;
  if(linkedOperations.length){
   guard(linkedOperations.length===1&&
