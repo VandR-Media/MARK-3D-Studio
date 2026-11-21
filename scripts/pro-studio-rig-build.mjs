@@ -113,6 +113,10 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <label>UV-набор <select id="mesh-uv-set"><option value="0">UV0</option><option value="1">UV1</option></select></label>
 <label>ΔU <input id="mesh-uv-du" type="number" min="-1" max="1" step=".05" value=".2" style="max-width:75px"></label>
 <label>ΔV <input id="mesh-uv-dv" type="number" min="-1" max="1" step=".05" value=".1" style="max-width:75px"></label>
+<label>Область <select id="meshdata-uv-scope">
+<option value="face">Только выбранная грань</option>
+<option value="island">Связанный UV-остров</option></select></label>
+<button id="meshdata-enable" type="button" title="Создать отдельный бинарный MeshData в .markscene, без потери исходного GLB">Начать редактируемый MeshData</button>
 <button id="mesh-uv-preview" type="button">Показать настоящую UV-развёртку</button>
 <button id="mesh-uv-apply" type="button">Сместить UV выбранной грани</button>
 <canvas id="mesh-uv-canvas" width="260" height="260" role="img" aria-label="Реальная UV-развёртка по текущим углам MeshData" style="display:block;background:#141c2d;border:1px solid #415476;max-width:100%;margin:9px 0"></canvas>
@@ -130,16 +134,19 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="view-right">Справа</button><button id="view-back">Сзади</button>
 <button id="view-threequarter">¾</button><button id="view-top">Сверху</button></section>
 <p id="message" role="status">Загрузка реального бинарного rigged GLB…</p>
-<footer>MARK Professional Studio — технический skinned GLB rig fixture (70 костей, 2 морфа, 3 клипа), не готовый персонаж Neon Boy.
-Офлайн-редактор сохраняет immutable source GLB и типизированные изменения в экспериментальном
-.markscene v3-preview. Mesh Edit выполняет реальные GLB операции с контролем UV-швов,
-а UV Editing P25 реально смещает UV0/UV1 выбранной исходной грани, сохраняя атрибуты соседей,
-rig/morph и стабильные source-scoped face/corner ID. Рабочий профиль UV: до 8 команд
-для индексированных TRIANGLES без предварительных топологических правок;
-не реализованы UV unwrap/packing, paint, произвольные N-gons/holes и производственный MeshData datablock.
-MARK AI Bridge пока локальный in-process API, не внешний сервис.
-Chromium WebGL2/SwiftShader и автоматические кадры не заменяют проверки на
-аппаратном Huawei Pura 80 Ultra / EMUI15. Android APK не предоставлен.</footer>
+<footer>MARK Professional Studio — автономный технический GLB-редактор. Демонстрационный риг
+(70 костей, два морфа, три клипа) не является готовым персонажем Neon Boy.
+В режиме Pass26 кнопка «Начать редактируемый MeshData» создаёт независимый бинарный
+ресурс mesh/editable-meshdata.bin в .markscene. Поддерживаемый профиль:
+исходные indexed TRIANGLES, постоянные source-SHA-scoped ID граней/углов,
+UV0/UV1, изменение отдельной грани или связанного UV-острова. Исходный GLB
+не переписывается; export создаёт настоящий GLB с UV, материалами, ригом и морфами.
+Старые .markscene без MeshData продолжают открываться. Данный MeshData ещё
+не поддерживает изменение N-gons/holes, полноценные UV unwrap/packing, weight paint,
+модификаторы и топологические операции после его включения.
+MARK AI Bridge локальный in-process preview, не общедоступный сетевой сервер.
+Проверки Chromium WebGL2/SwiftShader не подтверждают аппаратную совместимость с Huawei;
+нативный Android APK и проверка на Pura 80 Ultra / EMUI15 отсутствуют.</footer>
 </main>
 <script>window.MARK_EMBEDDED_RIG_BASE64=${JSON.stringify(Buffer.from(fixture.bytes).toString('base64'))};</script>
 <script>${js}</script></body></html>`;

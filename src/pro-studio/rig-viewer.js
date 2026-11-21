@@ -913,9 +913,31 @@ async function drawUvWorkspace(graph=null){
   (selected?'Грань '+focus+': '+selected.uv.map(v=>
    '('+v.map(x=>x.toFixed(4)).join(', ')+')').join(' '):
    'Выберите грань в 3D-окне.')+
-  ' Copy-on-write UV правок: '+graph.diagnostics.uvCornerEditCount+'.';
+  (graph.diagnostics.editableMeshData?
+   ' Сохранённый бинарный MeshData.':
+   ' Copy-on-write UV правок: '+graph.diagnostics.uvCornerEditCount+'.');
  return{graph,focus,uvSet,uv:selected?.uv||null};
 }
+byId('meshdata-enable').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const present=await meshCall('meshdata.get',{
+   meshId:meshId(),primitiveIndex:0});
+  if(present.enabled)throw Error('Бинарный MeshData уже создан.');
+  if(!window.confirm('Создать редактируемый бинарный MeshData внутри '+
+   '.markscene? Исходный GLB останется нетронутым. '+
+   'Пока доступны UV0/UV1 и выбор связанного UV-острова на исходных TRIANGLES.'))
+   return;
+  await meshCall('meshdata.begin',{meshId:meshId(),primitiveIndex:0});
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('Создан отдельный проверенный бинарный MeshData.');
+  await drawUvWorkspace();
+ }catch(error){
+  byId('mesh-uv-output').textContent=
+   'Ошибка MeshData: '+String(error?.message||error);
+ }
+});
 byId('mesh-uv-preview').addEventListener('click',async()=>{
  try{await drawUvWorkspace();}
  catch(error){byId('mesh-uv-output').textContent=
@@ -940,15 +962,25 @@ byId('mesh-uv-apply').addEventListener('click',async()=>{
   if(!delta.every(v=>Number.isFinite(v)&&Math.abs(v)<=1)||
    Math.hypot(...delta)<=1e-8)
    throw Error('Нужны ненулевые ΔU/ΔV от -1 до 1.');
-  if(!window.confirm('Сместить UV'+uvSet.slice(-1)+' грани '+focus+
-   '? MARK создаст отдельные атрибутные строки её трёх углов; '+
-   'остальная геометрия, соседние UV, риг и морфы сохранятся.'))return;
-  await meshCall('mesh.offsetUvFace',{
-   meshId:meshId(),primitiveIndex:0,faceId:face.id,
-   uvSet:Number(uvSet.slice(-1)),delta
-  });
+  if(!window.confirm('Изменить UV'+uvSet.slice(-1)+' грани '+focus+
+   '? В режиме MeshData может переместиться весь связанный UV-остров. '+
+   'Риг, морфы, исходный GLB и другие UV-наборы не меняются.'))return;
+  const editable=await meshCall('meshdata.get',{
+   meshId:meshId(),primitiveIndex:0});
+  if(editable.enabled){
+   await meshCall('meshdata.translateUv',{
+    meshId:meshId(),primitiveIndex:0,faceId:face.id,
+    uvSet:Number(uvSet.slice(-1)),delta,
+    scope:byId('meshdata-uv-scope').value
+   });
+  }else{
+   await meshCall('mesh.offsetUvFace',{
+    meshId:meshId(),primitiveIndex:0,faceId:face.id,
+    uvSet:Number(uvSet.slice(-1)),delta
+   });
+  }
   meshPicker.clear();regionFaceKey=null;
-  await meshShow('UV-углы исходной грани изменены без изменения соседних.');
+  await meshShow('UV-координаты записаны в MeshData без разрушения исходного GLB.');
   await drawUvWorkspace();
  }catch(error){
   byId('mesh-uv-output').textContent=

@@ -9,11 +9,15 @@
 import {parseGlb,writeGlb,assertSelfContainedGlb} from '../glb.js';
 import {applyMeshOperations} from './mesh-edit-core.js';
 import {normalizeExplicitSeamLinks} from './mesh-seam-identity.js';
+import {buildEditableMeshDataBinary,renderEditableMeshDataGlb}
+ from './editable-meshdata-binary.js';
 
 const E=new TextEncoder(),D=new TextDecoder('utf-8',{fatal:true});
-const FILES=['manifest.json','assets/source.glb'];
+const FILES=['manifest.json','assets/source.glb','mesh/editable-meshdata.bin'];
 const MAG={local:0x04034b50,central:0x02014b50,end:0x06054b50};
-const MAX_SOURCE=64*1024*1024,MAX_META=256*1024,MAX_ARCHIVE=MAX_SOURCE+MAX_META+4096;
+const MAX_SOURCE=64*1024*1024,MAX_META=256*1024,
+ MAX_MESH_DATA=8*1024*1024,MAX_ARCHIVE=MAX_SOURCE+MAX_META+
+  MAX_MESH_DATA+8192;
 const ID=/^[a-z][a-z0-9_.-]{1,79}$/;
 const FMT='mark.professional-scene/3-preview',STATUS='EXPERIMENTAL_EDITABLE_SUBSET';
 const isUInt=x=>Number.isInteger(x)&&x>=0;
@@ -40,11 +44,13 @@ const table=Uint32Array.from({length:256},(_,i)=>{
 });
 function crc32(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
 function createArchive(entries){
- good(entries.length===2&&entries.map(x=>x[0]).join('|')===FILES.join('|'),
-  'ARCHIVE_FILES','only strict manifest+binary GLB are supported');
+ good([2,3].includes(entries.length)&&entries.every((entry,i)=>
+  entry[0]===FILES[i]),
+  'ARCHIVE_FILES','Expected ordered manifest+source GLB+optional MeshData');
  const info=entries.map(([name,value],i)=>{
   const data=bytesOf(value),key=E.encode(name);
-  good(data.length<=(i===0?MAX_META:MAX_SOURCE),'ARCHIVE_BUDGET','oversized project resource '+name);
+  good(data.length<=(i===0?MAX_META:i===1?MAX_SOURCE:MAX_MESH_DATA),
+   'ARCHIVE_BUDGET','oversized project resource '+name);
   return{data,key,crc:crc32(data)};
  });
  const len=22+info.reduce((s,f)=>s+30+f.key.length+f.data.length+46+f.key.length,0);
@@ -69,8 +75,9 @@ function createArchive(entries){
   v.setUint32(offset+42,offsets[i],true);out.set(f.key,offset+46);
   offset+=46+f.key.length;
  }
- v.setUint32(offset,MAG.end,true);v.setUint16(offset+8,2,true);
- v.setUint16(offset+10,2,true);v.setUint32(offset+12,offset-centralStart,true);
+ v.setUint32(offset,MAG.end,true);
+ v.setUint16(offset+8,entries.length,true);
+ v.setUint16(offset+10,entries.length,true);v.setUint32(offset+12,offset-centralStart,true);
  v.setUint32(offset+16,centralStart,true);
  good(offset+22===len,'ARCHIVE_INTERNAL','ZIP writer length mismatch');
  return out;
@@ -81,7 +88,8 @@ function readArchive(input){
  const v=new DataView(data.buffer,data.byteOffset,data.byteLength),end=data.length-22;
  good(v.getUint32(end,true)===MAG.end,'ZIP_END','missing terminal ZIP directory');
  const count=v.getUint16(end+10,true),central=v.getUint32(end+16,true),size=v.getUint32(end+12,true);
- good(count===2&&v.getUint16(end+8,true)===2&&central+size===end,'ZIP_DIRECTORY','invalid ZIP directory');
+ good([2,3].includes(count)&&v.getUint16(end+8,true)===count&&
+  central+size===end,'ZIP_DIRECTORY','invalid ZIP directory');
  const found=new Map();let pos=central;const occupied=[];
  for(let i=0;i<count;i++){
   good(pos+46<=end&&v.getUint32(pos,true)===MAG.central,'ZIP_CENTRAL','invalid central header');
@@ -93,7 +101,9 @@ function readArchive(input){
    pos+46+nameSize<=end,'ZIP_ENTRY','unexpected ZIP compression or extra field');
   const name=D.decode(data.subarray(pos+46,pos+46+nameSize));
   good(FILES.includes(name)&&!found.has(name),'ZIP_NAME','duplicate or unsafe archive path');
-  good(length<=(name===FILES[0]?MAX_META:MAX_SOURCE),'ZIP_BUDGET','expanded file too large');
+  good(length<=(name===FILES[0]?MAX_META:
+   name===FILES[1]?MAX_SOURCE:MAX_MESH_DATA),
+   'ZIP_BUDGET','expanded file too large');
   good(local+30<=central&&v.getUint32(local,true)===MAG.local,'ZIP_LOCAL','bad local header');
   const localNameLen=v.getUint16(local+26,true),localExtra=v.getUint16(local+28,true);
   const start=local+30+localNameLen+localExtra;
@@ -109,8 +119,10 @@ function readArchive(input){
   found.set(name,copy);pos+=46+nameSize;
  }
  occupied.sort((a,b)=>a[0]-b[0]);
- good(pos===end&&found.size===2&&occupied[0][0]===0&&
-  occupied[0][1]===occupied[1][0]&&occupied[1][1]===central,
+ good(pos===end&&found.size===count&&
+  [...found.keys()].join('|')===FILES.slice(0,count).join('|')&&
+  occupied[0][0]===0&&occupied.every((entry,i)=>
+   entry[1]===(occupied[i+1]?.[0]??central)),
   'ZIP_LAYOUT','extra bytes or overlap inside archive');
  return found;
 }
@@ -370,6 +382,39 @@ function normalizeEdits(edits,doc,sourceGLB){
   }
   out.meshOperations=canonical;
  }
+ if(edits.meshDataOperations!==undefined){
+  good(Array.isArray(edits.meshDataOperations)&&
+   edits.meshDataOperations.length<=16&&
+   !out.meshOperations?.length,
+   'MESHDATA_SEQUENCE',
+   'Independent MeshData supports up to 16 UV-only commands, no older mesh operations');
+  const ops=[];
+  for(const op of edits.meshDataOperations){
+   good(keyed(op)&&Object.keys(op).length===7&&
+    ['kind','meshIndex','primitiveIndex','faceId','uvSet','scope','delta']
+     .every(k=>Object.hasOwn(op,k))&&
+    op.kind==='meshdata.translateUv'&&
+    op.meshIndex===0&&op.primitiveIndex===0&&
+    typeof op.faceId==='string'&&op.faceId.length<256&&
+    isUInt(op.uvSet)&&op.uvSet<=1&&
+    ['face','island'].includes(op.scope)&&
+    Array.isArray(op.delta)&&op.delta.length===2&&
+    op.delta.every(x=>typeof x==='number'&&Number.isFinite(x)&&
+     Math.abs(x)<=1)&&Math.hypot(...op.delta)>1e-8,
+    'MESHDATA_OP','Exact typed and bounded UV island/face edit required');
+   ops.push({kind:op.kind,meshIndex:op.meshIndex,
+    primitiveIndex:op.primitiveIndex,faceId:op.faceId,
+    uvSet:op.uvSet,scope:op.scope,delta:op.delta.slice()});
+  }
+  // Validate native commands against immutable source and renderer export,
+  // not just schema. Export is fail-closed if a wider UV island cannot
+  // yet be represented losslessly by the initial glTF writer.
+  out.meshDataOperations=ops;
+ }
+ if(out.meshDataOperations&&
+  edits.meshSeamLinks?.length)
+  good(false,'MESHDATA_SEAMS',
+   'Initial MeshData datablock cannot include separate seam-link edits');
  if(edits.meshSeamLinks!==undefined){
   good(sourceGLB,'MESH_SEAM_SOURCE',
    'Seam links must be verified against immutable original GLB');
@@ -408,10 +453,24 @@ function graph(doc){
 function validateManifest(m,source,doc){
  good(m?.schema===FMT&&m.formatStatus===STATUS&&m.schemaVersion===3,
   'MANIFEST_SCHEMA','not experimental MARK v3 subset');
- good(ID.test(m.projectId)&&Array.isArray(m.assetManifest)&&m.assetManifest.length===1&&
+ good(ID.test(m.projectId)&&Array.isArray(m.assetManifest)&&
+  m.assetManifest.length===(m.editableMeshDataResource?2:1)&&
   m.assetManifest[0].uri===FILES[1]&&m.assetManifest[0].kind==='source'&&
   m.assetManifest[0].sha256===m.checksums?.[FILES[1]]&&
-  m.assetManifest[0].byteLength===source.length,'MANIFEST_ASSET','invalid asset manifest');
+  m.assetManifest[0].byteLength===source.length&&
+  (!m.editableMeshDataResource||
+   m.editableMeshDataResource.uri===FILES[2]&&
+   m.editableMeshDataResource.schema==='mark.editable-meshdata-binary/1'&&
+   m.editableMeshDataResource.sourceSha256===m.assetManifest[0].sha256&&
+   m.editableMeshDataResource.sha256===m.checksums?.[FILES[2]]&&
+   Number.isSafeInteger(m.editableMeshDataResource.byteLength)&&
+   m.editableMeshDataResource.byteLength>0&&
+   m.editableMeshDataResource.byteLength<=MAX_MESH_DATA&&
+   m.assetManifest[1].uri===FILES[2]&&
+   m.assetManifest[1].kind==='editable-meshdata'&&
+   m.assetManifest[1].sha256===m.editableMeshDataResource.sha256&&
+   m.assetManifest[1].byteLength===m.editableMeshDataResource.byteLength),
+  'MANIFEST_ASSET','invalid source or optional MeshData resource declaration');
  good(Array.isArray(m.sceneGraph)&&m.sceneGraph.length===doc.nodes.length&&
   JSON.stringify(m.sceneGraph)===JSON.stringify(graph(doc)),
   'MANIFEST_GRAPH','source GLB hierarchy and node IDs mismatch');
@@ -433,20 +492,40 @@ export async function createPreviewMarkscene(input,{
   typeof license==='string'&&license.length<=160&&keyed(extra),
   'PROJECT_META','invalid project identification');
  const hash=await sha256(bytes),normalized=normalizeEdits(edits,doc,bytes);
+ const meshData=normalized.meshDataOperations?
+  buildEditableMeshDataBinary({sourceGLB:bytes,sourceSha256:hash,
+   meshIndex:0,primitiveIndex:0,
+   operations:normalized.meshDataOperations}):null;
+ if(meshData)renderEditableMeshDataGlb({
+  sourceGLB:bytes,sourceSha256:hash,data:meshData
+ });
+ const meshHash=meshData?await sha256(meshData):null;
+ const meshResource=meshData?{
+  schema:'mark.editable-meshdata-binary/1',uri:FILES[2],
+  sha256:meshHash,sourceSha256:hash,byteLength:meshData.length,
+  meshIndex:0,primitiveIndex:0
+ }:null;
  const manifest={
   schema:FMT,formatStatus:STATUS,schemaVersion:3,
   appVersion:'0.7.0-alpha.0+rig-preview',minReaderVersion:'3-preview',
   projectId,name,units:'meters',upAxis:'Y',fps:30,
   colorManagement:{workingSpace:'linear-srgb',displaySpace:'srgb'},
   assetManifest:[{uuid:'asset-gltf-source',kind:'source',uri:FILES[1],sha256:hash,
-   byteLength:bytes.length,license}],
+   byteLength:bytes.length,license},
+   ...(meshResource?[{uuid:'meshdata-source-0-0',kind:'editable-meshdata',
+    uri:FILES[2],sha256:meshHash,byteLength:meshData.length,
+    license:'native MARK-authored geometry'}]:[])],
+  ...(meshResource?{editableMeshDataResource:meshResource}:{}),
   sceneGraph:graph(doc),collections:[{uuid:'collection-main',name:'Imported GLB',
    nodeUUIDs:doc.nodes.map((_,i)=>'gltf-node-'+i)}],
-  dependencies:[],audioBindings:[],checksums:{[FILES[1]]:hash},
+  dependencies:[],audioBindings:[],checksums:{
+   [FILES[1]]:hash,...(meshResource?{[FILES[2]]:meshHash}:{})
+  },
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
    'clip view state','bounded indexed-triangle edits, vertex snap, triangle extrusion, normal recalculation and primitive.add',
-   'explicit approved seam links (source-bound metadata, not geometry weld)'],
+   'explicit approved seam links (source-bound metadata, not geometry weld)',
+   ...(meshResource?['independent versioned binary MeshData UV-corner subset']:[])],
   unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
    'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
    'audio graph authoring'],
@@ -454,8 +533,10 @@ export async function createPreviewMarkscene(input,{
  };
  const encoded=E.encode(JSON.stringify(manifest,null,2)+'\n');
  good(encoded.length<=MAX_META,'MANIFEST_BUDGET','scene manifest too large');
- const archive=createArchive([[FILES[0],encoded],[FILES[1],bytes]]);
- return {archive,manifest,archiveSha256:await sha256(archive)};
+ const archive=createArchive([[FILES[0],encoded],[FILES[1],bytes],
+  ...(meshData?[[FILES[2],meshData]]:[])]);
+ return {archive,manifest,meshDataBinary:meshData,
+  archiveSha256:await sha256(archive)};
 }
 export async function openPreviewMarkscene(input){
  const archive=bytesOf(input),files=readArchive(archive),source=files.get(FILES[1]);
@@ -464,12 +545,31 @@ export async function openPreviewMarkscene(input){
  catch(err){good(false,'MANIFEST_JSON',String(err));}
  const doc=gltf(source).json;
  const edits=validateManifest(manifest,source,doc);
- good(manifest.assetManifest[0].sha256===await sha256(source),
+ const hash=await sha256(source);
+ good(manifest.assetManifest[0].sha256===hash,
   'ASSET_SHA','stored source hash mismatch');
  good(JSON.stringify(edits)===JSON.stringify(manifest.edits),
   'EDITS_CANONICAL','non-canonical edit data');
+ const data=files.get(FILES[2]);
+ good(Boolean(data)===Boolean(manifest.editableMeshDataResource)&&
+  Boolean(data)===Boolean(edits.meshDataOperations),
+  'MESHDATA_RESOURCE','Binary MeshData and native commands must both be present');
+ if(data){
+  good(manifest.editableMeshDataResource.byteLength===data.length&&
+   manifest.editableMeshDataResource.sha256===await sha256(data),
+   'MESHDATA_SHA','Binary MeshData checksum or length mismatch');
+  const expected=buildEditableMeshDataBinary({
+   sourceGLB:source,sourceSha256:hash,meshIndex:0,primitiveIndex:0,
+   operations:edits.meshDataOperations
+  });
+  good(data.length===expected.length&&
+   data.every((v,i)=>v===expected[i]),'MESHDATA_REPLAY',
+   'Binary MeshData differs from exactly replayed commands/source asset');
+  renderEditableMeshDataGlb({sourceGLB:source,sourceSha256:hash,data});
+ }
  return {manifest:clone(manifest),sourceGLB:source,edits,
-  archiveSha256:await sha256(archive),sourceSha256:await sha256(source)};
+  ...(data?{meshDataBinary:data}:{}),
+  archiveSha256:await sha256(archive),sourceSha256:hash};
 }
 export async function repackPreviewMarkscene(opened,edits){
  good(keyed(opened?.manifest),'REPACK_INPUT','open project first');
@@ -485,7 +585,8 @@ export async function repackPreviewMarkscene(opened,edits){
   if(!Object.hasOwn(generated.manifest,key))generated.manifest[key]=clone(value);
  const manifestBytes=E.encode(JSON.stringify(generated.manifest,null,2)+'\n');
  good(manifestBytes.length<=MAX_META,'MANIFEST_BUDGET','edited manifest exceeds budget');
- generated.archive=createArchive([[FILES[0],manifestBytes],[FILES[1],opened.sourceGLB]]);
+ generated.archive=createArchive([[FILES[0],manifestBytes],[FILES[1],opened.sourceGLB],
+  ...(generated.meshDataBinary?[[FILES[2],generated.meshDataBinary]]:[])]);
  generated.archiveSha256=await sha256(generated.archive);
  return generated;
 }
@@ -494,8 +595,14 @@ export async function exportEditedSourceGlb(opened){
  const original=gltf(opened.sourceGLB);
  const edits=normalizeEdits(opened.edits,original.json,opened.sourceGLB);
  const geometryModified=Boolean(edits.meshOperations?.length);
- const updatedBinary=geometryModified?
-  applyMeshOperations(opened.sourceGLB,edits.meshOperations):null;
+ const data=edits.meshDataOperations?
+  buildEditableMeshDataBinary({sourceGLB:opened.sourceGLB,
+   sourceSha256:opened.sourceSha256,meshIndex:0,primitiveIndex:0,
+   operations:edits.meshDataOperations}):null;
+ const updatedBinary=data?
+  renderEditableMeshDataGlb({sourceGLB:opened.sourceGLB,
+   sourceSha256:opened.sourceSha256,data}).glb:
+  geometryModified?applyMeshOperations(opened.sourceGLB,edits.meshOperations):null;
  const parsed=updatedBinary?gltf(updatedBinary):original;
  const doc=clone(parsed.json);
  for(const [index,fields] of Object.entries(edits.nodeTransforms))
@@ -507,6 +614,8 @@ export async function exportEditedSourceGlb(opened){
   summary:summary(doc),modifiedNodeCount:Object.keys(edits.nodeTransforms).length,
   modifiedMaterialCount:Object.keys(edits.materialPbr).length,
   meshOperations:edits.meshOperations?.length||0,
-  geometryModified,preservesOriginalBinary:!geometryModified,
+  geometryModified:geometryModified||Boolean(data),
+  persistedEditableMeshData:Boolean(data),
+  preservesOriginalBinary:!geometryModified&&!data,
   originalSourcePreservedInNative:true};
 }

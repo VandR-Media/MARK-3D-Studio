@@ -15,6 +15,8 @@ import {normalizeExplicitSeamLinks,inspectExplicitSeamTopology,
  inspectConsumedSeamExtrude} from './mesh-seam-identity.js';
 import {inspectGlbCornerTopology} from './mesh-corner-topology.js';
 import {buildMeshDataSnapshot} from './meshdata-halfedge-preview.js';
+import {buildEditableMeshDataBinary,previewEditableMeshDataBinary,
+ renderEditableMeshDataGlb} from './editable-meshdata-binary.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,
  exportEditedSourceGlb,sha256} from './markscene-v3-preview.js';
 
@@ -31,7 +33,7 @@ const OP_NAMES=[
  'mesh.linkSeam','mesh.unlinkSeam','mesh.extrudeLinkedRegion',
  'mesh.moveLinkedCap','mesh.pokeLinkedCap','mesh.splitPokedCapEdge',
  'mesh.splitPokedCapChildEdge','mesh.splitPokedCapGrandchildEdge',
- 'mesh.offsetUvFace',
+ 'mesh.offsetUvFace','meshdata.get','meshdata.begin','meshdata.translateUv',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -152,7 +154,7 @@ export function createAiBridge({
    scene:'new standalone primitive scene / imported GLB / markscene v3-preview',
    object:'existing glTF node TRS only, stable gltf-node-N UUID',
    material:'existing PBR factors only, gltf-material-N stable ID',
-   mesh:'indexed triangle editing + read-only halfedge/corner MeshData + bounded stable-cap deformation',
+   mesh:'indexed triangle edit + opt-in independent binary MeshData UV-corner subset',
    animation:'existing clip selection/time only',
    transactions:'one active transaction, commit/rollback, 32 undo/redo snapshots',
    render:typeof adapter.capture==='function'?'real viewport via renderer adapter':'unsupported',
@@ -355,15 +357,102 @@ export function createAiBridge({
     existing,operation);
    edits.meshOperations=next.operations;
   }),
+  'meshdata.begin':async params=>mutate(edits=>{
+   guard(plain(params)&&Object.keys(params).length===2&&
+    typeof params.meshId==='string'&&
+    Object.hasOwn(params,'meshId')&&
+    Object.hasOwn(params,'primitiveIndex')&&
+    params.primitiveIndex===0&&
+    stableUuid(params.meshId,'gltf-mesh-')===0,
+    'MDB_BEGIN_ARGS','Initial MeshData supports mesh 0 primitive 0 only');
+   guard(edits.meshDataOperations===undefined&&
+    !(edits.meshOperations||[]).length&&
+    !(edits.meshSeamLinks||[]).length,
+    'MDB_BEGIN_SEQUENCE','Start MeshData on unmodified source geometry');
+   const binary=buildEditableMeshDataBinary({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex:0,primitiveIndex:0,operations:[]
+   });
+   renderEditableMeshDataGlb({sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,data:binary});
+   edits.meshDataOperations=[];
+  }),
+  'meshdata.translateUv':async params=>mutate(edits=>{
+   guard(plain(params)&&Object.keys(params).length===6&&
+    ['meshId','primitiveIndex','faceId','uvSet','scope','delta']
+     .every(k=>Object.hasOwn(params,k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    params.primitiveIndex===0&&
+    typeof params.faceId==='string'&&params.faceId.length<256&&
+    Number.isSafeInteger(params.uvSet)&&
+    params.uvSet>=0&&params.uvSet<=1&&
+    ['face','island'].includes(params.scope)&&
+    Array.isArray(params.delta)&&params.delta.length===2&&
+    params.delta.every(x=>numeric(x)&&Math.abs(x)<=1)&&
+    Math.hypot(...params.delta)>1e-8,
+    'MDB_UV_ARGS','Exact stable face, UV set, scope and ΔUV required');
+   guard(Array.isArray(edits.meshDataOperations)&&
+    edits.meshDataOperations.length<16,
+    'MDB_UV_SEQUENCE','Begin MeshData first; maximum 16 UV operations');
+   const op={kind:'meshdata.translateUv',meshIndex:0,
+    primitiveIndex:0,faceId:params.faceId,uvSet:params.uvSet,
+    scope:params.scope,delta:params.delta.slice()},
+    ops=[...edits.meshDataOperations,op],
+    data=buildEditableMeshDataBinary({
+     sourceGLB:engine.opened.sourceGLB,
+     sourceSha256:engine.opened.sourceSha256,
+     meshIndex:0,primitiveIndex:0,operations:ops
+    });
+   renderEditableMeshDataGlb({sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,data});
+   edits.meshDataOperations=ops;
+  }),
+  'meshdata.get':async params=>{
+   assertScene();
+   guard(plain(params)&&Object.keys(params).every(k=>
+    ['meshId','primitiveIndex','full'].includes(k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    (params.primitiveIndex??0)===0,
+    'MDB_GET_ARGS','Expected mesh0 and primitive0 query');
+   const ops=selectedEdits().meshDataOperations;
+   if(!Array.isArray(ops))
+    return{enabled:false,profile:'independent binary MeshData not initialized'};
+   const binary=buildEditableMeshDataBinary({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex:0,primitiveIndex:0,operations:ops
+   });
+   const result=previewEditableMeshDataBinary({
+    data:binary,sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256
+   });
+   return{...result,enabled:true,operationCount:ops.length,
+    binaryBytes:binary.length,revision:engine.revision,
+    persistedInNative:engine.opened.meshDataBinary!==undefined||
+     Boolean(engine.transaction),
+    ...(params.full===true?{}:{
+     faces:result.faces.slice(0,8),
+     corners:result.corners.slice(0,24),
+     edges:result.edges.slice(0,12),
+     halfedges:result.halfedges.slice(0,24)})
+   };
+  },
   'mesh.getStats':async params=>{
    assertScene();
    const meshIndex=stableUuid(params?.meshId,'gltf-mesh-');
    const primIndex=params?.primitiveIndex??0;
-   const stats=getMeshEditStats(engine.opened.sourceGLB,
-    meshIndex,primIndex,selectedEdits().meshOperations||[]);
+   const current=await exportEditedSourceGlb({
+    ...engine.opened,edits:selectedEdits()
+   });
+   const stats=getMeshEditStats(current.glb,meshIndex,primIndex,[]);
    return {meshId:params.meshId,topologyRevision:
-    (selectedEdits().meshOperations||[]).filter(x=>x.meshIndex===meshIndex).length,
-    ...stats,mode:'real binary glTF indexed triangle editing (preview)'};
+    (selectedEdits().meshOperations||[]).filter(x=>x.meshIndex===meshIndex).length+
+    (selectedEdits().meshDataOperations||[]).filter(x=>
+     x.meshIndex===meshIndex).length,
+    ...stats,mode:'real binary glTF and independent editable MeshData preview'};
   },
   'mesh.getTopology':async params=>{
    assertScene();
@@ -374,13 +463,17 @@ export function createAiBridge({
    const operations=selectedEdits().meshOperations||[];
    // Analyze the same currently edited GLB as mesh.getStats; this query
    // never writes coordinates, UV, skeletons or native edit logs.
-   const edited=applyMeshOperations(engine.opened.sourceGLB,operations);
+   const edited=(await exportEditedSourceGlb({
+    ...engine.opened,edits:selectedEdits()
+   })).glb;
    const topology=inspectGlbCornerTopology(edited,{meshIndex,primitiveIndex});
    const diagnostics=topology.diagnostics;
    return{
     meshId:params.meshId,primitiveIndex,revision:engine.revision,
     topologyRevision:operations.filter(o=>o.meshIndex===meshIndex&&
-     o.primitiveIndex===primitiveIndex).length,
+     o.primitiveIndex===primitiveIndex).length+
+     (selectedEdits().meshDataOperations||[]).filter(o=>
+      o.meshIndex===meshIndex&&o.primitiveIndex===primitiveIndex).length,
     schema:topology.schema,mode:'read-only; candidate position joins are NOT edits',
     ...diagnostics,uvSets:topology.uvSets,
     seamSample:topology.edges.filter(e=>e.uvSeamSets.length)
@@ -425,6 +518,24 @@ export function createAiBridge({
     plain(params)&&Object.keys(params).every(k=>
      ['meshId','primitiveIndex','full'].includes(k)),
     'MESHDATA_TARGET','Expected supported mesh and primitive target');
+   if(selectedEdits().meshDataOperations!==undefined){
+    const binary=buildEditableMeshDataBinary({
+     sourceGLB:engine.opened.sourceGLB,
+     sourceSha256:engine.opened.sourceSha256,
+     meshIndex,primitiveIndex,
+     operations:selectedEdits().meshDataOperations
+    });
+    const graph=previewEditableMeshDataBinary({
+     sourceGLB:engine.opened.sourceGLB,
+     sourceSha256:engine.opened.sourceSha256,data:binary
+    });
+    return {...graph,meshId:params.meshId,
+     revision:engine.revision,persistedAs:'independent validated binary ZIP resource',
+     ...(params.full===true?{}:{
+      faces:graph.faces.slice(0,8),corners:graph.corners.slice(0,24),
+      edges:graph.edges.slice(0,12),
+      halfedges:graph.halfedges.slice(0,24)})};
+   }
    const ops=selectedEdits().meshOperations||[];
    const geometry=applyMeshOperations(engine.opened.sourceGLB,ops);
    const result=buildMeshDataSnapshot({
@@ -805,8 +916,10 @@ export function createAiBridge({
    const operation={...copy(params.operation),meshIndex,
     primitiveIndex:primIndex};
    const existing=edits.meshOperations||[];
-   guard(!existing.some(o=>o.kind==='face.regionExtrudeLinked'),
-    'MESH_LINKED_SEQUENCE','No subsequent edit without safe identity remap');
+   guard(!existing.some(o=>o.kind==='face.regionExtrudeLinked')&&
+    edits.meshDataOperations===undefined,
+    'MESH_LINKED_SEQUENCE',
+    'Use canonical MeshData UV commands after enabling binary datablock');
    guard(params.operation.kind!=='face.regionExtrudeLinked',
     'MESH_LINKED_APPROVAL',
     'Use mesh.extrudeLinkedRegion after explicitly approving seam links');
