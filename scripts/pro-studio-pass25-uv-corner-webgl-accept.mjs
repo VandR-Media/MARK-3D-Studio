@@ -60,9 +60,14 @@ try{
  await page.waitForFunction(()=>document.querySelector('#mesh-output')
   ?.textContent?.includes('UV-швов'),null,{timeout:30000});
  const call=async(method,params={})=>{
-  const r=await page.evaluate(async({method,params})=>
-   window.MARK_AI_BRIDGE.request({requestId:'p25.'+method,
-    method,params}),{method,params});
+  const r=await page.evaluate(async({method,params})=>{
+   const out=await window.MARK_AI_BRIDGE.request({
+    requestId:'p25.'+method,method,params});
+   if(out.ok&&out.result?.data&&
+    (method==='scene.export'||method==='scene.save'))
+    return{...out,result:{...out.result,data:Array.from(out.result.data)}};
+   return out;
+  },{method,params});
   if(!r.ok)throw Error(method+': '+JSON.stringify(r.diagnostics));
   return r.result;
  };
