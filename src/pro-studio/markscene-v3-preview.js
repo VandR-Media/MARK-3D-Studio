@@ -382,6 +382,44 @@ function normalizeEdits(edits,doc,sourceGLB){
   }
   out.meshOperations=canonical;
  }
+ if(edits.meshDataOperations!==undefined){
+  good(Array.isArray(edits.meshDataOperations)&&
+   edits.meshDataOperations.length<=16&&
+   !out.meshOperations?.length,
+   'MESHDATA_SEQUENCE',
+   'Independent MeshData supports up to 16 UV-only commands, no older mesh operations');
+  const ops=[];
+  for(const op of edits.meshDataOperations){
+   good(keyed(op)&&Object.keys(op).length===7&&
+    ['kind','meshIndex','primitiveIndex','faceId','uvSet','scope','delta']
+     .every(k=>Object.hasOwn(op,k))&&
+    op.kind==='meshdata.translateUv'&&
+    op.meshIndex===0&&op.primitiveIndex===0&&
+    typeof op.faceId==='string'&&op.faceId.length<256&&
+    isUInt(op.uvSet)&&op.uvSet<=1&&
+    ['face','island'].includes(op.scope)&&
+    Array.isArray(op.delta)&&op.delta.length===2&&
+    op.delta.every(x=>typeof x==='number'&&Number.isFinite(x)&&
+     Math.abs(x)<=1)&&Math.hypot(...op.delta)>1e-8,
+    'MESHDATA_OP','Exact typed and bounded UV island/face edit required');
+   ops.push({kind:op.kind,meshIndex:op.meshIndex,
+    primitiveIndex:op.primitiveIndex,faceId:op.faceId,
+    uvSet:op.uvSet,scope:op.scope,delta:op.delta.slice()});
+  }
+  // Validate native commands against immutable source and renderer export,
+  // not just schema. Export is fail-closed if a wider UV island cannot
+  // yet be represented losslessly by the initial glTF writer.
+  if(sourceGLB){
+   const sourceHash=null;
+   // Source SHA-256 is asynchronous. Actual binary and semantic replay
+   // checks are done in create/open and the AI Bridge preflight.
+  }
+  out.meshDataOperations=ops;
+ }
+ if(out.meshDataOperations&&
+  edits.meshSeamLinks?.length)
+  good(false,'MESHDATA_SEAMS',
+   'Initial MeshData datablock cannot include separate seam-link edits');
  if(edits.meshSeamLinks!==undefined){
   good(sourceGLB,'MESH_SEAM_SOURCE',
    'Seam links must be verified against immutable original GLB');
