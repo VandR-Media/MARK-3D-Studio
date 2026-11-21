@@ -105,6 +105,19 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="mesh-split-cap-edge" type="button" title="Разделить внутреннее радиальное ребро после Poke. V1 — исходная грань; V2 — исходная атрибутная вершина на этой грани.">Edge Split: ребро капа (V1, V2)</button>
 <button id="mesh-split-daughter-edge" type="button" title="Разделить уже созданное ребро между исходной вершиной капа и новой серединой предыдущего Edge Split. Выберите ребро мышью или задайте V1/V2.">Разделить дочернее ребро (V1, V2)</button>
 <button id="mesh-split-grandchild-edge" type="button" title="Второй вложенный разрез: выберите ребро между исходным капом и центром первого дочернего разреза.">Разделить следующее дочернее ребро</button>
+</section>
+<section aria-label="UV-редактор: первый реальный per-corner workflow" id="uv-workspace">
+<strong>UV Editing · редактирование углов граней</strong>
+<p class="sub">Выберите грань мышью в 3D или укажите её исходный номер в поле V1.
+Доступны до 8 правок UV0/UV1 без изменения топологии. Соседние грани и риг сохраняются.</p>
+<label>UV-набор <select id="mesh-uv-set"><option value="0">UV0</option><option value="1">UV1</option></select></label>
+<label>ΔU <input id="mesh-uv-du" type="number" min="-1" max="1" step=".05" value=".2" style="max-width:75px"></label>
+<label>ΔV <input id="mesh-uv-dv" type="number" min="-1" max="1" step=".05" value=".1" style="max-width:75px"></label>
+<button id="mesh-uv-preview" type="button">Показать настоящую UV-развёртку</button>
+<button id="mesh-uv-apply" type="button">Сместить UV выбранной грани</button>
+<canvas id="mesh-uv-canvas" width="260" height="260" role="img" aria-label="Реальная UV-развёртка по текущим углам MeshData" style="display:block;background:#141c2d;border:1px solid #415476;max-width:100%;margin:9px 0"></canvas>
+<output id="mesh-uv-output" role="status">UV не загружены — откройте Edit Mode.</output>
+</section><section aria-label="История и экспорт">
 <button id="mesh-undo">↶ Undo</button>
 <button id="mesh-redo">↷ Redo</button>
 <button id="mesh-save">Сохранить правки .markscene</button>
@@ -117,17 +130,16 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="view-right">Справа</button><button id="view-back">Сзади</button>
 <button id="view-threequarter">¾</button><button id="view-top">Сверху</button></section>
 <p id="message" role="status">Загрузка реального бинарного rigged GLB…</p>
-<footer>Демонстрационный QUAD с 70 костями, 2 морфами и 3 анимациями — технический тест, не Neon Boy.
-HTML полностью автономный, без внешних загрузок. Экспериментальный .markscene v3-preview
-сохраняет исходный GLB отдельно от изменений TRS/PBR и выбранного клипа. Не редактирует вершины,
-веса, кости, морф-геометрию или UV. Не является production .markscene v3. Mesh Edit Mode P7 поддерживает только
-индексированные треугольники и четыре ограниченные операции; не поддерживает N-gons,
-полный весовой скульпт. Реализованы начальный Raycaster выбор элемента в 3D и
-пересчёт усреднённых area-weighted нормалей только для индексированных треугольников. AI Bridge здесь — in-process preview, без сетевого API. Новые плоскости, кубы,
-сетки, UV-сферы и цилиндры создаются собственным процедурным ядром,
-но полные N-gons, скульптинг и weight paint ещё не поддерживаются.
-Проверки WebGL2/GLTFExporter и устройство Huawei должны подтверждаться отдельными отчётами.
-Статический Visual Engine v2 и его запрет импорта анимированных GLB не изменены.</footer>
+<footer>MARK Professional Studio — технический skinned GLB rig fixture (70 костей, 2 морфа, 3 клипа), не готовый персонаж Neon Boy.
+Офлайн-редактор сохраняет immutable source GLB и типизированные изменения в экспериментальном
+.markscene v3-preview. Mesh Edit выполняет реальные GLB операции с контролем UV-швов,
+а UV Editing P25 реально смещает UV0/UV1 выбранной исходной грани, сохраняя атрибуты соседей,
+rig/morph и стабильные source-scoped face/corner ID. Рабочий профиль UV: до 8 команд
+для индексированных TRIANGLES без предварительных топологических правок;
+не реализованы UV unwrap/packing, paint, произвольные N-gons/holes и производственный MeshData datablock.
+MARK AI Bridge пока локальный in-process API, не внешний сервис.
+Chromium WebGL2/SwiftShader и автоматические кадры не заменяют проверки на
+аппаратном Huawei Pura 80 Ultra / EMUI15. Android APK не предоставлен.</footer>
 </main>
 <script>window.MARK_EMBEDDED_RIG_BASE64=${JSON.stringify(Buffer.from(fixture.bytes).toString('base64'))};</script>
 <script>${js}</script></body></html>`;

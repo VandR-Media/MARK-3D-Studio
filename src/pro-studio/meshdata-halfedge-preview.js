@@ -92,6 +92,43 @@ export function buildMeshDataSnapshot({
  const logical=Array.from({length:edited.positions.length},
   (_,index)=>'mark-attr-'+namespace+'-v'+index);
  const capMap=[],mappedWalls=[];
+ // Persistent native UV operation log is the authoritative provenance for
+ // vertex-attribute copies. Face/corner/logical-vertex identity survives
+ // glTF row duplication and changes to one UV set never weld UV seams.
+ const uvOperations=operations.filter(op=>op.kind==='uv.offsetFaceCorners'&&
+  op.meshIndex===meshIndex&&op.primitiveIndex===primitiveIndex);
+ yes(!uvOperations.length||!first&&operations.length===uvOperations.length&&
+  uvOperations.length<=8,'UV_SEQUENCE',
+  'UV corner edits are supported only on unchanged source topology');
+ const workingIndices=source.indices.slice(),uvCornerRemaps=[];
+ for(let ordinal=0;ordinal<uvOperations.length;ordinal++){
+  const op=uvOperations[ordinal],at=op.faceIndex*3,
+   rows=workingIndices.slice(at,at+3),
+   child=Array.from({length:3},(_,k)=>source.positions.length+3*ordinal+k),
+   faceId='mark-face-'+namespace+'-source-face-'+op.faceIndex;
+  yes(nat(op.faceIndex)&&at+3<=workingIndices.length&&
+   edited.positions.length>=source.positions.length+3*(ordinal+1),
+   'UV_SOURCE_FACE','UV edit references an absent original face');
+  for(let k=0;k<3;k++)logical[child[k]]=logical[rows[k]];
+  workingIndices.splice(at,3,...child);
+  uvCornerRemaps.push({
+   schema:'mark.uv-corner-copy-on-write-remap/1',
+   sourceFace:op.faceIndex,faceId,uvSet:'TEXCOORD_'+op.uvSet,
+   delta:op.delta.slice(),
+   cornerIds:[0,1,2].map(k=>
+    'mark-corner-'+faceId+'-k'+k),
+   beforeAttributeVertices:rows,newAttributeVertices:child,
+   retainedLogicalVertexIds:rows.map(row=>logical[row]),
+   preservedIndependentUvSets:true,
+   copiedSkinMorphAndPosition:true,
+   retainedFaceAndCornerIds:true
+  });
+ }
+ if(uvOperations.length)yes(
+  edited.positions.length===source.positions.length+3*uvOperations.length&&
+  edited.indices.length===workingIndices.length&&
+  edited.indices.every((v,i)=>v===workingIndices[i]),
+  'UV_REPLAY','Edited GLB does not match persisted UV corner row identity');
  const pokes=operations.filter(op=>op.kind==='face.pokeLinkedCap'&&
   op.meshIndex===meshIndex&&op.primitiveIndex===primitiveIndex);
  const grandchild=operations.at(-1)?.kind==='edge.splitPokedCapGrandchild'?
@@ -620,11 +657,14 @@ export function buildMeshDataSnapshot({
   capMap,mappedWalls,topologyRemap,topologyRemaps,
   edgeSplitRemap,edgeSplitRemaps,daughterRemap,grandchildRemap,
   descendantRemaps:[daughterRemap,grandchildRemap].filter(Boolean),
+  uvCornerRemaps,uvCornerRemap:uvCornerRemaps.at(-1)||null,
   diagnostics:{triangleCount:faces.length,cornerCount:corners.length,
    halfedgeCount:halfedges.length,edgeCount:edges.length,
    boundaryEdges:boundaries.length,nonManifoldEdges:nonManifold.length,
    windingConflicts:badWinding.length,uvDiscontinuityEdges:uvSeamEdges.length,
    capAttributeRows:capMap.length,
+   uvCornerEditCount:uvCornerRemaps.length,
+   uvCopyOnWriteAttributeRows:3*uvCornerRemaps.length,
    linkedCapMoveCount:operations.filter(x=>x.kind==='vertex.moveLinkedCap').length,
    capPokeCount:pokes.length,
    radialSplitCount:splits.length,
