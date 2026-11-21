@@ -184,9 +184,12 @@ function normalizeEdits(edits,doc,sourceGLB){
     'normal.recalculate','primitive.add','vertex.snap','face.extrude',
     'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap',
     'face.pokeLinkedCap','edge.splitPokedCap',
-    'edge.splitPokedCapChild','edge.splitPokedCapGrandchild'].includes(kind),
+    'edge.splitPokedCapChild','edge.splitPokedCapGrandchild',
+    'uv.offsetFaceCorners'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
-   const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
+   const allowed=kind==='uv.offsetFaceCorners'?
+     ['kind','meshIndex','primitiveIndex','faceIndex','uvSet','delta']:
+    kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
     kind==='vertex.snap'?['kind','meshIndex','primitiveIndex','vertex','targetVertex']:
     kind==='vertex.moveLinkedCap'?['kind','meshIndex','primitiveIndex','sourceVertex','delta']:
     kind==='face.pokeLinkedCap'?['kind','meshIndex','primitiveIndex','sourceFace']:
@@ -206,7 +209,16 @@ function normalizeEdits(edits,doc,sourceGLB){
     Number.isInteger(input.primitiveIndex)&&input.primitiveIndex>=0,
     'MESH_EDIT_FIELDS','Unexpected fields or invalid mesh/primitive indices');
    const op={kind,meshIndex:input.meshIndex,primitiveIndex:input.primitiveIndex};
-   if(kind==='vertex.move'){
+   if(kind==='uv.offsetFaceCorners'){
+    good(isUInt(input.faceIndex)&&isUInt(input.uvSet)&&
+     input.uvSet<=1&&Array.isArray(input.delta)&&
+     input.delta.length===2&&input.delta.every(x=>
+      typeof x==='number'&&Number.isFinite(x)&&Math.abs(x)<=1)&&
+     Math.hypot(...input.delta)>1e-8,
+     'UV_CORNER_DELTA','Expected source face, UV0/UV1 and bounded nonzero ΔUV');
+    op.faceIndex=input.faceIndex;op.uvSet=input.uvSet;
+    op.delta=input.delta.slice();
+   }else if(kind==='vertex.move'){
     good(Number.isInteger(input.vertex)&&input.vertex>=0&&
      Array.isArray(input.delta)&&input.delta.length===3&&
      input.delta.every(x=>Number.isFinite(x)&&Math.abs(x)<10000),
@@ -342,6 +354,13 @@ function normalizeEdits(edits,doc,sourceGLB){
     'edge.splitPokedCap','edge.splitPokedCapChild',
     'edge.splitPokedCapGrandchild'].includes(op.kind)),
     'MESH_CAP_SEQUENCE','Cap changes need a source-approved extrusion');
+   good(!canonical.some(op=>op.kind==='uv.offsetFaceCorners')||
+    canonical.length<=8&&canonical.every(op=>
+     op.kind==='uv.offsetFaceCorners'&&
+     op.meshIndex===canonical[0].meshIndex&&
+     op.primitiveIndex===canonical[0].primitiveIndex),
+    'MESH_UV_SEQUENCE',
+    'Up to eight verified UV-only face-corner modifications without topology edits');
   }
   if(sourceGLB&&canonical.length){
    // The exact same binary topology kernel validates each persisted command.
