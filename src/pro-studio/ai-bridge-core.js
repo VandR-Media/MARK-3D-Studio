@@ -31,6 +31,7 @@ const OP_NAMES=[
  'mesh.linkSeam','mesh.unlinkSeam','mesh.extrudeLinkedRegion',
  'mesh.moveLinkedCap','mesh.pokeLinkedCap','mesh.splitPokedCapEdge',
  'mesh.splitPokedCapChildEdge','mesh.splitPokedCapGrandchildEdge',
+ 'mesh.offsetUvFace',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -446,6 +447,8 @@ export function createAiBridge({
     daughterRemap:result.daughterRemap,
     grandchildRemap:result.grandchildRemap,
     descendantRemaps:result.descendantRemaps,
+    uvCornerRemaps:result.uvCornerRemaps,
+    uvCornerRemap:result.uvCornerRemap,
     ...(full?{faces:result.faces,edges:result.edges,
      halfedges:result.halfedges,corners:result.corners,
      capMap:result.capMap,mappedWalls:result.mappedWalls}:{
@@ -751,6 +754,44 @@ export function createAiBridge({
     primitiveIndex,sourceFace:params.sourceFace,
     sourceVertex:params.sourceVertex};
    const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
+   edits.meshOperations=next.operations;
+  }),
+  'mesh.offsetUvFace':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-'),
+    primitiveIndex=params?.primitiveIndex??0;
+   guard(plain(params)&&
+    Object.keys(params).length===5&&
+    ['meshId','primitiveIndex','faceId','uvSet','delta']
+     .every(k=>Object.hasOwn(params,k))&&
+    Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    typeof params.faceId==='string'&&params.faceId.length<256&&
+    Number.isSafeInteger(params.uvSet)&&
+    params.uvSet>=0&&params.uvSet<=1&&
+    Array.isArray(params.delta)&&params.delta.length===2&&
+    params.delta.every(x=>numeric(x)&&Math.abs(x)<=1)&&
+    Math.hypot(...params.delta)>1e-8,
+    'UV_ARGS','Expect meshId, primitiveIndex, stable faceId, UV set and ΔUV');
+   const current=edits.meshOperations||[];
+   guard(current.length<8&&current.every(op=>
+    op.kind==='uv.offsetFaceCorners'&&op.meshIndex===meshIndex&&
+    op.primitiveIndex===primitiveIndex),
+    'UV_SEQUENCE','UV editing only on source topology, max 8 edits');
+   const actual=applyMeshOperations(engine.opened.sourceGLB,current);
+   const graph=buildMeshDataSnapshot({
+    sourceGLB:engine.opened.sourceGLB,editedGLB:actual,
+    sourceSha256:engine.opened.sourceSha256,meshIndex,primitiveIndex,
+    operations:current
+   });
+   const face=graph.faces.find(f=>f.id===params.faceId&&
+    f.id.includes('-source-face-')&&f.triangleIndex>=0);
+   guard(Boolean(face),'UV_STALE_FACE',
+    'Source-scoped face identity is absent from current MeshData');
+   guard(graph.uvSets.includes('TEXCOORD_'+params.uvSet),
+    'UV_SET','Requested UV set does not exist on the mesh');
+   const op={kind:'uv.offsetFaceCorners',meshIndex,primitiveIndex,
+    faceIndex:face.triangleIndex,uvSet:params.uvSet,
+    delta:params.delta.slice()};
+   const next=validateMeshOperation(engine.opened.sourceGLB,current,op);
    edits.meshOperations=next.operations;
   }),
   'mesh.edit':async params=>mutate(edits=>{
