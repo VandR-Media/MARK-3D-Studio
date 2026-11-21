@@ -184,13 +184,14 @@ function normalizeEdits(edits,doc,sourceGLB){
     'normal.recalculate','primitive.add','vertex.snap','face.extrude',
     'face.regionExtrude','face.regionExtrudeLinked','vertex.moveLinkedCap',
     'face.pokeLinkedCap','edge.splitPokedCap',
-    'edge.splitPokedCapChild'].includes(kind),
+    'edge.splitPokedCapChild','edge.splitPokedCapGrandchild'].includes(kind),
     'MESH_EDIT_TYPE','Unsupported geometry operation');
    const allowed=kind==='vertex.move'?['kind','meshIndex','primitiveIndex','vertex','delta']:
     kind==='vertex.snap'?['kind','meshIndex','primitiveIndex','vertex','targetVertex']:
     kind==='vertex.moveLinkedCap'?['kind','meshIndex','primitiveIndex','sourceVertex','delta']:
     kind==='face.pokeLinkedCap'?['kind','meshIndex','primitiveIndex','sourceFace']:
-    ['edge.splitPokedCap','edge.splitPokedCapChild'].includes(kind)?
+    ['edge.splitPokedCap','edge.splitPokedCapChild',
+     'edge.splitPokedCapGrandchild'].includes(kind)?
      ['kind','meshIndex','primitiveIndex','sourceFace','sourceVertex']:
     kind==='face.extrude'?['kind','meshIndex','primitiveIndex','face','distance']:
     kind==='face.regionExtrude'?['kind','meshIndex','primitiveIndex','faces','distance']:
@@ -212,7 +213,8 @@ function normalizeEdits(edits,doc,sourceGLB){
      'MESH_MOVE','Invalid vertex/delta');
     op.vertex=input.vertex;op.delta=input.delta.slice();
    }else if(kind==='edge.splitPokedCap'||
-    kind==='edge.splitPokedCapChild'){
+    kind==='edge.splitPokedCapChild'||
+    kind==='edge.splitPokedCapGrandchild'){
     good(isUInt(input.sourceFace)&&isUInt(input.sourceVertex),
      'MESH_RADIAL_EDGE','Radial split requires source face and vertex IDs');
     op.sourceFace=input.sourceFace;op.sourceVertex=input.sourceVertex;
@@ -299,13 +301,16 @@ function normalizeEdits(edits,doc,sourceGLB){
     firstSplit=following.findIndex(op=>op.kind==='edge.splitPokedCap'),
     earlier=firstSplit<0?following:following.slice(0,firstSplit),
     rest=firstSplit<0?[]:following.slice(firstSplit),
-    daughter=rest.at(-1)?.kind==='edge.splitPokedCapChild'?
+    grandchild=rest.at(-1)?.kind==='edge.splitPokedCapGrandchild'?
      rest.at(-1):null,
-    splits=daughter?rest.slice(0,-1):rest,
+    withoutGrandchild=grandchild?rest.slice(0,-1):rest,
+    daughter=withoutGrandchild.at(-1)?.kind==='edge.splitPokedCapChild'?
+     withoutGrandchild.at(-1):null,
+    splits=daughter?withoutGrandchild.slice(0,-1):withoutGrandchild,
     firstPoke=earlier.findIndex(op=>op.kind==='face.pokeLinkedCap'),
     pokes=earlier.filter(op=>op.kind==='face.pokeLinkedCap');
    good(first?.kind==='face.regionExtrudeLinked'&&
-    canonical.length<=34&&
+    canonical.length<=35&&
     earlier.filter(op=>op.kind==='vertex.moveLinkedCap').length<=16&&
     pokes.length<=8&&pokes.length>=splits.length&&
     new Set(pokes.map(op=>op.sourceFace)).size===pokes.length&&
@@ -324,12 +329,18 @@ function normalizeEdits(edits,doc,sourceGLB){
     (!daughter||splits.some(op=>op.sourceFace===daughter.sourceFace&&
      op.sourceVertex===daughter.sourceVertex)&&
      daughter.meshIndex===first.meshIndex&&
-     daughter.primitiveIndex===first.primitiveIndex),
+     daughter.primitiveIndex===first.primitiveIndex)&&
+    (!grandchild||daughter&&
+     grandchild.sourceFace===daughter.sourceFace&&
+     grandchild.sourceVertex===daughter.sourceVertex&&
+     grandchild.meshIndex===first.meshIndex&&
+     grandchild.primitiveIndex===first.primitiveIndex),
     'MESH_LINKED_SEQUENCE',
-    'Source-approved moves, Pokes, primary splits and one terminal child split');
+    'Source-approved moves, Pokes, primaries, child, terminal grandchild');
   }else{
    good(!canonical.some(op=>['vertex.moveLinkedCap','face.pokeLinkedCap',
-    'edge.splitPokedCap','edge.splitPokedCapChild'].includes(op.kind)),
+    'edge.splitPokedCap','edge.splitPokedCapChild',
+    'edge.splitPokedCapGrandchild'].includes(op.kind)),
     'MESH_CAP_SEQUENCE','Cap changes need a source-approved extrusion');
   }
   if(sourceGLB&&canonical.length){
