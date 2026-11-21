@@ -9,11 +9,15 @@
 import {parseGlb,writeGlb,assertSelfContainedGlb} from '../glb.js';
 import {applyMeshOperations} from './mesh-edit-core.js';
 import {normalizeExplicitSeamLinks} from './mesh-seam-identity.js';
+import {buildEditableMeshDataBinary,renderEditableMeshDataGlb}
+ from './editable-meshdata-binary.js';
 
 const E=new TextEncoder(),D=new TextDecoder('utf-8',{fatal:true});
-const FILES=['manifest.json','assets/source.glb'];
+const FILES=['manifest.json','assets/source.glb','mesh/editable-meshdata.bin'];
 const MAG={local:0x04034b50,central:0x02014b50,end:0x06054b50};
-const MAX_SOURCE=64*1024*1024,MAX_META=256*1024,MAX_ARCHIVE=MAX_SOURCE+MAX_META+4096;
+const MAX_SOURCE=64*1024*1024,MAX_META=256*1024,
+ MAX_MESH_DATA=8*1024*1024,MAX_ARCHIVE=MAX_SOURCE+MAX_META+
+  MAX_MESH_DATA+8192;
 const ID=/^[a-z][a-z0-9_.-]{1,79}$/;
 const FMT='mark.professional-scene/3-preview',STATUS='EXPERIMENTAL_EDITABLE_SUBSET';
 const isUInt=x=>Number.isInteger(x)&&x>=0;
@@ -40,11 +44,13 @@ const table=Uint32Array.from({length:256},(_,i)=>{
 });
 function crc32(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
 function createArchive(entries){
- good(entries.length===2&&entries.map(x=>x[0]).join('|')===FILES.join('|'),
-  'ARCHIVE_FILES','only strict manifest+binary GLB are supported');
+ good([2,3].includes(entries.length)&&entries.every((entry,i)=>
+  entry[0]===FILES[i]),
+  'ARCHIVE_FILES','Expected ordered manifest+source GLB+optional MeshData');
  const info=entries.map(([name,value],i)=>{
   const data=bytesOf(value),key=E.encode(name);
-  good(data.length<=(i===0?MAX_META:MAX_SOURCE),'ARCHIVE_BUDGET','oversized project resource '+name);
+  good(data.length<=(i===0?MAX_META:i===1?MAX_SOURCE:MAX_MESH_DATA),
+   'ARCHIVE_BUDGET','oversized project resource '+name);
   return{data,key,crc:crc32(data)};
  });
  const len=22+info.reduce((s,f)=>s+30+f.key.length+f.data.length+46+f.key.length,0);
@@ -69,8 +75,9 @@ function createArchive(entries){
   v.setUint32(offset+42,offsets[i],true);out.set(f.key,offset+46);
   offset+=46+f.key.length;
  }
- v.setUint32(offset,MAG.end,true);v.setUint16(offset+8,2,true);
- v.setUint16(offset+10,2,true);v.setUint32(offset+12,offset-centralStart,true);
+ v.setUint32(offset,MAG.end,true);
+ v.setUint16(offset+8,entries.length,true);
+ v.setUint16(offset+10,entries.length,true);v.setUint32(offset+12,offset-centralStart,true);
  v.setUint32(offset+16,centralStart,true);
  good(offset+22===len,'ARCHIVE_INTERNAL','ZIP writer length mismatch');
  return out;
@@ -81,7 +88,8 @@ function readArchive(input){
  const v=new DataView(data.buffer,data.byteOffset,data.byteLength),end=data.length-22;
  good(v.getUint32(end,true)===MAG.end,'ZIP_END','missing terminal ZIP directory');
  const count=v.getUint16(end+10,true),central=v.getUint32(end+16,true),size=v.getUint32(end+12,true);
- good(count===2&&v.getUint16(end+8,true)===2&&central+size===end,'ZIP_DIRECTORY','invalid ZIP directory');
+ good([2,3].includes(count)&&v.getUint16(end+8,true)===count&&
+  central+size===end,'ZIP_DIRECTORY','invalid ZIP directory');
  const found=new Map();let pos=central;const occupied=[];
  for(let i=0;i<count;i++){
   good(pos+46<=end&&v.getUint32(pos,true)===MAG.central,'ZIP_CENTRAL','invalid central header');
@@ -93,7 +101,9 @@ function readArchive(input){
    pos+46+nameSize<=end,'ZIP_ENTRY','unexpected ZIP compression or extra field');
   const name=D.decode(data.subarray(pos+46,pos+46+nameSize));
   good(FILES.includes(name)&&!found.has(name),'ZIP_NAME','duplicate or unsafe archive path');
-  good(length<=(name===FILES[0]?MAX_META:MAX_SOURCE),'ZIP_BUDGET','expanded file too large');
+  good(length<=(name===FILES[0]?MAX_META:
+   name===FILES[1]?MAX_SOURCE:MAX_MESH_DATA),
+   'ZIP_BUDGET','expanded file too large');
   good(local+30<=central&&v.getUint32(local,true)===MAG.local,'ZIP_LOCAL','bad local header');
   const localNameLen=v.getUint16(local+26,true),localExtra=v.getUint16(local+28,true);
   const start=local+30+localNameLen+localExtra;
@@ -109,8 +119,10 @@ function readArchive(input){
   found.set(name,copy);pos+=46+nameSize;
  }
  occupied.sort((a,b)=>a[0]-b[0]);
- good(pos===end&&found.size===2&&occupied[0][0]===0&&
-  occupied[0][1]===occupied[1][0]&&occupied[1][1]===central,
+ good(pos===end&&found.size===count&&
+  [...found.keys()].join('|')===FILES.slice(0,count).join('|')&&
+  occupied[0][0]===0&&occupied.every((entry,i)=>
+   entry[1]===(occupied[i+1]?.[0]??central)),
   'ZIP_LAYOUT','extra bytes or overlap inside archive');
  return found;
 }
