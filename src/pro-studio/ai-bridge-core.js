@@ -30,7 +30,7 @@ const OP_NAMES=[
  'mesh.getStats','mesh.getTopology','mesh.getLinkedRegion','mesh.getMeshData',
  'mesh.linkSeam','mesh.unlinkSeam','mesh.extrudeLinkedRegion',
  'mesh.moveLinkedCap','mesh.pokeLinkedCap','mesh.splitPokedCapEdge',
- 'mesh.splitPokedCapChildEdge',
+ 'mesh.splitPokedCapChildEdge','mesh.splitPokedCapGrandchildEdge',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -444,6 +444,8 @@ export function createAiBridge({
     topologyRemaps:result.topologyRemaps,
     edgeSplitRemap:result.edgeSplitRemap,edgeSplitRemaps:result.edgeSplitRemaps,
     daughterRemap:result.daughterRemap,
+    grandchildRemap:result.grandchildRemap,
+    descendantRemaps:result.descendantRemaps,
     ...(full?{faces:result.faces,edges:result.edges,
      halfedges:result.halfedges,corners:result.corners,
      capMap:result.capMap,mappedWalls:result.mappedWalls}:{
@@ -695,6 +697,59 @@ export function createAiBridge({
     'DAUGHTER_ENDPOINTS','Only source-cap to first midpoint daughter edge supported');
    const op={kind:'edge.splitPokedCapChild',meshIndex,primitiveIndex,
     sourceFace:params.sourceFace,sourceVertex:params.sourceVertex};
+   const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
+   edits.meshOperations=next.operations;
+  }),
+  'mesh.splitPokedCapGrandchildEdge':async params=>mutate(edits=>{
+   const meshIndex=stableUuid(params?.meshId,'gltf-mesh-'),
+    primitiveIndex=params?.primitiveIndex??0;
+   guard(plain(params)&&Object.keys(params).every(k=>
+    ['meshId','primitiveIndex','sourceFace','sourceVertex','parentEdgeId']
+     .includes(k))&&
+    ['meshId','sourceFace','sourceVertex','parentEdgeId']
+      .every(k=>Object.hasOwn(params,k))&&
+    Number.isSafeInteger(primitiveIndex)&&primitiveIndex>=0&&
+    Number.isSafeInteger(params.sourceFace)&&params.sourceFace>=0&&
+    Number.isSafeInteger(params.sourceVertex)&&params.sourceVertex>=0&&
+    typeof params.parentEdgeId==='string'&&params.parentEdgeId.length<=320,
+    'GRANDCHILD_ARGS','Current generation-one parent edge ID required');
+   const existing=edits.meshOperations||[],first=existing[0],
+    daughter=existing.at(-1);
+   guard(first?.kind==='face.regionExtrudeLinked'&&
+    first.meshIndex===meshIndex&&first.primitiveIndex===primitiveIndex&&
+    daughter?.kind==='edge.splitPokedCapChild'&&
+    daughter.sourceFace===params.sourceFace&&
+    daughter.sourceVertex===params.sourceVertex&&
+    existing.length<35,
+    'GRANDCHILD_SEQUENCE',
+    'Second generation requires an approved terminal first-generation daughter');
+   const current=applyMeshOperations(engine.opened.sourceGLB,existing);
+   const data=buildMeshDataSnapshot({
+    sourceGLB:engine.opened.sourceGLB,editedGLB:current,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex,primitiveIndex,operations:existing
+   });
+   const child=data.daughterRemap,
+    cap=data.capMap.find(r=>r.sourceVertex===params.sourceVertex);
+   guard(child?.sourceFace===params.sourceFace&&
+    child.sourceVertex===params.sourceVertex&&cap&&
+    child.createdEdgeIds.includes(params.parentEdgeId),
+    'GRANDCHILD_PARENT','Parent ID not in validated daughter-edge lineage');
+   const edge=data.edges.find(e=>e.id===params.parentEdgeId&&
+    e.halfedgeIds.length===2&&!e.boundary&&!e.nonManifold&&
+    !e.windingConflict);
+   guard(edge,'GRANDCHILD_STALE',
+    'Parent daughter edge absent or not oppositely two-manifold');
+   const directed=data.halfedges.find(h=>h.id===edge.halfedgeIds[0]);
+   guard(directed&&(directed.origin===child.newLogicalVertexId&&
+    directed.destination===cap.logicalVertexId||
+    directed.destination===child.newLogicalVertexId&&
+    directed.origin===cap.logicalVertexId),
+    'GRANDCHILD_ENDPOINTS',
+    'Only cap-source to first daughter midpoint edge is approved');
+   const op={kind:'edge.splitPokedCapGrandchild',meshIndex,
+    primitiveIndex,sourceFace:params.sourceFace,
+    sourceVertex:params.sourceVertex};
    const next=validateMeshOperation(engine.opened.sourceGLB,existing,op);
    edits.meshOperations=next.operations;
   }),
