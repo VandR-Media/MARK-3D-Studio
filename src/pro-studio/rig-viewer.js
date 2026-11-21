@@ -860,6 +860,101 @@ byId('mesh-split-grandchild-edge').addEventListener('click',async()=>{
   meshOutput().textContent='Ошибка: '+String(error?.message||error);
  }
 });
+// P25: UV preview is drawn from the actual MeshData face-corner streams.
+async function drawUvWorkspace(graph=null){
+ if(!meshSession)throw Error('Сначала откройте Edit Mode.');
+ graph=graph||await meshCall('mesh.getMeshData',{
+  meshId:meshId(),primitiveIndex:0,full:true});
+ const uvSet='TEXCOORD_'+Number(byId('mesh-uv-set').value);
+ if(!graph.uvSets.includes(uvSet))
+  throw Error('Этот меш не содержит '+uvSet+'.');
+ const byCorner=new Map(graph.corners.map(c=>[c.id,c]));
+ const triangles=graph.faces.map(face=>({
+  face,uv:face.cornerIds.map(id=>
+   byCorner.get(id)?.attributes?.uvSets?.[uvSet])
+ })).filter(x=>x.uv.every(p=>Array.isArray(p)&&p.length===2));
+ const canvas=byId('mesh-uv-canvas'),ctx=canvas.getContext('2d');
+ if(!ctx)throw Error('Canvas2D UV preview недоступен.');
+ const w=canvas.width,h=canvas.height;
+ ctx.clearRect(0,0,w,h);
+ ctx.fillStyle='#141c2d';ctx.fillRect(0,0,w,h);
+ const uvs=triangles.flatMap(t=>t.uv),
+  lower=[Math.min(0,...uvs.map(p=>p[0])),
+   Math.min(0,...uvs.map(p=>p[1]))],
+  upper=[Math.max(1,...uvs.map(p=>p[0])),
+   Math.max(1,...uvs.map(p=>p[1]))],
+  span=Math.max(upper[0]-lower[0],upper[1]-lower[1],.001),
+  pad=20,scale=(w-2*pad)/span,
+  xy=p=>[pad+(p[0]-lower[0])*scale,
+   h-pad-(p[1]-lower[1])*scale];
+ ctx.lineWidth=1;
+ ctx.strokeStyle='#53627c';
+ const a=xy([0,0]),b=xy([1,1]);
+ ctx.strokeRect(a[0],b[1],b[0]-a[0],a[1]-b[1]);
+ const picked=meshPickState(),
+  focus=picked?.mode==='face'?picked.face:
+   Number(byId('mesh-a').value);
+ for(const {face,uv} of triangles){
+  ctx.beginPath();
+  uv.forEach((p,i)=>{
+   const [x,y]=xy(p);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  });
+  ctx.closePath();
+  ctx.fillStyle=face.triangleIndex===focus?
+   'rgba(242,189,83,.27)':'rgba(55,151,221,.12)';
+  ctx.fill();
+  ctx.strokeStyle=face.triangleIndex===focus?'#ffc65c':'#65d3ee';
+  ctx.lineWidth=face.triangleIndex===focus?2.5:1.2;
+  ctx.stroke();
+ }
+ const selected=triangles.find(t=>t.face.triangleIndex===focus);
+ byId('mesh-uv-output').textContent=
+  uvSet+': '+triangles.length+' настоящих UV-треугольников. '+
+  (selected?'Грань '+focus+': '+selected.uv.map(v=>
+   '('+v.map(x=>x.toFixed(4)).join(', ')+')').join(' '):
+   'Выберите грань в 3D-окне.')+
+  ' Copy-on-write UV правок: '+graph.diagnostics.uvCornerEditCount+'.';
+ return{graph,focus,uvSet,uv:selected?.uv||null};
+}
+byId('mesh-uv-preview').addEventListener('click',async()=>{
+ try{await drawUvWorkspace();}
+ catch(error){byId('mesh-uv-output').textContent=
+  'Ошибка UV: '+String(error?.message||error);}
+});
+byId('mesh-uv-set').addEventListener('change',async()=>{
+ if(!meshSession)return;
+ try{await drawUvWorkspace();}
+ catch(error){byId('mesh-uv-output').textContent=
+  'Ошибка UV: '+String(error?.message||error);}
+});
+byId('mesh-uv-apply').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const {graph,focus,uvSet}=await drawUvWorkspace(),
+   face=graph.faces.find(f=>f.triangleIndex===focus);
+  if(!face||!face.id.includes('-source-face-'))
+   throw Error('Только исходные UV-грани без изменений топологии.');
+  const delta=[Number(byId('mesh-uv-du').value),
+   Number(byId('mesh-uv-dv').value)];
+  if(!delta.every(v=>Number.isFinite(v)&&Math.abs(v)<=1)||
+   Math.hypot(...delta)<=1e-8)
+   throw Error('Нужны ненулевые ΔU/ΔV от -1 до 1.');
+  if(!window.confirm('Сместить UV'+uvSet.slice(-1)+' грани '+focus+
+   '? MARK создаст отдельные атрибутные строки её трёх углов; '+
+   'остальная геометрия, соседние UV, риг и морфы сохранятся.'))return;
+  await meshCall('mesh.offsetUvFace',{
+   meshId:meshId(),primitiveIndex:0,faceId:face.id,
+   uvSet:Number(uvSet.slice(-1)),delta
+  });
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('UV-углы исходной грани изменены без изменения соседних.');
+  await drawUvWorkspace();
+ }catch(error){
+  byId('mesh-uv-output').textContent=
+   'Ошибка UV: '+String(error?.message||error);
+ }
+});
 byId('mesh-apply').addEventListener('click',async()=>{
  try{
   if(!meshSession)throw Error('Нажмите «Открыть Edit Mode».');
