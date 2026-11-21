@@ -409,11 +409,6 @@ function normalizeEdits(edits,doc,sourceGLB){
   // Validate native commands against immutable source and renderer export,
   // not just schema. Export is fail-closed if a wider UV island cannot
   // yet be represented losslessly by the initial glTF writer.
-  if(sourceGLB){
-   const sourceHash=null;
-   // Source SHA-256 is asynchronous. Actual binary and semantic replay
-   // checks are done in create/open and the AI Bridge preflight.
-  }
   out.meshDataOperations=ops;
  }
  if(out.meshDataOperations&&
@@ -458,10 +453,24 @@ function graph(doc){
 function validateManifest(m,source,doc){
  good(m?.schema===FMT&&m.formatStatus===STATUS&&m.schemaVersion===3,
   'MANIFEST_SCHEMA','not experimental MARK v3 subset');
- good(ID.test(m.projectId)&&Array.isArray(m.assetManifest)&&m.assetManifest.length===1&&
+ good(ID.test(m.projectId)&&Array.isArray(m.assetManifest)&&
+  m.assetManifest.length===(m.editableMeshDataResource?2:1)&&
   m.assetManifest[0].uri===FILES[1]&&m.assetManifest[0].kind==='source'&&
   m.assetManifest[0].sha256===m.checksums?.[FILES[1]]&&
-  m.assetManifest[0].byteLength===source.length,'MANIFEST_ASSET','invalid asset manifest');
+  m.assetManifest[0].byteLength===source.length&&
+  (!m.editableMeshDataResource||
+   m.editableMeshDataResource.uri===FILES[2]&&
+   m.editableMeshDataResource.schema==='mark.editable-meshdata-binary/1'&&
+   m.editableMeshDataResource.sourceSha256===m.assetManifest[0].sha256&&
+   m.editableMeshDataResource.sha256===m.checksums?.[FILES[2]]&&
+   Number.isSafeInteger(m.editableMeshDataResource.byteLength)&&
+   m.editableMeshDataResource.byteLength>0&&
+   m.editableMeshDataResource.byteLength<=MAX_MESH_DATA&&
+   m.assetManifest[1].uri===FILES[2]&&
+   m.assetManifest[1].kind==='editable-meshdata'&&
+   m.assetManifest[1].sha256===m.editableMeshDataResource.sha256&&
+   m.assetManifest[1].byteLength===m.editableMeshDataResource.byteLength),
+  'MANIFEST_ASSET','invalid source or optional MeshData resource declaration');
  good(Array.isArray(m.sceneGraph)&&m.sceneGraph.length===doc.nodes.length&&
   JSON.stringify(m.sceneGraph)===JSON.stringify(graph(doc)),
   'MANIFEST_GRAPH','source GLB hierarchy and node IDs mismatch');
@@ -483,20 +492,40 @@ export async function createPreviewMarkscene(input,{
   typeof license==='string'&&license.length<=160&&keyed(extra),
   'PROJECT_META','invalid project identification');
  const hash=await sha256(bytes),normalized=normalizeEdits(edits,doc,bytes);
+ const meshData=normalized.meshDataOperations?
+  buildEditableMeshDataBinary({sourceGLB:bytes,sourceSha256:hash,
+   meshIndex:0,primitiveIndex:0,
+   operations:normalized.meshDataOperations}):null;
+ if(meshData)renderEditableMeshDataGlb({
+  sourceGLB:bytes,sourceSha256:hash,data:meshData
+ });
+ const meshHash=meshData?await sha256(meshData):null;
+ const meshResource=meshData?{
+  schema:'mark.editable-meshdata-binary/1',uri:FILES[2],
+  sha256:meshHash,sourceSha256:hash,byteLength:meshData.length,
+  meshIndex:0,primitiveIndex:0
+ }:null;
  const manifest={
   schema:FMT,formatStatus:STATUS,schemaVersion:3,
   appVersion:'0.7.0-alpha.0+rig-preview',minReaderVersion:'3-preview',
   projectId,name,units:'meters',upAxis:'Y',fps:30,
   colorManagement:{workingSpace:'linear-srgb',displaySpace:'srgb'},
   assetManifest:[{uuid:'asset-gltf-source',kind:'source',uri:FILES[1],sha256:hash,
-   byteLength:bytes.length,license}],
+   byteLength:bytes.length,license},
+   ...(meshResource?[{uuid:'meshdata-source-0-0',kind:'editable-meshdata',
+    uri:FILES[2],sha256:meshHash,byteLength:meshData.length,
+    license:'native MARK-authored geometry'}]:[])],
+  ...(meshResource?{editableMeshDataResource:meshResource}:{}),
   sceneGraph:graph(doc),collections:[{uuid:'collection-main',name:'Imported GLB',
    nodeUUIDs:doc.nodes.map((_,i)=>'gltf-node-'+i)}],
-  dependencies:[],audioBindings:[],checksums:{[FILES[1]]:hash},
+  dependencies:[],audioBindings:[],checksums:{
+   [FILES[1]]:hash,...(meshResource?{[FILES[2]]:meshHash}:{})
+  },
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
    'clip view state','bounded indexed-triangle edits, vertex snap, triangle extrusion, normal recalculation and primitive.add',
-   'explicit approved seam links (source-bound metadata, not geometry weld)'],
+   'explicit approved seam links (source-bound metadata, not geometry weld)',
+   ...(meshResource?['independent versioned binary MeshData UV-corner subset']:[])],
   unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
    'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
    'audio graph authoring'],
@@ -504,8 +533,10 @@ export async function createPreviewMarkscene(input,{
  };
  const encoded=E.encode(JSON.stringify(manifest,null,2)+'\n');
  good(encoded.length<=MAX_META,'MANIFEST_BUDGET','scene manifest too large');
- const archive=createArchive([[FILES[0],encoded],[FILES[1],bytes]]);
- return {archive,manifest,archiveSha256:await sha256(archive)};
+ const archive=createArchive([[FILES[0],encoded],[FILES[1],bytes],
+  ...(meshData?[[FILES[2],meshData]]:[])]);
+ return {archive,manifest,meshDataBinary:meshData,
+  archiveSha256:await sha256(archive)};
 }
 export async function openPreviewMarkscene(input){
  const archive=bytesOf(input),files=readArchive(archive),source=files.get(FILES[1]);
@@ -514,12 +545,31 @@ export async function openPreviewMarkscene(input){
  catch(err){good(false,'MANIFEST_JSON',String(err));}
  const doc=gltf(source).json;
  const edits=validateManifest(manifest,source,doc);
- good(manifest.assetManifest[0].sha256===await sha256(source),
+ const hash=await sha256(source);
+ good(manifest.assetManifest[0].sha256===hash,
   'ASSET_SHA','stored source hash mismatch');
  good(JSON.stringify(edits)===JSON.stringify(manifest.edits),
   'EDITS_CANONICAL','non-canonical edit data');
+ const data=files.get(FILES[2]);
+ good(Boolean(data)===Boolean(manifest.editableMeshDataResource)&&
+  Boolean(data)===Boolean(edits.meshDataOperations),
+  'MESHDATA_RESOURCE','Binary MeshData and native commands must both be present');
+ if(data){
+  good(manifest.editableMeshDataResource.byteLength===data.length&&
+   manifest.editableMeshDataResource.sha256===await sha256(data),
+   'MESHDATA_SHA','Binary MeshData checksum or length mismatch');
+  const expected=buildEditableMeshDataBinary({
+   sourceGLB:source,sourceSha256:hash,meshIndex:0,primitiveIndex:0,
+   operations:edits.meshDataOperations
+  });
+  good(data.length===expected.length&&
+   data.every((v,i)=>v===expected[i]),'MESHDATA_REPLAY',
+   'Binary MeshData differs from exactly replayed commands/source asset');
+  renderEditableMeshDataGlb({sourceGLB:source,sourceSha256:hash,data});
+ }
  return {manifest:clone(manifest),sourceGLB:source,edits,
-  archiveSha256:await sha256(archive),sourceSha256:await sha256(source)};
+  ...(data?{meshDataBinary:data}:{}),
+  archiveSha256:await sha256(archive),sourceSha256:hash};
 }
 export async function repackPreviewMarkscene(opened,edits){
  good(keyed(opened?.manifest),'REPACK_INPUT','open project first');
@@ -535,7 +585,8 @@ export async function repackPreviewMarkscene(opened,edits){
   if(!Object.hasOwn(generated.manifest,key))generated.manifest[key]=clone(value);
  const manifestBytes=E.encode(JSON.stringify(generated.manifest,null,2)+'\n');
  good(manifestBytes.length<=MAX_META,'MANIFEST_BUDGET','edited manifest exceeds budget');
- generated.archive=createArchive([[FILES[0],manifestBytes],[FILES[1],opened.sourceGLB]]);
+ generated.archive=createArchive([[FILES[0],manifestBytes],[FILES[1],opened.sourceGLB],
+  ...(generated.meshDataBinary?[[FILES[2],generated.meshDataBinary]]:[])]);
  generated.archiveSha256=await sha256(generated.archive);
  return generated;
 }
@@ -544,8 +595,14 @@ export async function exportEditedSourceGlb(opened){
  const original=gltf(opened.sourceGLB);
  const edits=normalizeEdits(opened.edits,original.json,opened.sourceGLB);
  const geometryModified=Boolean(edits.meshOperations?.length);
- const updatedBinary=geometryModified?
-  applyMeshOperations(opened.sourceGLB,edits.meshOperations):null;
+ const data=edits.meshDataOperations?
+  buildEditableMeshDataBinary({sourceGLB:opened.sourceGLB,
+   sourceSha256:opened.sourceSha256,meshIndex:0,primitiveIndex:0,
+   operations:edits.meshDataOperations}):null;
+ const updatedBinary=data?
+  renderEditableMeshDataGlb({sourceGLB:opened.sourceGLB,
+   sourceSha256:opened.sourceSha256,data}).glb:
+  geometryModified?applyMeshOperations(opened.sourceGLB,edits.meshOperations):null;
  const parsed=updatedBinary?gltf(updatedBinary):original;
  const doc=clone(parsed.json);
  for(const [index,fields] of Object.entries(edits.nodeTransforms))
@@ -557,6 +614,8 @@ export async function exportEditedSourceGlb(opened){
   summary:summary(doc),modifiedNodeCount:Object.keys(edits.nodeTransforms).length,
   modifiedMaterialCount:Object.keys(edits.materialPbr).length,
   meshOperations:edits.meshOperations?.length||0,
-  geometryModified,preservesOriginalBinary:!geometryModified,
+  geometryModified:geometryModified||Boolean(data),
+  persistedEditableMeshData:Boolean(data),
+  preservesOriginalBinary:!geometryModified&&!data,
   originalSourcePreservedInNative:true};
 }
