@@ -1,0 +1,60 @@
+name: MARK Studio Pass 25 persistent UV corner editing and copy-on-write
+
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass25-uv-corner-cow
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  uv-corner-copy-on-write:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check UV source and actual browser test syntax
+        run: |
+          node --check src/pro-studio/mesh-edit-core.js
+          node --check src/pro-studio/markscene-v3-preview.js
+          node --check src/pro-studio/meshdata-halfedge-preview.js
+          node --check src/pro-studio/ai-bridge-core.js
+          node --check src/pro-studio/rig-viewer.js
+          node --check tests/pro-studio-pass25-uv-corner-cow.test.mjs
+          node --check scripts/pro-studio-pass25-uv-corner-webgl-accept.mjs
+      - name: Real per-corner UV0/UV1, shared-indices, skin/morph and native tests
+        run: node --test tests/pro-studio-pass25-uv-corner-cow.test.mjs
+      - name: Regression Pass9-24, mesh bridge and Visual Engine v2
+        run: |
+          node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs tests/pro-studio-pass13-region-extrude.test.mjs tests/pro-studio-pass14-region-overlay.test.mjs tests/pro-studio-pass15-corner-topology.test.mjs tests/pro-studio-pass16-explicit-seam-links.test.mjs tests/pro-studio-pass17-seam-region-extrude.test.mjs tests/pro-studio-pass18-halfedge-cap-move.test.mjs tests/pro-studio-pass19-cap-poke-remap.test.mjs tests/pro-studio-pass20-multi-poke-remap.test.mjs tests/pro-studio-pass21-radial-edge-split.test.mjs tests/pro-studio-pass22-multi-radial-splits.test.mjs tests/pro-studio-pass23-child-edge-lineage.test.mjs tests/pro-studio-pass24-depth2-daughter-lineage.test.mjs
+          node --test tests/pro-studio-mesh-edit.test.mjs tests/pro-studio-primitives.test.mjs tests/pro-studio-ai-bridge.test.mjs
+          npm run test:visual-v2
+      - name: Build actual offline WebGL2 and Canvas2D UV workspace
+        run: npm run pro:rig:viewer
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Pass24 real nested halfedge regression in Chromium
+        run: node scripts/pro-studio-pass24-depth2-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Pass25 real UV face mouse-pick, Canvas2D polygon, GLB native and undo
+        run: node scripts/pro-studio-pass25-uv-corner-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Upload actual UV PNG, edited GLB, native .markscene and SHA checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass25-uv-copy-on-write-webgl
+          path: |
+            dist/pro-studio/pass24-acceptance/**
+            dist/pro-studio/pass25-acceptance/**
+          if-no-files-found: warn
+          retention-days: 14
