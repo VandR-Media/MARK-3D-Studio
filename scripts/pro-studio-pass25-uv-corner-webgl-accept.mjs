@@ -112,7 +112,7 @@ try{
  await page.locator('#mesh-a').fill('0');
  await page.locator('#mesh-uv-preview').click();
  await page.waitForFunction(()=>document.querySelector('#mesh-uv-output')
-  ?.textContent?.includes('UV0: 2'),null,{timeout:15000});
+  ?.textContent?.includes('TEXCOORD_0: 2'),null,{timeout:15000});
  const uvShot=async name=>{
   const b64=await page.evaluate(()=>document.querySelector(
    '#mesh-uv-canvas').toDataURL('image/png'));
