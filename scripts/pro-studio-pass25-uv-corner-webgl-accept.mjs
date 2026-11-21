@@ -199,7 +199,7 @@ try{
  const native=await call('scene.save');
  const glbArtifact=artifact('uv-per-corner-real.glb',physical.data),
   nativeArtifact=artifact('uv-editable.markscene',native.data);
- const opened=await openPreviewMarkscene(native.data),
+ const opened=await openPreviewMarkscene(Buffer.from(native.data)),
   replay=await exportEditedSourceGlb(opened),
   audit=inspectRiggedGlb(Buffer.from(physical.data)),
   doc=parseGlb(Buffer.from(physical.data)).json,
