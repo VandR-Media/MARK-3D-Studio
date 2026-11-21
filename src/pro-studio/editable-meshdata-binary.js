@@ -154,13 +154,6 @@ function inspect(blob,sourceGLB,expectedSha){
 const faceId=(sha,meshIndex,primitiveIndex,i)=>
  'mark-face-'+sha+'-m'+meshIndex+'-p'+primitiveIndex+'-source-face-'+i;
 const cornerId=(id,k)=>'mark-corner-'+id+'-k'+k;
-function chosenFaces(m,op){
- ok(op&&typeof op==='object'&&!Array.isArray(op)&&
-  Object.keys(op).length===6&&
-  ['kind','meshIndex','primitiveIndex','faceId','uvSet','delta','scope']
-   .every(k=>Object.hasOwn(op,k))===false,
-  'ARGS','Dummy'); // replaced below by strict canonical guard
-}
 function translate(blob,sourceGLB,sourceSha256,op){
  const m=inspect(blob,sourceGLB,sourceSha256);
  ok(op&&typeof op==='object'&&!Array.isArray(op)&&
