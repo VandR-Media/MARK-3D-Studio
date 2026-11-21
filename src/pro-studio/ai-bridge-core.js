@@ -449,8 +449,10 @@ export function createAiBridge({
    });
    const stats=getMeshEditStats(current.glb,meshIndex,primIndex,[]);
    return {meshId:params.meshId,topologyRevision:
-    (selectedEdits().meshOperations||[]).filter(x=>x.meshIndex===meshIndex).length,
-    ...stats,mode:'real binary glTF indexed triangle editing (preview)'};
+    (selectedEdits().meshOperations||[]).filter(x=>x.meshIndex===meshIndex).length+
+    (selectedEdits().meshDataOperations||[]).filter(x=>
+     x.meshIndex===meshIndex).length,
+    ...stats,mode:'real binary glTF and independent editable MeshData preview'};
   },
   'mesh.getTopology':async params=>{
    assertScene();
@@ -461,13 +463,17 @@ export function createAiBridge({
    const operations=selectedEdits().meshOperations||[];
    // Analyze the same currently edited GLB as mesh.getStats; this query
    // never writes coordinates, UV, skeletons or native edit logs.
-   const edited=applyMeshOperations(engine.opened.sourceGLB,operations);
+   const edited=(await exportEditedSourceGlb({
+    ...engine.opened,edits:selectedEdits()
+   })).glb;
    const topology=inspectGlbCornerTopology(edited,{meshIndex,primitiveIndex});
    const diagnostics=topology.diagnostics;
    return{
     meshId:params.meshId,primitiveIndex,revision:engine.revision,
     topologyRevision:operations.filter(o=>o.meshIndex===meshIndex&&
-     o.primitiveIndex===primitiveIndex).length,
+     o.primitiveIndex===primitiveIndex).length+
+     (selectedEdits().meshDataOperations||[]).filter(o=>
+      o.meshIndex===meshIndex&&o.primitiveIndex===primitiveIndex).length,
     schema:topology.schema,mode:'read-only; candidate position joins are NOT edits',
     ...diagnostics,uvSets:topology.uvSets,
     seamSample:topology.edges.filter(e=>e.uvSeamSets.length)
@@ -910,8 +916,10 @@ export function createAiBridge({
    const operation={...copy(params.operation),meshIndex,
     primitiveIndex:primIndex};
    const existing=edits.meshOperations||[];
-   guard(!existing.some(o=>o.kind==='face.regionExtrudeLinked'),
-    'MESH_LINKED_SEQUENCE','No subsequent edit without safe identity remap');
+   guard(!existing.some(o=>o.kind==='face.regionExtrudeLinked')&&
+    edits.meshDataOperations===undefined,
+    'MESH_LINKED_SEQUENCE',
+    'Use canonical MeshData UV commands after enabling binary datablock');
    guard(params.operation.kind!=='face.regionExtrudeLinked',
     'MESH_LINKED_APPROVAL',
     'Use mesh.extrudeLinkedRegion after explicitly approving seam links');
