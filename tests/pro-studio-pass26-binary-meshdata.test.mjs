@@ -230,6 +230,17 @@ test('AI Bridge opt-in MeshData source scoped UV island, native resource and Und
  await call('meshdata.translateUv',{meshId:'gltf-mesh-0',
   primitiveIndex:0,faceId:stableFace(1),uvSet:1,
   scope:'island',delta:[0,.1]});
+ const stats=await call('mesh.getStats',{meshId:'gltf-mesh-0'});
+ assert.equal(stats.vertexCount,12);
+ assert.equal(stats.triangleCount,2);
+ assert.equal(stats.topologyRevision,2);
+ const physicalTopology=await call('mesh.getTopology',{meshId:'gltf-mesh-0'});
+ assert.equal(physicalTopology.attributeVertexCount,12);
+ const unapproved=await bridge.request({requestId:'p26.mix.legacy',
+  method:'mesh.edit',params:{meshId:'gltf-mesh-0',
+   operation:{kind:'face.flip',face:0}}});
+ assert.equal(unapproved.ok,false);
+ assert.ok(JSON.stringify(unapproved.diagnostics).includes('MESH_LINKED_SEQUENCE'));
  const current=await call('meshdata.get',{meshId:'gltf-mesh-0',full:true});
  assert.equal(current.operationCount,2);
  assert.equal(current.diagnostics.editableMeshData,true);
