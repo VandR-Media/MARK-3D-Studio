@@ -121,7 +121,23 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="mesh-uv-apply" type="button">Сместить UV выбранной грани</button>
 <canvas id="mesh-uv-canvas" width="260" height="260" role="img" aria-label="Реальная UV-развёртка по текущим углам MeshData" style="display:block;background:#141c2d;border:1px solid #415476;max-width:100%;margin:9px 0"></canvas>
 <output id="mesh-uv-output" role="status">UV не загружены — откройте Edit Mode.</output>
-</section><section aria-label="История и экспорт">
+</section>
+<section aria-label="Редактирование позиций вершин MeshData" id="meshdata-vertex-workspace">
+<strong>MeshData · перемещение исходных вершин (P27)</strong>
+<p class="sub">Выберите вершину мышью в режиме «вершина» или введите исходный glTF индекс в V1.
+Положение изменяется в бинарном MeshData. UV, веса костей и морфы остаются прежними.
+Для подтверждённого split-UV шва используйте связанный режим.</p>
+<label>ΔX <input id="meshdata-dx" type="number" min="-2" max="2" step=".05" value=".25" style="max-width:75px"></label>
+<label>ΔY <input id="meshdata-dy" type="number" min="-2" max="2" step=".05" value="0" style="max-width:75px"></label>
+<label>ΔZ <input id="meshdata-dz" type="number" min="-2" max="2" step=".05" value="0" style="max-width:75px"></label>
+<label>Режим <select id="meshdata-vertex-scope">
+<option value="verified-seam">Связанный подтверждённый UV-шов</option>
+<option value="attribute">Только исходная атрибутная вершина (при отсутствии разрыва)</option>
+</select></label>
+<button id="meshdata-vertex-move" type="button">Переместить вершину MeshData</button>
+<output id="meshdata-vertex-output" role="status">Выделите вершину в 3D-окне.</output>
+</section>
+<section aria-label="История и экспорт">
 <button id="mesh-undo">↶ Undo</button>
 <button id="mesh-redo">↷ Redo</button>
 <button id="mesh-save">Сохранить правки .markscene</button>
