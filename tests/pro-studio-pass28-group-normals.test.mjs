@@ -152,7 +152,10 @@ test('invalid group, forged IDs, stale normal, repeated normal and source tamper
  assert.throws(()=>build([{...normals(),mode:'unsafe'}]),/MARK_MDB_NORMAL_ARGS/);
  assert.throws(()=>build([{...normals(),foreign:true}]),/MARK_MDB_NORMAL_ARGS/);
  const binary=build([moveGroup([2,3]),normals()]),corrupt=binary.slice();
- corrupt[corrupt.length-4]=255;
+ // Replace one physical float with a real invalid NaN, not a single LSB
+ // perturbation that can remain within the permitted unit-normal tolerance.
+ new DataView(corrupt.buffer,corrupt.byteOffset,corrupt.byteLength)
+  .setFloat32(corrupt.length-4,Number.NaN,true);
  assert.throws(()=>previewEditableMeshDataBinary({
   sourceGLB:source,sourceSha256,data:corrupt
  }),/MARK_MDB_BINARY_NORMALS/);
