@@ -111,6 +111,13 @@ test('UV0/UV1 COW followed by vertex position and another UV edit retains row pr
  assert.ok(close(pos[6][0],pos[0][0]),
   'Cloned UV0 corner must inherit changed true source POSITION');
  assert.equal(out.movedVertices,1);
+ assert.equal(current.attributeRowProvenance.length,12);
+ assert.equal(current.attributeRowProvenance[6].sourceAttributeVertex,0);
+ assert.equal(current.attributeRowProvenance[6].vertexId,id(0));
+ assert.equal(current.attributeRowProvenance[7].sourceAttributeVertex,1);
+ assert.equal(current.attributeRowProvenance[9].sourceAttributeVertex,4);
+ assert.deepEqual(current.attributeRowProvenance.slice(0,6).map(x=>x.vertexId),
+  original.vertices.map(x=>x.id));
  for(let i=0;i<6;i++)
   if(i!==0)assert.deepEqual(pos[i],attrs(source,'POSITION')[i]);
  for(const semantic of ['JOINTS_0','WEIGHTS_0','NORMAL']){
