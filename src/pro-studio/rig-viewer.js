@@ -860,6 +860,58 @@ byId('mesh-split-grandchild-edge').addEventListener('click',async()=>{
   meshOutput().textContent='Ошибка: '+String(error?.message||error);
  }
 });
+// P27: actual source-scoped vertex POSITION edits in the independent
+// binary MeshData, authorized exactly like UV operations.
+byId('meshdata-vertex-move').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const graph=await meshCall('meshdata.get',{
+   meshId:meshId(),primitiveIndex:0,full:true});
+  if(!graph.enabled)throw Error('Сначала создайте редактируемый MeshData.');
+  const picked=meshPickState();
+  let row=Number(byId('mesh-a').value);
+  if(picked?.mode==='vertex'){
+   if(picked.meshId!==meshId()||picked.primitiveIndex!==0)
+    throw Error('Выбрана вершина другого меша или примитива.');
+   const source=graph.attributeRowProvenance?.find(r=>
+    r.physicalAttributeVertex===picked.vertex);
+   if(!source)throw Error('Выделенная физическая glTF строка не имеет '+
+    'проверенного source vertex ID в MeshData.');
+   row=source.sourceAttributeVertex;
+   byId('mesh-a').value=String(row);
+  }
+  if(!Number.isSafeInteger(row)||row<0)
+   throw Error('Выберите исходную glTF-вершину или укажите номер V1.');
+  const vertex=graph.vertices.find(v=>v.sourceAttributeVertex===row&&
+   v.referencedBySourceFace);
+  if(!vertex)
+   throw Error('Выберите исходную атрибутную вершину; '+
+    'дочерние копии UV-углов пока нельзя перемещать по номеру строки.');
+  const delta=['meshdata-dx','meshdata-dy','meshdata-dz'].map(id=>
+   Number(byId(id).value)),
+   scope=byId('meshdata-vertex-scope').value;
+  if(!delta.every(x=>Number.isFinite(x)&&Math.abs(x)<=2)||
+   Math.hypot(...delta)<=1e-8)
+   throw Error('Нужен ненулевой сдвиг X/Y/Z от -2 до 2.');
+  if(!window.confirm('Изменить POSITION вершины '+row+' ('+scope+')? '+
+   'Подтверждённые split-UV швы будут перемещены вместе. '+
+   'UV, скелет, веса костей и морфы сохраняются, '+
+   'разворот или схлопывание треугольника запрещены.'))return;
+  const result=await meshCall('meshdata.moveVertex',{
+   meshId:meshId(),primitiveIndex:0,
+   vertexId:vertex.id,scope,delta
+  });
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('Вершина MeshData сдвинута; ревизия '+result.revision);
+  byId('meshdata-vertex-output').textContent='Перемещена исходная вершина '+
+   row+' ('+scope+'); ревизия '+result.revision+'.';
+  await drawUvWorkspace();
+ }catch(error){
+  byId('meshdata-vertex-output').textContent=
+   'Ошибка MeshData: '+String(error?.message||error);
+ }
+});
 // P25: UV preview is drawn from the actual MeshData face-corner streams.
 async function drawUvWorkspace(graph=null){
  if(!meshSession)throw Error('Сначала откройте Edit Mode.');

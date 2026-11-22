@@ -4,7 +4,7 @@
  * Not a general N-gon, skin-weight or full persistent half-edge core.
  * Source GLB keeps all other streams and is the lossless export authority.
  */
-import {parseGlb} from '../glb.js';
+import {parseGlb,writeGlb} from '../glb.js';
 import {applyMeshOperations} from './mesh-edit-core.js';
 import {buildMeshDataSnapshot} from './meshdata-halfedge-preview.js';
 
@@ -58,6 +58,8 @@ function sourceGeometry(sourceGLB,meshIndex,primitiveIndex){
  const indices=ind.data.map(x=>x[0]);
  ok(indices.every(x=>validInt(x)&&x<pos.a.count),
   'INDICES','Source has invalid indices');
+ ok(pos.data.every(row=>row.every(x=>Number.isFinite(x)&&Math.abs(x)<=1e4)),
+  'POSITION','Source positions outside bounded finite profile');
  const sets={};let mask=0;
  for(let i=0;i<=1;i++){
   if(prim.attributes['TEXCOORD_'+i]===undefined)continue;
@@ -70,7 +72,17 @@ function sourceGeometry(sourceGLB,meshIndex,primitiveIndex){
   sets[i]=uv.data;mask|=1<<i;
  }
  ok(mask>0,'UV_MISSING','At least one Float32 UV set required');
- return{positions:pos.data,indices,uv:sets,mask};
+ // Retain source skin and morph POSITION deltas for safe verification
+ // of explicitly identified split-UV seam duplicates. Never auto-weld
+ // unrelated coincident positions or different animated vertex streams.
+ const skin=['JOINTS_0','WEIGHTS_0'].map(name=>
+  prim.attributes?.[name]===undefined?null:rows(prim.attributes[name]).data);
+ const morph=(prim.targets||[]).map(target=>
+  target.POSITION===undefined?null:rows(target.POSITION).data);
+ ok(skin.every(x=>!x||x.length===pos.a.count)&&
+  morph.every(x=>!x||x.length===pos.a.count),
+  'SOURCE_SKIN','Skin/morph source rows must have same vertex count');
+ return{positions:pos.data,indices,uv:sets,mask,skin,morph};
 }
 function shape(vertices,faces,mask){
  return HEADER+faces*3*4+vertices*3*4+
@@ -147,8 +159,9 @@ function inspect(blob,sourceGLB,expectedSha){
  ok(g.indices.length===m.indices.length&&
   g.positions.length===m.positions.length&&g.mask===m.mask&&
   g.indices.every((x,i)=>m.indices[i]===x)&&
-  g.positions.every((row,i)=>row.every((x,k)=>same(x,m.positions[i][k]))),
-  'SOURCE_TOPOLOGY','Source has different vertex positions or triangle indices');
+  m.positions.every(row=>row.every(x=>
+   Number.isFinite(x)&&Math.abs(x)<=1e4)),
+  'SOURCE_TOPOLOGY','Source triangle indices/mask/vertex counts mismatch');
  return m;
 }
 const faceId=(sha,meshIndex,primitiveIndex,i)=>
@@ -222,13 +235,127 @@ function translate(blob,sourceGLB,sourceSha256,op){
   }
  return{bytes:next,changedFaces:[...selected].sort((a,b)=>a-b)};
 }
+const vertexId=(sha,mesh,primitive,row)=>
+ 'mark-attr-'+sha+'-m'+mesh+'-p'+primitive+'-v'+row;
+const vecKey=row=>row.map(x=>Math.fround(x)).join(',');
+function seamNeighbors(g){
+ // Only attribute rows on reversely oriented, geometric edge-matched
+ // triangles count as an evidenced split seam; coincident unrelated
+ // triangles are not silently fused.
+ const directed=new Map(),neighbors=Array.from(
+  {length:g.positions.length},()=>new Set());
+ for(let i=0;i<g.indices.length;i+=3)for(let k=0;k<3;k++){
+  const a=g.indices[i+k],b=g.indices[i+(k+1)%3];
+  const key=vecKey(g.positions[a])+'>'+vecKey(g.positions[b]);
+  const list=directed.get(key)||[];
+  list.push({a,b,face:i/3});directed.set(key,list);
+ }
+ for(const entries of directed.values())for(const {a,b,face} of entries){
+  const key=vecKey(g.positions[b])+'>'+vecKey(g.positions[a]);
+  for(const reverse of directed.get(key)||[]){
+   if(reverse.face===face)continue;
+   if(a!==reverse.b){
+    neighbors[a].add(reverse.b);neighbors[reverse.b].add(a);
+   }
+   if(b!==reverse.a){
+    neighbors[b].add(reverse.a);neighbors[reverse.a].add(b);
+   }
+  }
+ }
+ return neighbors;
+}
+function moveVertex(blob,sourceGLB,sourceSha256,op){
+ const m=inspect(blob,sourceGLB,sourceSha256),
+  g=sourceGeometry(sourceGLB,m.meshIndex,m.primitiveIndex);
+ ok(op&&typeof op==='object'&&!Array.isArray(op)&&
+  Object.keys(op).length===6&&
+  ['kind','meshIndex','primitiveIndex','vertexId','delta','scope']
+   .every(k=>Object.hasOwn(op,k))&&
+  op.kind==='meshdata.moveVertex'&&
+  op.meshIndex===m.meshIndex&&
+  op.primitiveIndex===m.primitiveIndex&&
+  typeof op.vertexId==='string'&&op.vertexId.length<=160&&
+  ['attribute','verified-seam'].includes(op.scope)&&
+  Array.isArray(op.delta)&&op.delta.length===3&&
+  op.delta.every(x=>typeof x==='number'&&
+   Number.isFinite(x)&&Math.abs(x)<=2)&&
+  Math.hypot(...op.delta)>1e-8,
+  'MOVE_ARGS','Expected exact source vertex ID, 3D delta and seam scope');
+ const row=Array.from({length:m.vertices},(_,i)=>
+  vertexId(sourceSha256,m.meshIndex,m.primitiveIndex,i))
+  .indexOf(op.vertexId);
+ ok(row>=0&&g.indices.includes(row),
+  'MOVE_VERTEX','Only referenced original source attribute vertex IDs are editable');
+ const seam=seamNeighbors(g);
+ const group=new Set([row]),stack=[row];
+ while(stack.length){
+  const current=stack.pop();
+  for(const related of seam[current])if(!group.has(related)){
+   group.add(related);stack.push(related);
+  }
+ }
+ ok(op.scope!=='attribute'||group.size===1,
+  'MOVE_SEAM_SPLIT',
+  'This vertex belongs to a verified split-UV seam. Use verified-seam scope.');
+ const affected=op.scope==='attribute'?[row]:[...group].sort((a,b)=>a-b);
+ if(affected.length>1){
+  const from=affected[0];
+  for(const other of affected.slice(1)){
+   ok(g.positions[from].every((x,k)=>x===g.positions[other][k])&&
+    g.skin.every(stream=>!stream||
+     stream[from].every((x,k)=>x===stream[other][k]))&&
+    g.morph.every(stream=>!stream||
+     stream[from].every((x,k)=>x===stream[other][k])),
+    'MOVE_SEAM_DATA','Seam-linked vertices have different skin or morph deformation');
+  }
+ }
+ const next=m.data.slice(),dv=new DataView(next.buffer),
+  positions=m.positions.map(row=>row.slice()),
+  start=HEADER+m.faces*3*4;
+ for(const i of affected)for(let axis=0;axis<3;axis++){
+  const v=Math.fround(positions[i][axis]+op.delta[axis]);
+  ok(Number.isFinite(v)&&Math.abs(v)<=1e4,
+   'MOVE_RANGE','Position outside bounded Float32 profile');
+  positions[i][axis]=v;
+  dv.setFloat32(start+(i*3+axis)*4,v,true);
+ }
+ // Prevent degenerate and inverted triangles. No silent topological
+ // repairs or altered UV/normal/morph/skin semantics in this first profile.
+ const triNormal=rows=>{
+  const [a,b,c]=rows;
+  const u=b.map((x,k)=>x-a[k]),v=c.map((x,k)=>x-a[k]);
+  return[u[1]*v[2]-u[2]*v[1],
+   u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+ };
+ for(let f=0;f<m.faces;f++){
+  const ids=m.indices.slice(f*3,f*3+3);
+  if(!ids.some(id=>affected.includes(id)))continue;
+  const old=triNormal(ids.map(i=>m.positions[i])),
+   now=triNormal(ids.map(i=>positions[i])),
+   oldSize=Math.hypot(...old),newSize=Math.hypot(...now);
+  ok(oldSize>1e-10&&newSize>1e-10&&
+   newSize>oldSize*1e-4&&
+   old.reduce((sum,x,i)=>sum+x*now[i],0)/
+    (oldSize*newSize)>1e-6,
+   'MOVE_TOPOLOGY','Move would collapse or invert an incident triangle');
+ }
+ return{bytes:next,changedVertices:affected,
+  changedVertexIds:affected.map(i=>
+   vertexId(sourceSha256,m.meshIndex,m.primitiveIndex,i))};
+}
 /** Public: standalone, versioned binary datablock with actual vertex and per-corner UV arrays. */
 export function buildEditableMeshDataBinary({sourceGLB,sourceSha256,
  meshIndex=0,primitiveIndex=0,operations=[]}={}){
  ok(Array.isArray(operations)&&operations.length<=16,
-  'OPS','Up to 16 UV datablock commands');
+  'OPS','Up to 16 bounded editable MeshData commands');
  let binary=encodeOriginal(sourceGLB,sourceSha256,meshIndex,primitiveIndex);
- for(const op of operations)binary=translate(binary,sourceGLB,sourceSha256,op).bytes;
+ for(const op of operations){
+  if(op?.kind==='meshdata.translateUv')
+   binary=translate(binary,sourceGLB,sourceSha256,op).bytes;
+  else if(op?.kind==='meshdata.moveVertex')
+   binary=moveVertex(binary,sourceGLB,sourceSha256,op).bytes;
+  else fail('OPS_KIND','Unknown editable MeshData operation kind');
+ }
  // Verify current structure and origin after replay before persistence.
  inspect(binary,sourceGLB,sourceSha256);
  return binary;
@@ -246,22 +373,104 @@ export function previewEditableMeshDataBinary({data,sourceGLB,sourceSha256}={}){
   const face=graph.faces.find(f=>f.id===c.faceId),
    at=face.triangleIndex*3+c.slot;
   return{...c,attributes:{...c.attributes,
+   position:m.positions[c.attributeVertex].slice(),
    uvSets:Object.fromEntries(Object.entries(m.uv).map(([set,rows])=>
     ['TEXCOORD_'+set,rows[at].slice()]))}};
  });
+ const vertices=Array.from({length:m.vertices},(_,i)=>({
+  id:vertexId(sourceSha256,m.meshIndex,m.primitiveIndex,i),
+  sourceAttributeVertex:i,position:m.positions[i].slice(),
+  referencedBySourceFace:m.indices.some(j=>j===i)
+ }));
  ok(corners.length===m.faces*3&&originalCorners.size===corners.length,
   'ID_GRAPH','Physical corner IDs not unique');
+ // UI/renderers select actual physical glTF attribute rows. After UV COW
+ // those indices are NOT the stable source row. Record the verified
+ // export-derived provenance instead of guessing from rendered coordinates.
+ const physical=renderEditableMeshDataGlb({
+  sourceGLB,sourceSha256,data:m.data});
+ const attributeRowProvenance=Array.from({length:m.vertices},(_,i)=>({
+  physicalAttributeVertex:i,sourceAttributeVertex:i,
+  vertexId:vertexId(sourceSha256,m.meshIndex,m.primitiveIndex,i)
+ }));
+ for(const op of physical.operations)for(let k=0;k<3;k++){
+  const sourceAttributeVertex=m.indices[op.faceIndex*3+k];
+  attributeRowProvenance.push({
+   physicalAttributeVertex:attributeRowProvenance.length,
+   sourceAttributeVertex,
+   vertexId:vertexId(sourceSha256,m.meshIndex,m.primitiveIndex,
+    sourceAttributeVertex)
+  });
+ }
  return{schema:'mark.editable-meshdata-binary/1',
   sourceSha256,meshIndex:m.meshIndex,primitiveIndex:m.primitiveIndex,
   persisted:true,standaloneBinary:true,bytes:m.data.length,
-  supported:['source TRIANGLES','vertex positions','source face and corner IDs',
-   'UV0/UV1 per-corner Float32','safe face/island UV translation'],
+  supported:['source TRIANGLES','editable vertex POSITION',
+   'verified-seam or unambiguous attribute vertex moves',
+   'source face and corner IDs','UV0/UV1 per-corner Float32',
+   'safe face/island UV translation'],
   uvSets:Object.keys(m.uv).map(x=>'TEXCOORD_'+x),
-  faces,corners,edges:graph.edges,halfedges:graph.halfedges,
+  faces,corners,vertices,attributeRowProvenance,
+  edges:graph.edges,halfedges:graph.halfedges,
   diagnostics:{...graph.diagnostics,
    editableMeshData:true,storedAttributeVertices:m.vertices,
    faceCount:m.faces,uvSetCount:Object.keys(m.uv).length,
-   uvCornerCount:corners.length}};
+   uvCornerCount:corners.length,
+   positionsEditable:true}};
+}
+function patchPhysicalPositions(edited,sourceGLB,m,ops){
+ const original=sourceGeometry(sourceGLB,m.meshIndex,m.primitiveIndex);
+ const changed=m.positions.some((p,i)=>p.some((v,k)=>
+  v!==original.positions[i][k]));
+ if(!changed)return edited;
+ const src=parseGlb(sourceGLB),sourcePrim=src.json.meshes[m.meshIndex]
+  .primitives[m.primitiveIndex],sourceAccessor=sourcePrim.attributes.POSITION;
+ // A shared accessor could affect an unrelated glTF primitive. Do not
+ // modify shared storage until first-class object datablock ownership exists.
+ for(let mesh=0;mesh<src.json.meshes.length;mesh++)
+  for(let primitive=0;primitive<src.json.meshes[mesh].primitives.length;primitive++)
+   if(mesh!==m.meshIndex||primitive!==m.primitiveIndex)
+    ok(src.json.meshes[mesh].primitives[primitive].attributes?.POSITION!==
+     sourceAccessor,'SHARED_POSITION',
+     'Other primitives sharing POSITION need explicit copy-before-edit support');
+ const parsed=parseGlb(edited),doc=structuredClone(parsed.json),
+  prim=doc.meshes[m.meshIndex].primitives[m.primitiveIndex],
+  accessor=doc.accessors[prim.attributes.POSITION],
+  view=doc.bufferViews[accessor.bufferView],
+  originalChunk=parsed.chunks.find(c=>c.type===0x004e4942);
+ ok(originalChunk&&accessor.type==='VEC3'&&
+  accessor.componentType===5126&&!accessor.sparse&&
+  !accessor.normalized&&view.buffer===0,
+  'POSITION_EXPORT','Expected dense native glTF FLOAT POSITION stream');
+ const allPositions=m.positions.map(row=>row.slice());
+ for(const op of ops)for(let corner=0;corner<3;corner++)
+  allPositions.push(m.positions[m.indices[op.faceIndex*3+corner]].slice());
+ ok(accessor.count===allPositions.length,
+  'POSITION_ROW_MAP','UV cloned rows differ from real mapped source vertex rows');
+ const bin=originalChunk.data.slice(),
+  data=new DataView(bin.buffer,bin.byteOffset,bin.byteLength),
+  offset=(view.byteOffset||0)+(accessor.byteOffset||0),
+  stride=view.byteStride??12;
+ ok(stride>=12&&stride%4===0&&offset%4===0&&
+  offset+(accessor.count-1)*stride+12<=
+   Math.min(bin.byteLength,(view.byteOffset||0)+view.byteLength),
+  'POSITION_ACCESSOR','Position patch would exceed accessor bounds');
+ for(let i=0;i<allPositions.length;i++)
+  for(let k=0;k<3;k++)
+   data.setFloat32(offset+i*stride+k*4,allPositions[i][k],true);
+ if(accessor.min||accessor.max){
+  accessor.min=Array.from({length:3},(_,k)=>
+   Math.min(...allPositions.map(row=>row[k])));
+  accessor.max=Array.from({length:3},(_,k)=>
+   Math.max(...allPositions.map(row=>row[k])));
+ }
+ const output=writeGlb({...parsed,chunks:parsed.chunks.map(c=>
+  c.type===0x004e4942?{...c,data:bin}:c)},doc);
+ const verified=sourceGeometry(output,m.meshIndex,m.primitiveIndex);
+ ok(verified.positions.length===allPositions.length&&
+  verified.positions.every((row,i)=>row.every((v,k)=>v===allPositions[i][k])),
+  'POSITION_VERIFY','Exported GLB position rows disagree with MeshData');
+ return output;
 }
 export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
  const m=inspect(data,sourceGLB,sourceSha256),
@@ -288,9 +497,10 @@ export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
  ok(ops.length<=8,'EXPORT_LIMIT',
   'At most eight changed face/UV-set pairs in initial exporter');
  const edited=applyMeshOperations(sourceGLB,ops);
+ const positioned=patchPhysicalPositions(edited,sourceGLB,m,ops);
  // Verify both UV sets in the physical export actually match datablock.
  if(ops.length){
-  const graph=buildMeshDataSnapshot({sourceGLB,editedGLB:edited,
+  const graph=buildMeshDataSnapshot({sourceGLB,editedGLB:positioned,
    sourceSha256,meshIndex:m.meshIndex,primitiveIndex:m.primitiveIndex,
    operations:ops});
   const byCorner=new Map(graph.corners.map(c=>[c.id,c]));
@@ -302,5 +512,7 @@ export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
      'GLB UV corner values differ from independent MeshData binary resource');
    }
  }
- return{glb:edited,operations:ops};
+ return{glb:positioned,operations:ops,
+  movedVertices:m.positions.filter((p,i)=>
+   p.some((v,k)=>v!==original.positions[i][k])).length};
 }

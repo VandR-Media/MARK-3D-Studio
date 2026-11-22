@@ -34,6 +34,7 @@ const OP_NAMES=[
  'mesh.moveLinkedCap','mesh.pokeLinkedCap','mesh.splitPokedCapEdge',
  'mesh.splitPokedCapChildEdge','mesh.splitPokedCapGrandchildEdge',
  'mesh.offsetUvFace','meshdata.get','meshdata.begin','meshdata.translateUv',
+ 'meshdata.moveVertex',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -310,7 +311,7 @@ export function createAiBridge({
     clips:checked.manifest.sourceSummary.clips.length,
     currentEdits:copy(selectedEdits()),
     sourceUnmodified:true,errors:[],warnings:[
-     'Experimental native v3 subset only: no vertex/weight/UV/rig editing'
+     'Experimental MeshData supports bounded POSITION/UV edits; no weight paint or new topology'
     ]};
   },
   'scene.save':async()=>{
@@ -325,7 +326,7 @@ export function createAiBridge({
    return {fileName:'MARK-AI-Bridge-Edited.glb',data:out.glb,
     sha256:out.sha256,sourceSha256:engine.opened.sourceSha256,
     bytes:out.glb.length,format:'model/gltf-binary',
-    notes:['Exported supported TRS/PBR overrides, original BIN preserved']};
+    notes:['GLB preserves rig/morph/PBR while exporting bounded vertex POSITION/UV edits']};
   },
   'object.setTransform':async params=>mutate(edits=>{
    const id=stableUuid(params?.uuid,'gltf-node-'),doc=glbDoc();
@@ -408,6 +409,49 @@ export function createAiBridge({
    renderEditableMeshDataGlb({sourceGLB:engine.opened.sourceGLB,
     sourceSha256:engine.opened.sourceSha256,data});
    edits.meshDataOperations=ops;
+  }),
+  'meshdata.moveVertex':async params=>mutate(edits=>{
+   guard(plain(params)&&Object.keys(params).length===5&&
+    ['meshId','primitiveIndex','vertexId','scope','delta']
+     .every(k=>Object.hasOwn(params,k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    params.primitiveIndex===0&&
+    typeof params.vertexId==='string'&&params.vertexId.length<=160&&
+    ['attribute','verified-seam'].includes(params.scope)&&
+    Array.isArray(params.delta)&&params.delta.length===3&&
+    params.delta.every(x=>numeric(x)&&Math.abs(x)<=2)&&
+    Math.hypot(...params.delta)>1e-8,
+    'MDB_MOVE_ARGS','Exact source vertex ID, mode and 3D delta required');
+   guard(Array.isArray(edits.meshDataOperations)&&
+    edits.meshDataOperations.length<16,
+    'MDB_MOVE_SEQUENCE','Begin editable MeshData, max 16 operations');
+   const before=buildEditableMeshDataBinary({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex:0,primitiveIndex:0,
+    operations:edits.meshDataOperations
+   });
+   const current=previewEditableMeshDataBinary({
+    data:before,sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256
+   });
+   guard(current.vertices.some(v=>v.id===params.vertexId&&
+    v.referencedBySourceFace),
+    'MDB_MOVE_STALE','Source-bound vertex is absent or no longer referenced');
+   const operation={kind:'meshdata.moveVertex',
+    meshIndex:0,primitiveIndex:0,vertexId:params.vertexId,
+    scope:params.scope,delta:params.delta.slice()},
+    operations=[...edits.meshDataOperations,operation],
+    data=buildEditableMeshDataBinary({
+     sourceGLB:engine.opened.sourceGLB,
+     sourceSha256:engine.opened.sourceSha256,meshIndex:0,
+     primitiveIndex:0,operations
+    });
+   // Verify physical GLB/rigger and all copied UV corners before commit.
+   renderEditableMeshDataGlb({sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,data});
+   edits.meshDataOperations=operations;
   }),
   'meshdata.get':async params=>{
    assertScene();
