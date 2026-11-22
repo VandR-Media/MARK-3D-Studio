@@ -860,6 +860,100 @@ byId('mesh-split-grandchild-edge').addEventListener('click',async()=>{
   meshOutput().textContent='Ошибка: '+String(error?.message||error);
  }
 });
+// P28: UI and Bridge share the same source-scoped MeshData operations.
+function groupRows(){
+ const raw=byId('meshdata-group-rows').value.trim();
+ if(!/^\\d+(?:\\s*,\\s*\\d+)+$/.test(raw))
+  throw Error('Нужны два–восемь исходных индексов через запятую.');
+ const indices=raw.split(',').map(v=>Number(v.trim()));
+ if(indices.length<2||indices.length>8||
+  indices.some(v=>!Number.isSafeInteger(v))||
+  new Set(indices).size!==indices.length)
+  throw Error('Введите от двух до восьми разных целых индексов.');
+ return indices.sort((a,b)=>a-b);
+}
+byId('meshdata-group-add-pick').addEventListener('click',async()=>{
+ try{
+  if(!meshSession)throw Error('Откройте Edit Mode.');
+  const picked=meshPickState();
+  if(picked?.mode!=='vertex'||picked.meshId!==meshId()||
+   picked.primitiveIndex!==0)
+   throw Error('Выберите исходную или COW-вершину в 3D.');
+  const graph=await meshCall('meshdata.get',{
+   meshId:meshId(),primitiveIndex:0,full:true});
+  if(!graph.enabled)throw Error('Сначала создайте MeshData.');
+  const mapped=graph.attributeRowProvenance.find(r=>
+   r.physicalAttributeVertex===picked.vertex);
+  if(!mapped)throw Error('У выбранной видимой вершины нет source ID.');
+  const current=byId('meshdata-group-rows').value.trim();
+  const rows=current?current.split(',').map(x=>Number(x.trim())):[];
+  if(rows.some(x=>!Number.isSafeInteger(x)||x<0))
+   throw Error('Список группы содержит неправильные индексы.');
+  const added=[...new Set([...rows,mapped.sourceAttributeVertex])]
+   .sort((a,b)=>a-b);
+  if(added.length>8)throw Error('В группе допускается не более 8 вершин.');
+  byId('meshdata-group-rows').value=added.join(',');
+  byId('meshdata-group-output').textContent='Добавлен источник '+
+   mapped.sourceAttributeVertex+' (видимая glTF-строка '+picked.vertex+').';
+ }catch(error){byId('meshdata-group-output').textContent=
+  'Ошибка: '+String(error?.message||error);}
+});
+byId('meshdata-group-move').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const graph=await meshCall('meshdata.get',{
+   meshId:meshId(),primitiveIndex:0,full:true});
+  if(!graph.enabled)throw Error('Сначала создайте MeshData.');
+  if(graph.diagnostics.normalsRecalculated)
+   throw Error('Нормали уже пересчитаны. Для новой правки сначала Undo.');
+  const indices=groupRows();
+  const sources=indices.map(i=>graph.vertices.find(v=>
+   v.sourceAttributeVertex===i&&v.referencedBySourceFace));
+  if(sources.some(v=>!v))throw Error('Группа ссылается на отсутствующий source ID.');
+  const delta=['meshdata-dx','meshdata-dy','meshdata-dz'].map(id=>
+   Number(byId(id).value)),scope=byId('meshdata-vertex-scope').value;
+  if(!delta.every(x=>Number.isFinite(x)&&Math.abs(x)<=2)||
+   Math.hypot(...delta)<=1e-8)
+   throw Error('Нужен ненулевой ΔXYZ в диапазоне [-2,2].');
+  if(!window.confirm('Переместить атомарно '+indices.length+
+   ' исходных вершин? Проверим форму треугольников, UV-швы, skin и morph.'))
+   return;
+  const result=await meshCall('meshdata.moveVertexGroup',{
+   meshId:meshId(),primitiveIndex:0,vertexIds:sources.map(v=>v.id),
+   scope,delta
+  });
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('Группа исходных вершин реально перемещена.');
+  await drawUvWorkspace();
+  byId('meshdata-group-output').textContent='Группа '+indices.join(',')+
+   ' сохранена в бинарном MeshData, ревизия '+result.revision+'.';
+ }catch(error){byId('meshdata-group-output').textContent=
+  'Ошибка группы: '+String(error?.message||error);}
+});
+byId('meshdata-normal-recalculate').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const graph=await meshCall('meshdata.get',{
+   meshId:meshId(),primitiveIndex:0,full:true});
+  if(!graph.enabled)throw Error('Сначала создайте MeshData.');
+  if(graph.diagnostics.normalsRecalculated)
+   throw Error('Нормали уже пересчитаны; повторная команда не нужна.');
+  if(!window.confirm('Пересчитать настоящие NORMAL по площади исходных '+
+   'треугольников? Split-UV швы останутся разделёнными. '+
+   'Дальнейшие перемещения до Undo будут заблокированы.'))return;
+  const result=await meshCall('meshdata.recalculateNormals',{
+   meshId:meshId(),primitiveIndex:0,mode:'area-weighted'
+  });
+  meshPicker.clear();regionFaceKey=null;
+  await meshShow('Нормали пересчитаны и записаны в бинарный MeshData.');
+  byId('meshdata-group-output').textContent=
+   'NORMAL VEC3 сохранены в MeshData v2, ревизия '+result.revision+'.';
+  await drawUvWorkspace();
+ }catch(error){byId('meshdata-group-output').textContent=
+  'Ошибка нормалей: '+String(error?.message||error);}
+});
 // P27: actual source-scoped vertex POSITION edits in the independent
 // binary MeshData, authorized exactly like UV operations.
 byId('meshdata-vertex-move').addEventListener('click',async()=>{
