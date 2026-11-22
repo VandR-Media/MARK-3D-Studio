@@ -423,7 +423,10 @@ export function buildEditableMeshDataBinary({sourceGLB,sourceSha256,
  ok(Array.isArray(operations)&&operations.length<=16,
   'OPS','Up to 16 bounded editable MeshData commands');
  let binary=encodeOriginal(sourceGLB,sourceSha256,meshIndex,primitiveIndex);
- for(const op of operations){
+ for(const [ordinal,op] of operations.entries()){
+  ok(ordinal===0||new DataView(binary.buffer,binary.byteOffset,
+   binary.byteLength).getUint32(8,true)!==NORMALS_VERSION,
+   'NORMAL_TERMINAL','Normal recalculation must be the last MeshData operation');
   if(op?.kind==='meshdata.translateUv')
    binary=translate(binary,sourceGLB,sourceSha256,op).bytes;
   else if(op?.kind==='meshdata.moveVertex'||
