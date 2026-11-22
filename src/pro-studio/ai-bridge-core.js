@@ -563,7 +563,7 @@ export function createAiBridge({
     params.primitiveIndex===0&&
     typeof params.edgeId==='string'&&params.edgeId.length<180&&
     ['sharp','seam'].includes(params.flag)&&
-    typeof params.enabled==='boolean,
+    typeof params.enabled==='boolean',
     'TOPO_EDGE_ARGS','Exact current edge ID, seam/sharp boolean required');
    guard(Array.isArray(edits.meshTopologyOperations)&&
     edits.meshTopologyOperations.length<32,
