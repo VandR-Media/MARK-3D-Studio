@@ -221,7 +221,9 @@ try{
  await page.locator('#mesh-pick-mode').selectOption('vertex');
  await page.evaluate(()=>window.MARK_MESH_PICK_API.enable(true));
  const projectedVertex=await page.evaluate(()=>
-  window.MARK_MESH_PICK_API.projectVertex(0,0));
+  window.MARK_MESH_PICK_API.projectVertex(0,6));
+ const physicalFaceCentroid=await page.evaluate(()=>
+  window.MARK_MESH_PICK_API.projectFace(0,0));
  await page.locator('#viewport').scrollIntoViewIfNeeded();
  const boxVertex=await page.locator('#viewport').boundingBox();
  check('P27-POSITION-MOUSE-ONSCREEN-13',
@@ -231,14 +233,18 @@ try{
   projectedVertex.y<boxVertex.height,
   {projectedVertex,boxVertex},
   'Physical source vertex 0 was not on WebGL2 viewport');
- await page.mouse.click(boxVertex.x+projectedVertex.x,
-  boxVertex.y+projectedVertex.y);
+ // A raycast strictly ON the triangle corner may miss the face by 1px.
+ // Click INSIDE the real rendered face, close to the real COW vertex.
+ await page.mouse.click(boxVertex.x+projectedVertex.x*.88+
+  physicalFaceCentroid.x*.12,
+  boxVertex.y+projectedVertex.y*.88+
+   physicalFaceCentroid.y*.12);
  const pickedVertex=await page.evaluate(()=>
   window.MARK_MESH_PICK_API.selection());
  check('P27-ACTUAL-VERTEX-MOUSE-PICK-14',
-  pickedVertex?.mode==='vertex'&&pickedVertex.vertex===0,
-  {pickedVertex,projectedVertex},
-  'Source vertex must be selected through real mouse raycast');
+  pickedVertex?.mode==='vertex'&&pickedVertex.vertex===6,
+  {pickedVertex,projectedVertex,physicalFaceCentroid},
+  'Visible COW vertex must be selected by real raycast and remapped to stable source vertex 0');
  await page.locator('#mesh-a').fill('999');
  await page.locator('#meshdata-vertex-scope').selectOption('attribute');
  await page.locator('#meshdata-dx').fill('.25');
