@@ -860,6 +860,96 @@ byId('mesh-split-grandchild-edge').addEventListener('click',async()=>{
   meshOutput().textContent='Ошибка: '+String(error?.message||error);
  }
 });
+// P29: true owned source topology, independent from glTF attribute rows.
+const topoOut=()=>byId('meshdata-topology-output');
+async function readOwnedTopology(){
+ if(!meshSession)throw Error('Сначала откройте Edit Mode.');
+ return meshCall('meshdata.getOwnedTopology',{
+  meshId:meshId(),primitiveIndex:0,full:true
+ });
+}
+byId('meshdata-topology-begin').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const current=await readOwnedTopology();
+  if(current.enabled)throw Error('Постоянная топология уже активирована.');
+  const mesh=await meshCall('meshdata.get',{
+   meshId:meshId(),primitiveIndex:0
+  });
+  if(!mesh.enabled)throw Error('Сначала создайте бинарный MeshData.');
+  if(!window.confirm('Создать отдельный каталог Vertex / Edge / Face / '+
+   'Halfedge в .markscene? Исходный GLB останется нетронутым; '+
+   'Sharp и UV Seam пока являются собственными MARK-метками.'))return;
+  await meshCall('meshdata.ownedTopologyBegin',{
+   meshId:meshId(),primitiveIndex:0
+  });
+  await meshShow('Создан отдельный бинарный ресурс топологии.');
+  const graph=await readOwnedTopology();
+  topoOut().textContent='Готово: '+graph.diagnostics.vertexCount+
+   ' вершин, '+graph.diagnostics.edgeCount+' рёбер, '+
+   graph.diagnostics.faceCount+' граней, '+
+   graph.diagnostics.halfedgeCount+' полурёбер.';
+ }catch(error){topoOut().textContent=
+  'Ошибка топологии: '+String(error?.message||error);}
+});
+byId('meshdata-topology-refresh').addEventListener('click',async()=>{
+ try{
+  const g=await readOwnedTopology();
+  if(!g.enabled)throw Error('Сначала создайте постоянную топологию.');
+  topoOut().textContent='Рёбра ['+g.diagnostics.edgeCount+']: '+
+   g.edges.slice(0,12).map(e=>e.sourceRows.join('–')+
+    (e.seam?' seam':'')+(e.sharp?' sharp':'')).join('; ')+
+   '. Каждое ребро имеет постоянный source-SHA ID.';
+ }catch(error){topoOut().textContent=
+  'Ошибка топологии: '+String(error?.message||error);}
+});
+byId('meshdata-topology-mark').addEventListener('click',async()=>{
+ try{
+  if(!meshSession||!byId('bridge-write-grant').checked)
+   throw Error('Откройте Edit Mode и разрешите запись.');
+  const graph=await readOwnedTopology();
+  if(!graph.enabled)throw Error('Сначала создайте постоянную топологию.');
+  let a=Number(byId('meshdata-edge-a').value),
+   b=Number(byId('meshdata-edge-b').value);
+  const pick=meshPickState();
+  if(pick?.mode==='edge'){
+   if(pick.meshId!==meshId()||pick.primitiveIndex!==0)
+    throw Error('Ребро выбрано в другом меше.');
+   const mesh=await meshCall('meshdata.get',{
+    meshId:meshId(),primitiveIndex:0,full:true
+   });
+   const source=pick.edge.map(row=>mesh.attributeRowProvenance.find(x=>
+    x.physicalAttributeVertex===row)?.sourceAttributeVertex);
+   if(source.length!==2||source.some(x=>x===undefined))
+    throw Error('Видимые glTF-строки не связаны с исходными вершинами.');
+   [a,b]=source;
+   byId('meshdata-edge-a').value=String(a);
+   byId('meshdata-edge-b').value=String(b);
+  }
+  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||
+   b<0||a===b)throw Error('Укажите разные неотрицательные source-индексы.');
+  const edge=graph.edges.find(e=>e.sourceRows[0]===Math.min(a,b)&&
+   e.sourceRows[1]===Math.max(a,b));
+  if(!edge)throw Error('Выбранной пары нет в подтверждённой топологии.');
+  const flag=byId('meshdata-edge-flag').value,
+   enabled=byId('meshdata-edge-enabled').checked;
+  if(!window.confirm((enabled?'Установить':'Снять')+' '+flag+
+   ' на исходном ребре '+a+'–'+b+'? Это MARK-метаданные; '+
+   'UV-развёртка и освещение автоматически не изменяются.'))return;
+  await meshCall('meshdata.setOwnedEdgeFlag',{
+   meshId:meshId(),primitiveIndex:0,
+   edgeId:edge.id,flag,enabled
+  });
+  meshPicker.clear();regionFaceKey=null;
+  const updated=await readOwnedTopology();
+  const now=updated.edges.find(e=>e.id===edge.id);
+  topoOut().textContent='Ребро '+a+'–'+b+': seam='+now.seam+
+   ', sharp='+now.sharp+'; сохранено в независимом бинарном ресурсе.';
+  await meshShow('Метка ребра записана в независимую MeshData-топологию.');
+ }catch(error){topoOut().textContent=
+  'Ошибка ребра: '+String(error?.message||error);}
+});
 // P28: UI and Bridge share the same source-scoped MeshData operations.
 function groupRows(){
  const raw=byId('meshdata-group-rows').value.trim();
