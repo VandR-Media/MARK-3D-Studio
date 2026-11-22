@@ -398,6 +398,60 @@ export function previewEditableMeshDataBinary({data,sourceGLB,sourceSha256}={}){
    uvCornerCount:corners.length,
    positionsEditable:true}};
 }
+function patchPhysicalPositions(edited,sourceGLB,m,ops){
+ const original=sourceGeometry(sourceGLB,m.meshIndex,m.primitiveIndex);
+ const changed=m.positions.some((p,i)=>p.some((v,k)=>
+  v!==original.positions[i][k]));
+ if(!changed)return edited;
+ const src=parseGlb(sourceGLB),sourcePrim=src.json.meshes[m.meshIndex]
+  .primitives[m.primitiveIndex],sourceAccessor=sourcePrim.attributes.POSITION;
+ // A shared accessor could affect an unrelated glTF primitive. Do not
+ // modify shared storage until first-class object datablock ownership exists.
+ for(let mesh=0;mesh<src.json.meshes.length;mesh++)
+  for(let primitive=0;primitive<src.json.meshes[mesh].primitives.length;primitive++)
+   if(mesh!==m.meshIndex||primitive!==m.primitiveIndex)
+    ok(src.json.meshes[mesh].primitives[primitive].attributes?.POSITION!==
+     sourceAccessor,'SHARED_POSITION',
+     'Other primitives sharing POSITION need explicit copy-before-edit support');
+ const parsed=parseGlb(edited),doc=structuredClone(parsed.json),
+  prim=doc.meshes[m.meshIndex].primitives[m.primitiveIndex],
+  accessor=doc.accessors[prim.attributes.POSITION],
+  view=doc.bufferViews[accessor.bufferView],
+  originalChunk=parsed.chunks.find(c=>c.type===0x004e4942);
+ ok(originalChunk&&accessor.type==='VEC3'&&
+  accessor.componentType===5126&&!accessor.sparse&&
+  !accessor.normalized&&view.buffer===0,
+  'POSITION_EXPORT','Expected dense native glTF FLOAT POSITION stream');
+ const allPositions=m.positions.map(row=>row.slice());
+ for(const op of ops)for(let corner=0;corner<3;corner++)
+  allPositions.push(m.positions[m.indices[op.faceIndex*3+corner]].slice());
+ ok(accessor.count===allPositions.length,
+  'POSITION_ROW_MAP','UV cloned rows differ from real mapped source vertex rows');
+ const bin=originalChunk.data.slice(),
+  data=new DataView(bin.buffer,bin.byteOffset,bin.byteLength),
+  offset=(view.byteOffset||0)+(accessor.byteOffset||0),
+  stride=view.byteStride??12;
+ ok(stride>=12&&stride%4===0&&offset%4===0&&
+  offset+(accessor.count-1)*stride+12<=
+   Math.min(bin.byteLength,(view.byteOffset||0)+view.byteLength),
+  'POSITION_ACCESSOR','Position patch would exceed accessor bounds');
+ for(let i=0;i<allPositions.length;i++)
+  for(let k=0;k<3;k++)
+   data.setFloat32(offset+i*stride+k*4,allPositions[i][k],true);
+ if(accessor.min||accessor.max){
+  accessor.min=Array.from({length:3},(_,k)=>
+   Math.min(...allPositions.map(row=>row[k])));
+  accessor.max=Array.from({length:3},(_,k)=>
+   Math.max(...allPositions.map(row=>row[k])));
+ }
+ const output=writeGlb({...parsed,chunks:parsed.chunks.map(c=>
+  c.type===0x004e4942?{...c,data:bin}:c)},doc);
+ const verified=sourceGeometry(output,m.meshIndex,m.primitiveIndex);
+ ok(verified.positions.length===allPositions.length&&
+  verified.positions.every((row,i)=>row.every((v,k)=>v===allPositions[i][k])),
+  'POSITION_VERIFY','Exported GLB position rows disagree with MeshData');
+ return output;
+}
 export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
  const m=inspect(data,sourceGLB,sourceSha256),
   src=encodeOriginal(sourceGLB,sourceSha256,m.meshIndex,m.primitiveIndex),
@@ -423,9 +477,10 @@ export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
  ok(ops.length<=8,'EXPORT_LIMIT',
   'At most eight changed face/UV-set pairs in initial exporter');
  const edited=applyMeshOperations(sourceGLB,ops);
+ const positioned=patchPhysicalPositions(edited,sourceGLB,m,ops);
  // Verify both UV sets in the physical export actually match datablock.
  if(ops.length){
-  const graph=buildMeshDataSnapshot({sourceGLB,editedGLB:edited,
+  const graph=buildMeshDataSnapshot({sourceGLB,editedGLB:positioned,
    sourceSha256,meshIndex:m.meshIndex,primitiveIndex:m.primitiveIndex,
    operations:ops});
   const byCorner=new Map(graph.corners.map(c=>[c.id,c]));
@@ -437,5 +492,7 @@ export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
      'GLB UV corner values differ from independent MeshData binary resource');
    }
  }
- return{glb:edited,operations:ops};
+ return{glb:positioned,operations:ops,
+  movedVertices:m.positions.filter((p,i)=>
+   p.some((v,k)=>v!==original.positions[i][k])).length};
 }
