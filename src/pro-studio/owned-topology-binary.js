@@ -225,7 +225,8 @@ export function verifyOwnedTopologyBinary({sourceGLB,sourceSha256,data}={}){
  const flags=new Set(derived.edges.map((_,i)=>
   HEADER+derived.vertices.length*12+i*20+16));
  for(let offset=0;offset<parsed.data.length;offset++){
-  if([...flags].some(f=>offset>=f&&offset<f+4))continue;
+  if(flags.has(offset)||flags.has(offset-1)||
+   flags.has(offset-2)||flags.has(offset-3))continue;
   ok(parsed.data[offset]===expected[offset],
    'SOURCE_REPLAY','Structural records differ from original source');
  }
