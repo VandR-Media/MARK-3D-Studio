@@ -1,0 +1,21 @@
+name: MARK Studio Pass30 edge split GLB materialization
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass30-edge-split-plan
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  materialization-and-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: node --check src/pro-studio/owned-edge-split-glb.js
+      - run: node --test tests/pro-studio-pass30-edge-split-glb.test.mjs
+      - run: node --test tests/pro-studio-pass30-edge-split-plan.test.mjs tests/pro-studio-pass29-owned-topology.test.mjs
