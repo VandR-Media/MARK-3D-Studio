@@ -146,6 +146,24 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="meshdata-normal-recalculate" type="button">Пересчитать нормали по граням</button>
 <output id="meshdata-group-output" role="status">Группа не перемещалась; нормали источника сохранены.</output>
 </section>
+<section aria-label="Постоянная топология MeshData" id="meshdata-topology-workspace">
+<strong>MeshData · постоянные вершины, рёбра и грани (P29)</strong>
+<p class="sub">Инициализация создаёт отдельный бинарный ресурс Vertex/Edge/Face/Halfedge
+с устойчивыми ID. Метки Sharp и UV Seam принадлежат исходным рёбрам,
+сохраняются в .markscene и экспортируются как MARK-метаданные.
+Они пока не меняют форму, UV и освещение автоматически.</p>
+<button id="meshdata-topology-begin" type="button">Создать собственную топологию</button>
+<button id="meshdata-topology-refresh" type="button">Показать рёбра и их ID</button>
+<label>Исходная вершина A <input id="meshdata-edge-a" type="number"
+ min="0" step="1" value="0" style="max-width:75px"></label>
+<label>Исходная вершина B <input id="meshdata-edge-b" type="number"
+ min="0" step="1" value="1" style="max-width:75px"></label>
+<label>Метка <select id="meshdata-edge-flag"><option value="seam">UV Seam</option>
+<option value="sharp">Sharp Edge</option></select></label>
+<label><input id="meshdata-edge-enabled" type="checkbox" checked> Установить метку</label>
+<button id="meshdata-topology-mark" type="button">Применить метку к настоящему ребру</button>
+<output id="meshdata-topology-output" role="status">Топология не выделена.</output>
+</section>
 <section aria-label="История и экспорт">
 <button id="mesh-undo">↶ Undo</button>
 <button id="mesh-redo">↷ Redo</button>
