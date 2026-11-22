@@ -123,7 +123,7 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <output id="mesh-uv-output" role="status">UV не загружены — откройте Edit Mode.</output>
 </section>
 <section aria-label="Редактирование позиций вершин MeshData" id="meshdata-vertex-workspace">
-<strong>MeshData · перемещение исходных вершин (P27)</strong>
+<strong>MeshData · вершины, группы и нормали (P28)</strong>
 <p class="sub">Выберите вершину мышью в режиме «вершина» или введите исходный glTF индекс в V1.
 Положение изменяется в бинарном MeshData. UV, веса костей и морфы остаются прежними.
 Для подтверждённого split-UV шва используйте связанный режим.</p>
@@ -136,6 +136,15 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 </select></label>
 <button id="meshdata-vertex-move" type="button">Переместить вершину MeshData</button>
 <output id="meshdata-vertex-output" role="status">Выделите вершину в 3D-окне.</output>
+<p class="sub">P28: группу редактируемых вершин можно собрать по исходным ID.
+Перемещение группы атомарное; выбранная в 3D вершина добавляется через отдельную кнопку.
+Нормали пересчитываются в конце правок, после чего POSITION редактирование закрыто до Undo.</p>
+<label>Исходные вершины группы <input id="meshdata-group-rows"
+ type="text" value="0,2" placeholder="0,2,3" aria-label="Индексы исходных вершин через запятую"></label>
+<button id="meshdata-group-add-pick" type="button">Добавить 3D-вершину в группу</button>
+<button id="meshdata-group-move" type="button">Переместить группу атомарно</button>
+<button id="meshdata-normal-recalculate" type="button">Пересчитать нормали по граням</button>
+<output id="meshdata-group-output" role="status">Группа не перемещалась; нормали источника сохранены.</output>
 </section>
 <section aria-label="История и экспорт">
 <button id="mesh-undo">↶ Undo</button>

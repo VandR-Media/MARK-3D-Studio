@@ -387,31 +387,45 @@ function normalizeEdits(edits,doc,sourceGLB){
    edits.meshDataOperations.length<=16&&
    !out.meshOperations?.length,
    'MESHDATA_SEQUENCE',
-   'Independent MeshData supports up to 16 UV-only commands, no older mesh operations');
+   'Up to 16 bounded MeshData commands, never mixed with legacy topology edits');
   const ops=[];
   for(const op of edits.meshDataOperations){
    const uv=op?.kind==='meshdata.translateUv',
     move=op?.kind==='meshdata.moveVertex',
+    group=op?.kind==='meshdata.moveVertexGroup',
+    normals=op?.kind==='meshdata.recalculateNormals',
     keys=uv?
      ['kind','meshIndex','primitiveIndex','faceId','uvSet','scope','delta']:
+     normals?['kind','meshIndex','primitiveIndex','mode']:
+     group?['kind','meshIndex','primitiveIndex','vertexIds','scope','delta']:
      ['kind','meshIndex','primitiveIndex','vertexId','scope','delta'];
-   good(keyed(op)&&(uv||move)&&
+   good(keyed(op)&&(uv||move||group||normals)&&
     Object.keys(op).length===keys.length&&
     keys.every(k=>Object.hasOwn(op,k))&&
     op.meshIndex===0&&op.primitiveIndex===0&&
-    Array.isArray(op.delta)&&
-    op.delta.length===(uv?2:3)&&
-    op.delta.every(x=>typeof x==='number'&&Number.isFinite(x)&&
-     Math.abs(x)<=(uv?1:2))&&Math.hypot(...op.delta)>1e-8&&
-    (uv?typeof op.faceId==='string'&&op.faceId.length<256&&
-      isUInt(op.uvSet)&&op.uvSet<=1&&
-      ['face','island'].includes(op.scope):
-     typeof op.vertexId==='string'&&op.vertexId.length<=160&&
-      ['attribute','verified-seam'].includes(op.scope)),
-    'MESHDATA_OP','Exact stable vertex/face ID, scope and bounded delta required');
-   ops.push(uv?{kind:op.kind,meshIndex:op.meshIndex,
-    primitiveIndex:op.primitiveIndex,faceId:op.faceId,
-    uvSet:op.uvSet,scope:op.scope,delta:op.delta.slice()}:
+    (normals?op.mode==='area-weighted'&&
+      ops.length===edits.meshDataOperations.length-1:
+     Array.isArray(op.delta)&&op.delta.length===(uv?2:3)&&
+     op.delta.every(x=>typeof x==='number'&&Number.isFinite(x)&&
+      Math.abs(x)<=(uv?1:2))&&Math.hypot(...op.delta)>1e-8&&
+     (uv?typeof op.faceId==='string'&&op.faceId.length<256&&
+       isUInt(op.uvSet)&&op.uvSet<=1&&
+       ['face','island'].includes(op.scope):
+      ['attribute','verified-seam'].includes(op.scope)&&
+       (group?Array.isArray(op.vertexIds)&&
+        op.vertexIds.length>=2&&op.vertexIds.length<=8&&
+        op.vertexIds.every(x=>typeof x==='string'&&x.length<=160)&&
+        new Set(op.vertexIds).size===op.vertexIds.length:
+        typeof op.vertexId==='string'&&op.vertexId.length<=160))),
+    'MESHDATA_OP','Unknown or noncanonical group/vertex/UV/normal operation');
+   ops.push(normals?{kind:op.kind,meshIndex:op.meshIndex,
+    primitiveIndex:op.primitiveIndex,mode:op.mode}:
+    uv?{kind:op.kind,meshIndex:op.meshIndex,
+     primitiveIndex:op.primitiveIndex,faceId:op.faceId,
+     uvSet:op.uvSet,scope:op.scope,delta:op.delta.slice()}:
+    group?{kind:op.kind,meshIndex:op.meshIndex,
+     primitiveIndex:op.primitiveIndex,vertexIds:op.vertexIds.slice(),
+     scope:op.scope,delta:op.delta.slice()}:
     {kind:op.kind,meshIndex:op.meshIndex,
      primitiveIndex:op.primitiveIndex,vertexId:op.vertexId,
      scope:op.scope,delta:op.delta.slice()});
