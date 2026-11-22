@@ -446,17 +446,17 @@ try{
    v.normal.every((x,k)=>tol(x,shadeNormals[i][k]))),
   {normalRows:shadeNormals.length,changedNormals},
   'Actual indexed GLB NORMAL VEC3 binary accessor did not change');
- const invalidPostNormal=await page.evaluate(async()=>{
+ const invalidPostNormal=await page.evaluate(async(vertexIds)=>{
   const r=await window.MARK_AI_BRIDGE.request({
    requestId:'p28.reject.post.normal',method:'meshdata.moveVertexGroup',
    params:{meshId:'gltf-mesh-0',primitiveIndex:0,
-    vertexIds:window.MARK_MESH_PICK_API?[]:[],
-    scope:'verified-seam',delta:[0,0,.1]}
+    vertexIds,scope:'verified-seam',delta:[0,0,.1]}
   });
   return{ok:r.ok,diagnostics:r.diagnostics};
- });
+ },[normalGraph.vertices[2].id,normalGraph.vertices[3].id]);
  check('P28-AFTER-NORMAL-REJECT-26',
-  invalidPostNormal.ok===false,
+  invalidPostNormal.ok===false&&
+  JSON.stringify(invalidPostNormal.diagnostics).includes('NORMAL_TERMINAL'),
   invalidPostNormal,'Post-normal mutable topology edit must fail');
  const shadedNative=await request('scene.save'),
   shadedArchive=artifact('pass28-group-normals-editable.markscene',
