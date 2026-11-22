@@ -390,21 +390,31 @@ function normalizeEdits(edits,doc,sourceGLB){
    'Independent MeshData supports up to 16 UV-only commands, no older mesh operations');
   const ops=[];
   for(const op of edits.meshDataOperations){
-   good(keyed(op)&&Object.keys(op).length===7&&
-    ['kind','meshIndex','primitiveIndex','faceId','uvSet','scope','delta']
-     .every(k=>Object.hasOwn(op,k))&&
-    op.kind==='meshdata.translateUv'&&
+   const uv=op?.kind==='meshdata.translateUv',
+    move=op?.kind==='meshdata.moveVertex',
+    keys=uv?
+     ['kind','meshIndex','primitiveIndex','faceId','uvSet','scope','delta']:
+     ['kind','meshIndex','primitiveIndex','vertexId','scope','delta'];
+   good(keyed(op)&&(uv||move)&&
+    Object.keys(op).length===keys.length&&
+    keys.every(k=>Object.hasOwn(op,k))&&
     op.meshIndex===0&&op.primitiveIndex===0&&
-    typeof op.faceId==='string'&&op.faceId.length<256&&
-    isUInt(op.uvSet)&&op.uvSet<=1&&
-    ['face','island'].includes(op.scope)&&
-    Array.isArray(op.delta)&&op.delta.length===2&&
+    Array.isArray(op.delta)&&
+    op.delta.length===(uv?2:3)&&
     op.delta.every(x=>typeof x==='number'&&Number.isFinite(x)&&
-     Math.abs(x)<=1)&&Math.hypot(...op.delta)>1e-8,
-    'MESHDATA_OP','Exact typed and bounded UV island/face edit required');
-   ops.push({kind:op.kind,meshIndex:op.meshIndex,
+     Math.abs(x)<=(uv?1:2))&&Math.hypot(...op.delta)>1e-8&&
+    (uv?typeof op.faceId==='string'&&op.faceId.length<256&&
+      isUInt(op.uvSet)&&op.uvSet<=1&&
+      ['face','island'].includes(op.scope):
+     typeof op.vertexId==='string'&&op.vertexId.length<=160&&
+      ['attribute','verified-seam'].includes(op.scope)),
+    'MESHDATA_OP','Exact stable vertex/face ID, scope and bounded delta required');
+   ops.push(uv?{kind:op.kind,meshIndex:op.meshIndex,
     primitiveIndex:op.primitiveIndex,faceId:op.faceId,
-    uvSet:op.uvSet,scope:op.scope,delta:op.delta.slice()});
+    uvSet:op.uvSet,scope:op.scope,delta:op.delta.slice()}:
+    {kind:op.kind,meshIndex:op.meshIndex,
+     primitiveIndex:op.primitiveIndex,vertexId:op.vertexId,
+     scope:op.scope,delta:op.delta.slice()});
   }
   // Validate native commands against immutable source and renderer export,
   // not just schema. Export is fail-closed if a wider UV island cannot
@@ -525,7 +535,7 @@ export async function createPreviewMarkscene(input,{
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
    'clip view state','bounded indexed-triangle edits, vertex snap, triangle extrusion, normal recalculation and primitive.add',
    'explicit approved seam links (source-bound metadata, not geometry weld)',
-   ...(meshResource?['independent versioned binary MeshData UV-corner subset']:[])],
+   ...(meshResource?['independent binary MeshData with stable POSITION/UV and verified seam moves']:[])],
   unimplemented:['full mesh Edit Mode','N-gons/holes','arbitrary sculpt','weight paint',
    'rig editing','IK','UV unwrapping','native v2 scene migration','crash recovery',
    'audio graph authoring'],
