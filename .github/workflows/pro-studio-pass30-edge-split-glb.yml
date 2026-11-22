@@ -19,3 +19,12 @@ jobs:
       - run: node --check src/pro-studio/owned-edge-split-glb.js
       - run: node --test tests/pro-studio-pass30-edge-split-glb.test.mjs
       - run: node --test tests/pro-studio-pass30-edge-split-plan.test.mjs tests/pro-studio-pass29-owned-topology.test.mjs
+      - name: Build real before and after GLB evidence
+        run: node scripts/pro-studio-pass30-export-qa.mjs
+      - name: Upload verifiable skinned GLB and SHA report
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass30-skinned-glb-real-edge-split
+          path: dist/pro-studio/pass30/
+          if-no-files-found: error
+          retention-days: 30
