@@ -334,6 +334,7 @@ function moveVertex(blob,sourceGLB,sourceSha256,op){
    now=triNormal(ids.map(i=>positions[i])),
    oldSize=Math.hypot(...old),newSize=Math.hypot(...now);
   ok(oldSize>1e-10&&newSize>1e-10&&
+   newSize>oldSize*1e-4&&
    old.reduce((sum,x,i)=>sum+x*now[i],0)/
     (oldSize*newSize)>1e-6,
    'MOVE_TOPOLOGY','Move would collapse or invert an incident triangle');
