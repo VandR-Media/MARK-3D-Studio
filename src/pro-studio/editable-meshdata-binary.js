@@ -384,6 +384,24 @@ export function previewEditableMeshDataBinary({data,sourceGLB,sourceSha256}={}){
  }));
  ok(corners.length===m.faces*3&&originalCorners.size===corners.length,
   'ID_GRAPH','Physical corner IDs not unique');
+ // UI/renderers select actual physical glTF attribute rows. After UV COW
+ // those indices are NOT the stable source row. Record the verified
+ // export-derived provenance instead of guessing from rendered coordinates.
+ const physical=renderEditableMeshDataGlb({
+  sourceGLB,sourceSha256,data:m.data});
+ const attributeRowProvenance=Array.from({length:m.vertices},(_,i)=>({
+  physicalAttributeVertex:i,sourceAttributeVertex:i,
+  vertexId:vertexId(sourceSha256,m.meshIndex,m.primitiveIndex,i)
+ }));
+ for(const op of physical.operations)for(let k=0;k<3;k++){
+  const sourceAttributeVertex=m.indices[op.faceIndex*3+k];
+  attributeRowProvenance.push({
+   physicalAttributeVertex:attributeRowProvenance.length,
+   sourceAttributeVertex,
+   vertexId:vertexId(sourceSha256,m.meshIndex,m.primitiveIndex,
+    sourceAttributeVertex)
+  });
+ }
  return{schema:'mark.editable-meshdata-binary/1',
   sourceSha256,meshIndex:m.meshIndex,primitiveIndex:m.primitiveIndex,
   persisted:true,standaloneBinary:true,bytes:m.data.length,
@@ -392,7 +410,8 @@ export function previewEditableMeshDataBinary({data,sourceGLB,sourceSha256}={}){
    'source face and corner IDs','UV0/UV1 per-corner Float32',
    'safe face/island UV translation'],
   uvSets:Object.keys(m.uv).map(x=>'TEXCOORD_'+x),
-  faces,corners,vertices,edges:graph.edges,halfedges:graph.halfedges,
+  faces,corners,vertices,attributeRowProvenance,
+  edges:graph.edges,halfedges:graph.halfedges,
   diagnostics:{...graph.diagnostics,
    editableMeshData:true,storedAttributeVertices:m.vertices,
    faceCount:m.faces,uvSetCount:Object.keys(m.uv).length,
