@@ -874,7 +874,11 @@ byId('meshdata-vertex-move').addEventListener('click',async()=>{
   if(picked?.mode==='vertex'){
    if(picked.meshId!==meshId()||picked.primitiveIndex!==0)
     throw Error('Выбрана вершина другого меша или примитива.');
-   row=picked.vertex;
+   const source=graph.attributeRowProvenance?.find(r=>
+    r.physicalAttributeVertex===picked.vertex);
+   if(!source)throw Error('Выделенная физическая glTF строка не имеет '+
+    'проверенного source vertex ID в MeshData.');
+   row=source.sourceAttributeVertex;
    byId('mesh-a').value=String(row);
   }
   if(!Number.isSafeInteger(row)||row<0)
