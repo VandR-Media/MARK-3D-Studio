@@ -34,7 +34,8 @@ const OP_NAMES=[
  'mesh.moveLinkedCap','mesh.pokeLinkedCap','mesh.splitPokedCapEdge',
  'mesh.splitPokedCapChildEdge','mesh.splitPokedCapGrandchildEdge',
  'mesh.offsetUvFace','meshdata.get','meshdata.begin','meshdata.translateUv',
- 'meshdata.moveVertex',
+ 'meshdata.moveVertex','meshdata.moveVertexGroup',
+ 'meshdata.recalculateNormals',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -449,6 +450,78 @@ export function createAiBridge({
      primitiveIndex:0,operations
     });
    // Verify physical GLB/rigger and all copied UV corners before commit.
+   renderEditableMeshDataGlb({sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,data});
+   edits.meshDataOperations=operations;
+  }),
+  'meshdata.moveVertexGroup':async params=>mutate(edits=>{
+   guard(plain(params)&&Object.keys(params).length===5&&
+    ['meshId','primitiveIndex','vertexIds','scope','delta']
+     .every(k=>Object.hasOwn(params,k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    params.primitiveIndex===0&&
+    Array.isArray(params.vertexIds)&&params.vertexIds.length>=2&&
+    params.vertexIds.length<=8&&
+    params.vertexIds.every(x=>typeof x==='string'&&x.length<=160)&&
+    new Set(params.vertexIds).size===params.vertexIds.length&&
+    ['attribute','verified-seam'].includes(params.scope)&&
+    Array.isArray(params.delta)&&params.delta.length===3&&
+    params.delta.every(x=>numeric(x)&&Math.abs(x)<=2)&&
+    Math.hypot(...params.delta)>1e-8,
+    'MDB_GROUP_ARGS','2–8 unique stable source vertex IDs, mode and ΔXYZ required');
+   guard(Array.isArray(edits.meshDataOperations)&&
+    edits.meshDataOperations.length<16,
+    'MDB_GROUP_SEQUENCE','Initialize MeshData; maximum 16 commands');
+   const before=buildEditableMeshDataBinary({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex:0,primitiveIndex:0,operations:edits.meshDataOperations
+   });
+   const snapshot=previewEditableMeshDataBinary({
+    data:before,sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256
+   });
+   const ids=params.vertexIds.map(id=>snapshot.vertices.findIndex(v=>
+    v.id===id&&v.referencedBySourceFace));
+   guard(ids.every((x,i)=>x>=0&&(i===0||ids[i-1]<x)),
+    'MDB_GROUP_STALE','Unknown, duplicate or noncanonical source vertex IDs');
+   const operation={kind:'meshdata.moveVertexGroup',
+    meshIndex:0,primitiveIndex:0,
+    vertexIds:params.vertexIds.slice(),scope:params.scope,
+    delta:params.delta.slice()},
+    operations=[...edits.meshDataOperations,operation],
+    data=buildEditableMeshDataBinary({
+     sourceGLB:engine.opened.sourceGLB,
+     sourceSha256:engine.opened.sourceSha256,meshIndex:0,
+     primitiveIndex:0,operations
+    });
+   renderEditableMeshDataGlb({sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,data});
+   edits.meshDataOperations=operations;
+  }),
+  'meshdata.recalculateNormals':async params=>mutate(edits=>{
+   guard(plain(params)&&Object.keys(params).length===3&&
+    ['meshId','primitiveIndex','mode'].every(k=>
+     Object.hasOwn(params,k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    params.primitiveIndex===0&&params.mode==='area-weighted',
+    'MDB_NORMAL_ARGS','Expected source primitive and area-weighted mode');
+   guard(Array.isArray(edits.meshDataOperations)&&
+    edits.meshDataOperations.length<16&&
+    !edits.meshDataOperations.some(o=>
+     o.kind==='meshdata.recalculateNormals'),
+    'MDB_NORMAL_SEQUENCE','Normal recalculation must happen once, last');
+   const operations=[...edits.meshDataOperations,{
+    kind:'meshdata.recalculateNormals',meshIndex:0,
+    primitiveIndex:0,mode:'area-weighted'
+   }];
+   const data=buildEditableMeshDataBinary({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,meshIndex:0,
+    primitiveIndex:0,operations
+   });
    renderEditableMeshDataGlb({sourceGLB:engine.opened.sourceGLB,
     sourceSha256:engine.opened.sourceSha256,data});
    edits.meshDataOperations=operations;
