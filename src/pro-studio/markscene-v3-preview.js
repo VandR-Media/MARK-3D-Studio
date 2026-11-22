@@ -11,13 +11,16 @@ import {applyMeshOperations} from './mesh-edit-core.js';
 import {normalizeExplicitSeamLinks} from './mesh-seam-identity.js';
 import {buildEditableMeshDataBinary,renderEditableMeshDataGlb}
  from './editable-meshdata-binary.js';
+import {buildOwnedTopologyBinary,ownedTopologyAnnotations}
+ from './owned-topology-binary.js';
 
 const E=new TextEncoder(),D=new TextDecoder('utf-8',{fatal:true});
-const FILES=['manifest.json','assets/source.glb','mesh/editable-meshdata.bin'];
+const FILES=['manifest.json','assets/source.glb','mesh/editable-meshdata.bin',
+ 'mesh/owned-topology.bin'];
 const MAG={local:0x04034b50,central:0x02014b50,end:0x06054b50};
 const MAX_SOURCE=64*1024*1024,MAX_META=256*1024,
- MAX_MESH_DATA=8*1024*1024,MAX_ARCHIVE=MAX_SOURCE+MAX_META+
-  MAX_MESH_DATA+8192;
+ MAX_MESH_DATA=8*1024*1024,MAX_TOPOLOGY=1*1024*1024,
+ MAX_ARCHIVE=MAX_SOURCE+MAX_META+MAX_MESH_DATA+MAX_TOPOLOGY+8192;
 const ID=/^[a-z][a-z0-9_.-]{1,79}$/;
 const FMT='mark.professional-scene/3-preview',STATUS='EXPERIMENTAL_EDITABLE_SUBSET';
 const isUInt=x=>Number.isInteger(x)&&x>=0;
@@ -44,12 +47,13 @@ const table=Uint32Array.from({length:256},(_,i)=>{
 });
 function crc32(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
 function createArchive(entries){
- good([2,3].includes(entries.length)&&entries.every((entry,i)=>
+ good([2,3,4].includes(entries.length)&&entries.every((entry,i)=>
   entry[0]===FILES[i]),
-  'ARCHIVE_FILES','Expected ordered manifest+source GLB+optional MeshData');
+  'ARCHIVE_FILES','Ordered manifest/source/MeshData/optional owned topology required');
  const info=entries.map(([name,value],i)=>{
   const data=bytesOf(value),key=E.encode(name);
-  good(data.length<=(i===0?MAX_META:i===1?MAX_SOURCE:MAX_MESH_DATA),
+  good(data.length<=(i===0?MAX_META:i===1?MAX_SOURCE:
+   i===2?MAX_MESH_DATA:MAX_TOPOLOGY),
    'ARCHIVE_BUDGET','oversized project resource '+name);
   return{data,key,crc:crc32(data)};
  });
@@ -88,7 +92,7 @@ function readArchive(input){
  const v=new DataView(data.buffer,data.byteOffset,data.byteLength),end=data.length-22;
  good(v.getUint32(end,true)===MAG.end,'ZIP_END','missing terminal ZIP directory');
  const count=v.getUint16(end+10,true),central=v.getUint32(end+16,true),size=v.getUint32(end+12,true);
- good([2,3].includes(count)&&v.getUint16(end+8,true)===count&&
+ good([2,3,4].includes(count)&&v.getUint16(end+8,true)===count&&
   central+size===end,'ZIP_DIRECTORY','invalid ZIP directory');
  const found=new Map();let pos=central;const occupied=[];
  for(let i=0;i<count;i++){
@@ -102,7 +106,8 @@ function readArchive(input){
   const name=D.decode(data.subarray(pos+46,pos+46+nameSize));
   good(FILES.includes(name)&&!found.has(name),'ZIP_NAME','duplicate or unsafe archive path');
   good(length<=(name===FILES[0]?MAX_META:
-   name===FILES[1]?MAX_SOURCE:MAX_MESH_DATA),
+   name===FILES[1]?MAX_SOURCE:
+   name===FILES[2]?MAX_MESH_DATA:MAX_TOPOLOGY),
    'ZIP_BUDGET','expanded file too large');
   good(local+30<=central&&v.getUint32(local,true)===MAG.local,'ZIP_LOCAL','bad local header');
   const localNameLen=v.getUint16(local+26,true),localExtra=v.getUint16(local+28,true);
@@ -435,6 +440,29 @@ function normalizeEdits(edits,doc,sourceGLB){
   // yet be represented losslessly by the initial glTF writer.
   out.meshDataOperations=ops;
  }
+ if(edits.meshTopologyOperations!==undefined){
+  good(Array.isArray(edits.meshTopologyOperations)&&
+   edits.meshTopologyOperations.length<=32&&
+   Array.isArray(out.meshDataOperations)&&
+   !(out.meshOperations?.length),
+   'TOPOLOGY_SEQUENCE',
+   'Owned topology requires initialized source MeshData and no legacy edits');
+  const operations=[];
+  for(const op of edits.meshTopologyOperations){
+   good(keyed(op)&&Object.keys(op).length===6&&
+    ['kind','meshIndex','primitiveIndex','edgeId','flag','enabled']
+     .every(k=>Object.hasOwn(op,k))&&
+    op.kind==='mesh.topologySetEdgeFlag'&&
+    op.meshIndex===0&&op.primitiveIndex===0&&
+    typeof op.edgeId==='string'&&op.edgeId.length<180&&
+    ['sharp','seam'].includes(op.flag)&&
+    typeof op.enabled==='boolean',
+    'TOPOLOGY_OP','Exact canonical seam/sharp edge command required');
+   operations.push({kind:op.kind,meshIndex:0,primitiveIndex:0,
+    edgeId:op.edgeId,flag:op.flag,enabled:op.enabled});
+  }
+  out.meshTopologyOperations=operations;
+ }
  if(out.meshDataOperations&&
   edits.meshSeamLinks?.length)
   good(false,'MESHDATA_SEAMS',
@@ -478,7 +506,8 @@ function validateManifest(m,source,doc){
  good(m?.schema===FMT&&m.formatStatus===STATUS&&m.schemaVersion===3,
   'MANIFEST_SCHEMA','not experimental MARK v3 subset');
  good(ID.test(m.projectId)&&Array.isArray(m.assetManifest)&&
-  m.assetManifest.length===(m.editableMeshDataResource?2:1)&&
+  m.assetManifest.length===(m.ownedTopologyResource?3:
+   m.editableMeshDataResource?2:1)&&
   m.assetManifest[0].uri===FILES[1]&&m.assetManifest[0].kind==='source'&&
   m.assetManifest[0].sha256===m.checksums?.[FILES[1]]&&
   m.assetManifest[0].byteLength===source.length&&
@@ -493,8 +522,20 @@ function validateManifest(m,source,doc){
    m.assetManifest[1].uri===FILES[2]&&
    m.assetManifest[1].kind==='editable-meshdata'&&
    m.assetManifest[1].sha256===m.editableMeshDataResource.sha256&&
-   m.assetManifest[1].byteLength===m.editableMeshDataResource.byteLength),
-  'MANIFEST_ASSET','invalid source or optional MeshData resource declaration');
+   m.assetManifest[1].byteLength===m.editableMeshDataResource.byteLength)&&
+  (!m.ownedTopologyResource||
+   m.ownedTopologyResource.schema==='mark.owned-topology/1'&&
+   m.ownedTopologyResource.uri===FILES[3]&&
+   m.ownedTopologyResource.sourceSha256===m.assetManifest[0].sha256&&
+   m.ownedTopologyResource.sha256===m.checksums?.[FILES[3]]&&
+   Number.isSafeInteger(m.ownedTopologyResource.byteLength)&&
+   m.ownedTopologyResource.byteLength>0&&
+   m.ownedTopologyResource.byteLength<=MAX_TOPOLOGY&&
+   m.assetManifest[2].kind==='owned-topology'&&
+   m.assetManifest[2].uri===FILES[3]&&
+   m.assetManifest[2].sha256===m.ownedTopologyResource.sha256&&
+   m.assetManifest[2].byteLength===m.ownedTopologyResource.byteLength),
+  'MANIFEST_ASSET','invalid source or optional MeshData/topology resources');
  good(Array.isArray(m.sceneGraph)&&m.sceneGraph.length===doc.nodes.length&&
   JSON.stringify(m.sceneGraph)===JSON.stringify(graph(doc)),
   'MANIFEST_GRAPH','source GLB hierarchy and node IDs mismatch');
@@ -523,6 +564,16 @@ export async function createPreviewMarkscene(input,{
  if(meshData)renderEditableMeshDataGlb({
   sourceGLB:bytes,sourceSha256:hash,data:meshData
  });
+ const topoData=normalized.meshTopologyOperations?
+  buildOwnedTopologyBinary({sourceGLB:bytes,sourceSha256:hash,
+   meshIndex:0,primitiveIndex:0,
+   operations:normalized.meshTopologyOperations}):null;
+ const topoHash=topoData?await sha256(topoData):null;
+ const topoResource=topoData?{
+  schema:'mark.owned-topology/1',uri:FILES[3],
+  sha256:topoHash,sourceSha256:hash,
+  byteLength:topoData.length,meshIndex:0,primitiveIndex:0
+ }:null;
  const meshHash=meshData?await sha256(meshData):null;
  const meshResource=meshData?{
   schema:'mark.editable-meshdata-binary/1',uri:FILES[2],
@@ -538,12 +589,17 @@ export async function createPreviewMarkscene(input,{
    byteLength:bytes.length,license},
    ...(meshResource?[{uuid:'meshdata-source-0-0',kind:'editable-meshdata',
     uri:FILES[2],sha256:meshHash,byteLength:meshData.length,
-    license:'native MARK-authored geometry'}]:[])],
+    license:'native MARK-authored geometry'}]:[]),
+   ...(topoResource?[{uuid:'topology-source-0-0',kind:'owned-topology',
+    uri:FILES[3],sha256:topoHash,byteLength:topoData.length,
+    license:'native MARK-authored topology'}]:[])],
   ...(meshResource?{editableMeshDataResource:meshResource}:{}),
+  ...(topoResource?{ownedTopologyResource:topoResource}:{}),
   sceneGraph:graph(doc),collections:[{uuid:'collection-main',name:'Imported GLB',
    nodeUUIDs:doc.nodes.map((_,i)=>'gltf-node-'+i)}],
   dependencies:[],audioBindings:[],checksums:{
-   [FILES[1]]:hash,...(meshResource?{[FILES[2]]:meshHash}:{})
+   [FILES[1]]:hash,...(meshResource?{[FILES[2]]:meshHash}:{}),
+   ...(topoResource?{[FILES[3]]:topoHash}:{})
   },
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
@@ -558,8 +614,10 @@ export async function createPreviewMarkscene(input,{
  const encoded=E.encode(JSON.stringify(manifest,null,2)+'\n');
  good(encoded.length<=MAX_META,'MANIFEST_BUDGET','scene manifest too large');
  const archive=createArchive([[FILES[0],encoded],[FILES[1],bytes],
-  ...(meshData?[[FILES[2],meshData]]:[])]);
+  ...(meshData?[[FILES[2],meshData]]:[]),
+  ...(topoData?[[FILES[3],topoData]]:[])]);
  return {archive,manifest,meshDataBinary:meshData,
+  ownedTopologyBinary:topoData,
   archiveSha256:await sha256(archive)};
 }
 export async function openPreviewMarkscene(input){
@@ -591,7 +649,25 @@ export async function openPreviewMarkscene(input){
    'Binary MeshData differs from exactly replayed commands/source asset');
   renderEditableMeshDataGlb({sourceGLB:source,sourceSha256:hash,data});
  }
+ const topo=files.get(FILES[3]);
+ good(Boolean(topo)===Boolean(manifest.ownedTopologyResource)&&
+  Boolean(topo)===Boolean(edits.meshTopologyOperations)&&
+  (!topo||Boolean(data)),
+  'TOPOLOGY_RESOURCE','Topology binary and canonical commands must both exist');
+ if(topo){
+  good(topo.length===manifest.ownedTopologyResource.byteLength&&
+   await sha256(topo)===manifest.ownedTopologyResource.sha256,
+   'TOPOLOGY_SHA','Independent topology resource checksum mismatch');
+  const rebuilt=buildOwnedTopologyBinary({
+   sourceGLB:source,sourceSha256:hash,meshIndex:0,primitiveIndex:0,
+   operations:edits.meshTopologyOperations
+  });
+  good(topo.length===rebuilt.length&&
+   topo.every((x,i)=>x===rebuilt[i]),'TOPOLOGY_REPLAY',
+   'Topology resource differs from canonical source and edit operations');
+ }
  return {manifest:clone(manifest),sourceGLB:source,edits,
+  ...(topo?{ownedTopologyBinary:topo}:{}),
   ...(data?{meshDataBinary:data}:{}),
   archiveSha256:await sha256(archive),sourceSha256:hash};
 }
@@ -610,7 +686,9 @@ export async function repackPreviewMarkscene(opened,edits){
  const manifestBytes=E.encode(JSON.stringify(generated.manifest,null,2)+'\n');
  good(manifestBytes.length<=MAX_META,'MANIFEST_BUDGET','edited manifest exceeds budget');
  generated.archive=createArchive([[FILES[0],manifestBytes],[FILES[1],opened.sourceGLB],
-  ...(generated.meshDataBinary?[[FILES[2],generated.meshDataBinary]]:[])]);
+  ...(generated.meshDataBinary?[[FILES[2],generated.meshDataBinary]]:[]),
+  ...(generated.ownedTopologyBinary?
+   [[FILES[3],generated.ownedTopologyBinary]]:[])]);
  generated.archiveSha256=await sha256(generated.archive);
  return generated;
 }
@@ -629,6 +707,25 @@ export async function exportEditedSourceGlb(opened){
   geometryModified?applyMeshOperations(opened.sourceGLB,edits.meshOperations):null;
  const parsed=updatedBinary?gltf(updatedBinary):original;
  const doc=clone(parsed.json);
+ // MARK-specific glTF metadata: applications may ignore these flags.
+ // They do not automatically modify shading or UV splitting.
+ if(edits.meshTopologyOperations){
+  const topo=buildOwnedTopologyBinary({
+   sourceGLB:opened.sourceGLB,sourceSha256:opened.sourceSha256,
+   meshIndex:0,primitiveIndex:0,
+   operations:edits.meshTopologyOperations
+  });
+  const annotations=ownedTopologyAnnotations({
+   sourceGLB:opened.sourceGLB,sourceSha256:opened.sourceSha256,data:topo
+  });
+  if(annotations.edges.length){
+   const prim=doc.meshes[0].primitives[0];
+   good(!Object.hasOwn(prim.extras||{},'MARK_topologyAnnotations'),
+    'TOPOLOGY_EXTRAS_COLLISION','Preexisting GLB extras cannot be overwritten');
+   prim.extras={...(prim.extras||{}),
+    MARK_topologyAnnotations:annotations};
+  }
+ }
  for(const [index,fields] of Object.entries(edits.nodeTransforms))
   Object.assign(doc.nodes[Number(index)],fields);
  for(const [index,fields] of Object.entries(edits.materialPbr))
@@ -640,6 +737,7 @@ export async function exportEditedSourceGlb(opened){
   meshOperations:edits.meshOperations?.length||0,
   geometryModified:geometryModified||Boolean(data),
   persistedEditableMeshData:Boolean(data),
+  persistedOwnedTopology:Boolean(edits.meshTopologyOperations),
   preservesOriginalBinary:!geometryModified&&!data,
   originalSourcePreservedInNative:true};
 }
