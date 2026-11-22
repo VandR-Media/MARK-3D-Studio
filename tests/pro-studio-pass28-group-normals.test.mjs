@@ -138,7 +138,7 @@ test('version 2 binary normal layer stores normalized physical values and preser
 });
 test('invalid group, forged IDs, stale normal, repeated normal and source tamper fail closed',()=>{
  const invalid=[
-  moveGroup([3,2]),moveGroup([2,2]),moveGroup([2]),moveGroup([1,4],[0,0,.2],'attribute'),
+  moveGroup([3,2]),moveGroup([2,2]),moveGroup([2]),moveGroup([1,3],[0,0,.2],'attribute'),
   moveGroup([0,2],[100,0,0]),moveGroup([0,2],[0,0,0]),
   {...moveGroup([0,2]),evil:true},{...moveGroup([0,2]),vertexIds:['forged',stableVertex(2)]},
   {...moveGroup([0,2]),scope:'unknown'},
