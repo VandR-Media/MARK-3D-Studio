@@ -554,6 +554,56 @@ function patchPhysicalPositions(edited,sourceGLB,m,ops){
   'POSITION_VERIFY','Exported GLB position rows disagree with MeshData');
  return output;
 }
+function patchPhysicalNormals(edited,sourceGLB,m,uvOps){
+ if(!m.normals)return edited;
+ const source=parseGlb(sourceGLB),docSource=source.json,
+  primitiveSource=docSource.meshes[m.meshIndex].primitives[m.primitiveIndex],
+  originalAccessor=primitiveSource.attributes.NORMAL;
+ ok(Number.isSafeInteger(originalAccessor),
+  'NORMAL_EXPORT','Source does not contain a writable NORMAL stream');
+ // No unannounced mutation of another primitive sharing the source NORMAL.
+ for(let mesh=0;mesh<docSource.meshes.length;mesh++)
+  for(let primitive=0;primitive<docSource.meshes[mesh].primitives.length;primitive++)
+   if(mesh!==m.meshIndex||primitive!==m.primitiveIndex)
+    ok(docSource.meshes[mesh].primitives[primitive].attributes?.NORMAL!==
+     originalAccessor,'SHARED_NORMAL',
+     'NORMAL accessor shared by another primitive: explicit ownership required');
+ const parsed=parseGlb(edited),doc=structuredClone(parsed.json),
+  primitive=doc.meshes[m.meshIndex].primitives[m.primitiveIndex],
+  accessor=doc.accessors[primitive.attributes.NORMAL],
+  view=doc.bufferViews[accessor.bufferView],
+  chunk=parsed.chunks.find(c=>c.type===0x004e4942);
+ ok(chunk&&accessor.type==='VEC3'&&accessor.componentType===5126&&
+  !accessor.sparse&&!accessor.normalized&&view.buffer===0,
+  'NORMAL_EXPORT_PROFILE','Only dense float32 VEC3 NORMAL can be recalculated');
+ const allNormals=m.normals.map(n=>n.slice());
+ for(const op of uvOps)for(let k=0;k<3;k++)
+  allNormals.push(m.normals[m.indices[op.faceIndex*3+k]].slice());
+ ok(accessor.count===allNormals.length,
+  'NORMAL_ROW_MAP','Indexed normal rows do not match physical UV COW clones');
+ const bin=chunk.data.slice(),dv=new DataView(bin.buffer),
+  start=(view.byteOffset||0)+(accessor.byteOffset||0),
+  stride=view.byteStride??12;
+ ok(start%4===0&&stride>=12&&stride%4===0&&
+  start+(accessor.count-1)*stride+12<=
+   Math.min(bin.byteLength,(view.byteOffset||0)+view.byteLength),
+  'NORMAL_ACCESSOR_RANGE','glTF NORMAL accessor would escape its bufferView');
+ for(let i=0;i<allNormals.length;i++)for(let k=0;k<3;k++)
+  dv.setFloat32(start+i*stride+k*4,allNormals[i][k],true);
+ if(accessor.min||accessor.max){
+  accessor.min=Array.from({length:3},(_,axis)=>
+   Math.min(...allNormals.map(n=>n[axis])));
+  accessor.max=Array.from({length:3},(_,axis)=>
+   Math.max(...allNormals.map(n=>n[axis])));
+ }
+ const output=writeGlb({...parsed,chunks:parsed.chunks.map(c=>
+  c.type===0x004e4942?{...c,data:bin}:c)},doc);
+ const physical=sourceGeometry(output,m.meshIndex,m.primitiveIndex);
+ ok(physical.normals?.length===allNormals.length&&
+  physical.normals.every((n,i)=>n.every((x,k)=>x===allNormals[i][k])),
+  'NORMAL_VERIFY','Actual GLB normal accessor differs from MeshData binary');
+ return output;
+}
 export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
  const m=inspect(data,sourceGLB,sourceSha256),
   src=encodeOriginal(sourceGLB,sourceSha256,m.meshIndex,m.primitiveIndex),
@@ -579,10 +629,11 @@ export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
  ok(ops.length<=8,'EXPORT_LIMIT',
   'At most eight changed face/UV-set pairs in initial exporter');
  const edited=applyMeshOperations(sourceGLB,ops);
- const positioned=patchPhysicalPositions(edited,sourceGLB,m,ops);
+ const positioned=patchPhysicalPositions(edited,sourceGLB,m,ops),
+  shaded=patchPhysicalNormals(positioned,sourceGLB,m,ops);
  // Verify both UV sets in the physical export actually match datablock.
  if(ops.length){
-  const graph=buildMeshDataSnapshot({sourceGLB,editedGLB:positioned,
+  const graph=buildMeshDataSnapshot({sourceGLB,editedGLB:shaded,
    sourceSha256,meshIndex:m.meshIndex,primitiveIndex:m.primitiveIndex,
    operations:ops});
   const byCorner=new Map(graph.corners.map(c=>[c.id,c]));
@@ -594,7 +645,8 @@ export function renderEditableMeshDataGlb({sourceGLB,sourceSha256,data}={}){
      'GLB UV corner values differ from independent MeshData binary resource');
    }
  }
- return{glb:positioned,operations:ops,
+ return{glb:shaded,operations:ops,
+  normalsRecalculated:Boolean(m.normals),
   movedVertices:m.positions.filter((p,i)=>
    p.some((v,k)=>v!==original.positions[i][k])).length};
 }
