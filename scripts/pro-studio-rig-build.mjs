@@ -146,6 +146,24 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="meshdata-normal-recalculate" type="button">Пересчитать нормали по граням</button>
 <output id="meshdata-group-output" role="status">Группа не перемещалась; нормали источника сохранены.</output>
 </section>
+<section aria-label="Постоянная топология MeshData" id="meshdata-topology-workspace">
+<strong>MeshData · постоянные вершины, рёбра и грани (P29)</strong>
+<p class="sub">Инициализация создаёт отдельный бинарный ресурс Vertex/Edge/Face/Halfedge
+с устойчивыми ID. Метки Sharp и UV Seam принадлежат исходным рёбрам,
+сохраняются в .markscene и экспортируются как MARK-метаданные.
+Они пока не меняют форму, UV и освещение автоматически.</p>
+<button id="meshdata-topology-begin" type="button">Создать собственную топологию</button>
+<button id="meshdata-topology-refresh" type="button">Показать рёбра и их ID</button>
+<label>Исходная вершина A <input id="meshdata-edge-a" type="number"
+ min="0" step="1" value="0" style="max-width:75px"></label>
+<label>Исходная вершина B <input id="meshdata-edge-b" type="number"
+ min="0" step="1" value="1" style="max-width:75px"></label>
+<label>Метка <select id="meshdata-edge-flag"><option value="seam">UV Seam</option>
+<option value="sharp">Sharp Edge</option></select></label>
+<label><input id="meshdata-edge-enabled" type="checkbox" checked> Установить метку</label>
+<button id="meshdata-topology-mark" type="button">Применить метку к настоящему ребру</button>
+<output id="meshdata-topology-output" role="status">Топология не выделена.</output>
+</section>
 <section aria-label="История и экспорт">
 <button id="mesh-undo">↶ Undo</button>
 <button id="mesh-redo">↷ Redo</button>
@@ -159,19 +177,19 @@ footer{font-size:12px;color:#97a8b9;line-height:1.65;padding:10px 0 20px}
 <button id="view-right">Справа</button><button id="view-back">Сзади</button>
 <button id="view-threequarter">¾</button><button id="view-top">Сверху</button></section>
 <p id="message" role="status">Загрузка реального бинарного rigged GLB…</p>
-<footer>MARK Professional Studio — автономный технический GLB-редактор. Демонстрационный риг
-(70 костей, два морфа, три клипа) не является готовым персонажем Neon Boy.
-В режиме Pass26 кнопка «Начать редактируемый MeshData» создаёт независимый бинарный
-ресурс mesh/editable-meshdata.bin в .markscene. Поддерживаемый профиль:
-исходные indexed TRIANGLES, постоянные source-SHA-scoped ID граней/углов,
-UV0/UV1, изменение отдельной грани или связанного UV-острова. Исходный GLB
-не переписывается; export создаёт настоящий GLB с UV, материалами, ригом и морфами.
-Старые .markscene без MeshData продолжают открываться. Данный MeshData ещё
-не поддерживает изменение N-gons/holes, полноценные UV unwrap/packing, weight paint,
-модификаторы и топологические операции после его включения.
-MARK AI Bridge локальный in-process preview, не общедоступный сетевой сервер.
-Проверки Chromium WebGL2/SwiftShader не подтверждают аппаратную совместимость с Huawei;
-нативный Android APK и проверка на Pura 80 Ultra / EMUI15 отсутствуют.</footer>
+<footer>MARK Professional Studio — автономный экспериментальный GLB-редактор.
+Тестовый skinned риг (70 костей, 2 морфа, 3 клипа) не является готовым Neon Boy.
+Отдельный ресурс mesh/editable-meshdata.bin хранит поддерживаемые исходные TRIANGLES,
+перемещения POSITION, UV0/UV1 и явно пересчитанные NORMAL. Pass29 добавляет
+mesh/owned-topology.bin с настоящими Vertex/Edge/Face/Halfedge ID и отмечаемыми
+рёбрами Seam/Sharp. Эти метки сохраняются в .markscene и в пользовательских
+glTF extras, но пока не изменяют освещение или UV автоматически.
+Исходный GLB остаётся неизменным, экспортный GLB сохраняет rig, morph и PBR.
+До полноценной замены Blender нужны N-gons/holes, topology-changing операции,
+unwrap, weight paint, модификаторы, sculpt и производственный рендер.
+AI Bridge локальный in-process API, не сервер.
+GitHub Actions на Chromium WebGL2/SwiftShader не заменяют аппаратные тесты
+Huawei Pura 80 Ultra / EMUI15; Kotlin Android APK ещё не выпущен.</footer>
 </main>
 <script>window.MARK_EMBEDDED_RIG_BASE64=${JSON.stringify(Buffer.from(fixture.bytes).toString('base64'))};</script>
 <script>${js}</script></body></html>`;

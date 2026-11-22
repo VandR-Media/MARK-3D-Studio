@@ -1,0 +1,60 @@
+name: MARK Studio Pass 29 source-owned Vertex Edge Face Halfedge native topology
+
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass29-topology-ownership
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owned-topology-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax verification of source topology, native scene and browser
+        run: |
+          node --check src/pro-studio/owned-topology-binary.js
+          node --check src/pro-studio/markscene-v3-preview.js
+          node --check src/pro-studio/ai-bridge-core.js
+          node --check src/pro-studio/rig-viewer.js
+          node --check scripts/pro-studio-rig-build.mjs
+          node --check tests/pro-studio-pass29-owned-topology.test.mjs
+          node --check scripts/pro-studio-pass29-owned-topology-webgl-accept.mjs
+      - name: Source-authenticated independent Vertex Edge Face Halfedge binary and native/Bridge tests
+        run: node --test tests/pro-studio-pass29-owned-topology.test.mjs
+      - name: Pass9–28 regressions, core/Bridge and Visual Engine v2
+        run: |
+          node --test tests/pro-studio-pass9-snap.test.mjs tests/pro-studio-pass10-edge-picking.test.mjs tests/pro-studio-pass11-extrude.test.mjs tests/pro-studio-pass13-region-extrude.test.mjs tests/pro-studio-pass14-region-overlay.test.mjs tests/pro-studio-pass15-corner-topology.test.mjs tests/pro-studio-pass16-explicit-seam-links.test.mjs tests/pro-studio-pass17-seam-region-extrude.test.mjs tests/pro-studio-pass18-halfedge-cap-move.test.mjs tests/pro-studio-pass19-cap-poke-remap.test.mjs tests/pro-studio-pass20-multi-poke-remap.test.mjs tests/pro-studio-pass21-radial-edge-split.test.mjs tests/pro-studio-pass22-multi-radial-splits.test.mjs tests/pro-studio-pass23-child-edge-lineage.test.mjs tests/pro-studio-pass24-depth2-daughter-lineage.test.mjs tests/pro-studio-pass25-uv-corner-cow.test.mjs tests/pro-studio-pass26-binary-meshdata.test.mjs tests/pro-studio-pass27-binary-vertex-move.test.mjs tests/pro-studio-pass28-group-normals.test.mjs
+          node --test tests/pro-studio-mesh-edit.test.mjs tests/pro-studio-primitives.test.mjs tests/pro-studio-ai-bridge.test.mjs
+          npm run test:visual-v2
+      - name: Build actual offline WebGL2 Studio with owned topology panel
+        run: npm run pro:rig:viewer
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Previous real P28 group and normal V2 Chromium regression
+        run: node scripts/pro-studio-pass28-group-normals-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: P29 true owned topology UI, 4-resource .markscene and skinned GLB SHA
+        run: node scripts/pro-studio-pass29-owned-topology-webgl-accept.mjs
+        env:
+          MARK_SOURCE_SHA: ${{ github.sha }}
+      - name: Store physical WebGL, native topology, GLB and SHA QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass29-owned-topology-webgl
+          path: |
+            dist/pro-studio/pass28-acceptance/**
+            dist/pro-studio/pass29-acceptance/**
+          if-no-files-found: warn
+          retention-days: 14

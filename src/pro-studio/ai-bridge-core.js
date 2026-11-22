@@ -17,6 +17,8 @@ import {inspectGlbCornerTopology} from './mesh-corner-topology.js';
 import {buildMeshDataSnapshot} from './meshdata-halfedge-preview.js';
 import {buildEditableMeshDataBinary,previewEditableMeshDataBinary,
  renderEditableMeshDataGlb} from './editable-meshdata-binary.js';
+import {buildOwnedTopologyBinary,previewOwnedTopology}
+ from './owned-topology-binary.js';
 import {createPreviewMarkscene,openPreviewMarkscene,repackPreviewMarkscene,
  exportEditedSourceGlb,sha256} from './markscene-v3-preview.js';
 
@@ -35,7 +37,8 @@ const OP_NAMES=[
  'mesh.splitPokedCapChildEdge','mesh.splitPokedCapGrandchildEdge',
  'mesh.offsetUvFace','meshdata.get','meshdata.begin','meshdata.translateUv',
  'meshdata.moveVertex','meshdata.moveVertexGroup',
- 'meshdata.recalculateNormals',
+ 'meshdata.recalculateNormals','meshdata.ownedTopologyBegin',
+ 'meshdata.getOwnedTopology','meshdata.setOwnedEdgeFlag',
  'mesh.edit','mesh.create',
  'transaction.begin','transaction.commit','transaction.rollback',
  'history.undo','history.redo'
@@ -526,6 +529,93 @@ export function createAiBridge({
     sourceSha256:engine.opened.sourceSha256,data});
    edits.meshDataOperations=operations;
   }),
+  'meshdata.ownedTopologyBegin':async params=>mutate(edits=>{
+   guard(plain(params)&&Object.keys(params).length===2&&
+    ['meshId','primitiveIndex'].every(k=>Object.hasOwn(params,k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    params.primitiveIndex===0,'TOPO_BEGIN_ARGS',
+    'Initial owned topology supports mesh0 primitive0 only');
+   guard(Array.isArray(edits.meshDataOperations)&&
+    edits.meshTopologyOperations===undefined&&
+    !(edits.meshOperations||[]).length,
+    'TOPO_BEGIN_SEQUENCE',
+    'Initialize independent MeshData first, and do not repeat migration');
+   const binary=buildOwnedTopologyBinary({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,
+    meshIndex:0,primitiveIndex:0,operations:[]
+   });
+   const graph=previewOwnedTopology({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,data:binary
+   });
+   guard(graph.diagnostics.faceCount>0,'TOPO_EMPTY',
+    'Source has no supported indexed faces');
+   edits.meshTopologyOperations=[];
+  }),
+  'meshdata.setOwnedEdgeFlag':async params=>mutate(edits=>{
+   guard(plain(params)&&Object.keys(params).length===5&&
+    ['meshId','primitiveIndex','edgeId','flag','enabled']
+     .every(k=>Object.hasOwn(params,k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    params.primitiveIndex===0&&
+    typeof params.edgeId==='string'&&params.edgeId.length<180&&
+    ['sharp','seam'].includes(params.flag)&&
+    typeof params.enabled==='boolean',
+    'TOPO_EDGE_ARGS','Exact current edge ID, seam/sharp boolean required');
+   guard(Array.isArray(edits.meshTopologyOperations)&&
+    edits.meshTopologyOperations.length<32,
+    'TOPO_EDGE_SEQUENCE','Initialize owned topology, maximum 32 flag edits');
+   const source=engine.opened.sourceGLB,
+    sha=engine.opened.sourceSha256,
+    current=buildOwnedTopologyBinary({sourceGLB:source,
+     sourceSha256:sha,operations:edits.meshTopologyOperations}),
+    graph=previewOwnedTopology({
+     sourceGLB:source,sourceSha256:sha,data:current
+    });
+   const edge=graph.edges.find(e=>e.id===params.edgeId);
+   guard(Boolean(edge),'TOPO_EDGE_STALE',
+    'Stable source edge absent from owned topology');
+   const operation={kind:'mesh.topologySetEdgeFlag',
+    meshIndex:0,primitiveIndex:0,
+    edgeId:edge.id,flag:params.flag,enabled:params.enabled},
+    operations=[...edits.meshTopologyOperations,operation];
+   buildOwnedTopologyBinary({sourceGLB:source,sourceSha256:sha,
+    operations});
+   edits.meshTopologyOperations=operations;
+  }),
+  'meshdata.getOwnedTopology':async params=>{
+   assertScene();
+   guard(plain(params)&&Object.keys(params).every(k=>
+    ['meshId','primitiveIndex','full'].includes(k))&&
+    typeof params.meshId==='string'&&
+    stableUuid(params.meshId,'gltf-mesh-')===0&&
+    (params.primitiveIndex??0)===0,
+    'TOPO_GET_ARGS','Expected source mesh0/primitive0');
+   const operations=selectedEdits().meshTopologyOperations;
+   if(!Array.isArray(operations))
+    return{enabled:false,
+     profile:'Owned source edge/face/halfedge catalog not initialized'};
+   const binary=buildOwnedTopologyBinary({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,
+    operations
+   });
+   const graph=previewOwnedTopology({
+    sourceGLB:engine.opened.sourceGLB,
+    sourceSha256:engine.opened.sourceSha256,data:binary
+   });
+   return{...graph,enabled:true,operationCount:operations.length,
+    revision:engine.revision,binaryBytes:binary.length,
+    ...(params.full===true?{}:{
+     vertices:graph.vertices.slice(0,16),
+     edges:graph.edges.slice(0,16),
+     faces:graph.faces.slice(0,16),
+     halfedges:graph.halfedges.slice(0,24)})
+   };
+  },
   'meshdata.get':async params=>{
    assertScene();
    guard(plain(params)&&Object.keys(params).every(k=>
