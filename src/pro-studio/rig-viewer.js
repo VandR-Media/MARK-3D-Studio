@@ -863,7 +863,7 @@ byId('mesh-split-grandchild-edge').addEventListener('click',async()=>{
 // P28: UI and Bridge share the same source-scoped MeshData operations.
 function groupRows(){
  const raw=byId('meshdata-group-rows').value.trim();
- if(!/^\\d+(?:\\s*,\\s*\\d+)+$/.test(raw))
+ if(!/^\d+(?:\s*,\s*\d+)+$/.test(raw))
   throw Error('Нужны два–восемь исходных индексов через запятую.');
  const indices=raw.split(',').map(v=>Number(v.trim()));
  if(indices.length<2||indices.length>8||
