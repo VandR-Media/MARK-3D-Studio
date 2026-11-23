@@ -8,6 +8,8 @@ import {buildOwnedTopologyBinary,previewOwnedTopology}
 import {materializeOwnedEdgeSplitGLB}
  from '../src/pro-studio/owned-edge-split-glb.js';
 import {parseGlb} from '../src/glb.js';
+import {createPreviewMarkscene,openPreviewMarkscene,exportEditedSourceGlb}
+ from '../src/pro-studio/markscene-v3-preview.js';
 import {buildSplitTopologyV2,verifySplitTopologyV2}
  from '../src/pro-studio/owned-split-topology-v2.js';
 const sha=x=>createHash('sha256').update(Buffer.from(x)).digest('hex');
@@ -32,11 +34,24 @@ const verified=await verifySplitTopologyV2({
 });
 if(!verified.verifiedReplay||verified.outputSha256!==sha(result.glb))
  throw Error('Source-attested V2 resource replay differs from GLB export');
+const native=await createPreviewMarkscene(sourceGLB,{
+ projectId:'pass30-owned-split-evidence',
+ edits:{meshDataOperations:[],meshTopologyOperations:[],
+  meshSplitOperation:{kind:'mesh.topologySplitEdge',meshIndex:0,
+   primitiveIndex:0,edgeId:edge.id,t:0.5}}
+});
+const reopened=await openPreviewMarkscene(native.archive);
+const nativeExport=await exportEditedSourceGlb(reopened);
+if(!nativeExport.persistedSplitTopologyV2||
+ sha(nativeExport.glb)!==sha(result.glb)||
+ reopened.manifest.assetManifest.length!==4)
+ throw Error('Five-file native project did not replay identical split GLB');
 const out=resolve(process.argv[2]||'dist/pro-studio/pass30');
 mkdirSync(out,{recursive:true});
 writeFileSync(resolve(out,'pass30-original-skinned.glb'),sourceGLB);
 writeFileSync(resolve(out,'pass30-split-skinned.glb'),result.glb);
 writeFileSync(resolve(out,'pass30-owned-topology-v2.bin'),persisted.data);
+writeFileSync(resolve(out,'pass30-native-split.markscene'),native.archive);
 const report={pass:30,stage:'GLB export plus independently verified V2 topology resource',
  sourceSha256,resultSha256:sha(result.glb),edgeId:edge.id,
  sourceVertices:6,resultVertices:result.vertexCount,
@@ -44,7 +59,8 @@ const report={pass:30,stage:'GLB export plus independently verified V2 topology 
  skinJoints:70,morphTargets:2,animationClips:3,
  topologyV2Sha256:sha(persisted.data),topologyV2Bytes:persisted.data.length,
  topologyV2ReplayVerified:true,
- nativeMarksceneIntegrated:false,undoRedoIntegrated:false,
+ nativeMarksceneSha256:sha(native.archive),nativeMarksceneBytes:native.archive.length,
+ nativeMarksceneIntegrated:true,undoRedoIntegrated:false,
  sourceBinPrefixBytes:result.sourceBinPrefixBytes};
 writeFileSync(resolve(out,'report.json'),JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify(report));
