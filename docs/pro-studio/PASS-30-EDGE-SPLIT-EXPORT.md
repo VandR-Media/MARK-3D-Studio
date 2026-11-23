@@ -1,25 +1,38 @@
-# MARK 3D Studio — проход №30, инкремент: реальный экспорт Edge Split
+# MARK 3D Studio — проход №30: реальный Edge Split, MARKTOP2 и нативное сохранение
 
-Статус: **частично выполнено**. Основание — исходная структура Pass29, PR #39 SHA `4306105ca8c1e8f9ff925ca9c705a795ae8cff1e`, и план PR #40. Полный оригинальный файл `MARK_3D_STUDIO_FULL_BLENDER_REPLACEMENT_TZ(1).md` из прежней переписки не был доступен для повторного полного чтения в этом проходе; проверены Pass29-документация и реальные исходники в GitHub. Нельзя считать данный инкремент полной приёмкой требований ТЗ.
+**Статус: частично выполнено.** Исходная проверенная база — draft PR #39 на SHA `4306105ca8c1e8f9ff925ca9c705a795ae8cff1e`. Работа сохраняется в отдельном draft PR #40. `main` не меняется. Оригинальный полный файл `MARK_3D_STUDIO_FULL_BLENDER_REPLACEMENT_TZ(1).md` из прежней переписки не удалось повторно открыть, поэтому полная приёмка ТЗ не заявляется.
 
-## Реализовано
+## Реальные функции
 
-- `owned-edge-split-plan.js`: детерминированный расчёт 1 → 2 треугольников для граничного ребра или 2 → 4 для общего ребра с двумя противоположными halfedge; сохраняются source-face provenance и corner interpolation.
-- `owned-edge-split-glb.js`: реальная **одноразовая материализация в новом GLB**, добавляющая vertex rows и index accessor, с обновлением POSITION min/max, копированием всех vertex attribute streams и morph targets выбранного primitive. Source BIN содержится как точный байтовый префикс; чужие primitive, skins, animations, materials, PNG и scene nodes не переписываются.
-- Float атрибуты линейно интерполируются, NORMAL/TANGENT нормализуются; skin weights интерполируются и нормализуются только для одинаковой последовательности joint IDs на обоих концах ребра. Неизвестные опасные форматы и разные palettes JOINTS приводят к явному отказу. Это **ограниченный профиль, а не поддержка любых glTF**.
-- `tests/pro-studio-pass30-edge-split-glb.test.mjs`: настоящая GLB-топология, скелет (70 joints), 2 morphs, 3 clips, 2 UV sets, неизменность исходного файла и исходного BIN-префикса, fail-closed на несовместимой коже.
-- Скрипт `scripts/pro-studio-pass30-export-qa.mjs` собирает проверяемые GLB source/result + SHA-256 отчёт для артефакта GitHub Actions.
+1. `owned-edge-split-plan.js`: источник-специфичный, детерминированный разрез одного валидного ребра; граничный исходный треугольник превращается в два, общее ребро двух граней — в четыре. Индексные швы не свариваются автоматически.
+2. `owned-edge-split-glb.js`: **физический** новый vertex и TRIANGLES index accessor, полное копирование/интерполяция используемых атрибутных рядов, UV0/UV1, morph target streams, нормалей, tangent и skin weights в ограниченном профиле. Исходный GLB не изменяется, старые BIN bytes сохраняются как точный префикс. Конфликтующие наборы JOINTS (а также опасные форматы) приводят к отказу, не к незаметному повреждению рига. Жёсткий лимит 512 граней.
+3. `owned-split-topology-v2.js`: бинарный ресурс `MARKTOP2`, version 2. Содержит исходный SHA-256, исходные source vertex pair, параметр t, SHA-256 изменённого GLB, числа новых vertices/faces, встроенный настоящих `MARKTOP1` catalog с пересчитанными vertex/edge/face/halfedge records для изменённой сетки. Reader воспроизводит операцию из неизменяемого источника и исходного `MARKTOP1`, повторно вычисляет SHA-256 и проверяет побайтовую одинаковость новой топологии.
+4. `markscene-v3-preview.js`: расширенный строгий ZIP/STORE-контейнер поддерживает **2/3/4/5** точно упорядоченных ресурсов. Новый пятый файл `mesh/owned-split-topology-v2.bin` разрешён только при наличии предыдущих MeshData + owned topology, канонической `meshSplitOperation` и пустых предшествующих MeshData/Topology журналов. Reader проверяет ZIP CRC, длину, независимый SHA, источник, версионированную структуру и полный детерминированный replay. `exportEditedSourceGlb` выводит физически разделённый skinned GLB из повторно открытого `.markscene`; `repackPreviewMarkscene` сохраняет операцию и может снять её с повторной упаковкой без нового ресурса.
+5. `scripts/pro-studio-pass30-export-qa.mjs`: проверяемые source GLB, новый GLB, бинарный `MARKTOP2`, **настоящий сохранённый и повторно открытый `.markscene`**, JSON SHA-256 report. GitHub Actions предоставляет эти файлы как артефакт, если exact-head CI зелёный.
 
-## Пока не реализовано
+### Канонический профиль нового проекта
 
-**Нельзя считать это готовой операцией редактирования .markscene.** `MARKTOP1` и `MARKMDB1` по-прежнему привязаны к неизменяемой исходной сетке. Результат экспорта пока не проходит через canonical operation log, native ZIP persistence, AI Bridge, Undo/Redo, browser UI или WebGL2 acceptance. Не проведены аппаратные испытания на Huawei, Android/Kotlin APK не создан.
+```js
+edits: {
+  meshDataOperations: [],
+  meshTopologyOperations: [],
+  meshSplitOperation: {
+    kind: 'mesh.topologySplitEdge',
+    meshIndex: 0,
+    primitiveIndex: 0,
+    edgeId: '<validated source-owned edge ID>',
+    t: 0.5
+  }
+}
+```
 
-Следующий инкремент: ввести V2 topology resource с неизменяемым source SHA и replay physical split, корректно сохранить старые source face IDs и присвоить потомкам новые, обеспечить совместимость с UV corner COW и skin/morph, ввести авторизуемую команду Bridge и регрессии native open/reopen/history/Chromium. Не подменять рабочее ядро очередным JSON-only переключателем.
+Это **первый ограниченный native one-shot split** исходной топологии, а не полноценный произвольный multi-step mesh modifier stack. В частности, он пока не комбинируется с уже применёнными сдвигами вершин/UV/Sharp/Seam в `MeshData` и `MARKTOP1`. Старые 2/3/4-ресурсные проекты продолжают открываться; принудительной миграции нет.
 
-## Дополнение: проверяемый бинарный ресурс MARKTOP2 (проход №30)
+## Проверки и оставшиеся границы
 
-Реализован `src/pro-studio/owned-split-topology-v2.js`. В отличие от прежней аннотации меток `MARKTOP1`, он действительно сериализует происхождение разделения ребра и независимую структуру изменённой геометрии. Ресурс содержит версии и точные номера исходных вершин, параметр интерполяции, полный исходный SHA-256, SHA-256 полученного GLB и встроенный бинарный каталог `MARKTOP1` уже **новой** сетки (новые вершины, рёбра, грани, полурёбра). Во время чтения проверяются и пересчитываются исходный SHA, допустимость ребра, результат изменения GLB, SHA результата и побайтовое соответствие каталога. Данные не принимаются лишь на основании корректного заголовка либо одного внешнего SHA.
+- `tests/pro-studio-pass30-edge-split-plan.test.mjs`: исходная схема границ/общих полурёбер и отказы.
+- `tests/pro-studio-pass30-edge-split-glb.test.mjs`: реальный skinned GLB, 70 joints, 2 morphs, 3 animations, 2 UV sets, точность BIN prefix и fail-closed.
+- `tests/pro-studio-pass30-owned-topology-v2.test.mjs`: binary replay, source/output SHA, меняющиеся вершины/рёбра/грани/полурёбра, подделка и усечение ресурса.
+- `tests/pro-studio-pass30-native-split.test.mjs`: нативный 5-resource create/open/export/repack, удаление операции и совместимость с сохранением без нового split resource. Плюс регрессии Pass29.
 
-`tests/pro-studio-pass30-owned-topology-v2.test.mjs` проверяет двоичную детерминированность, истинную структуру 7 вершин/3 граней/9 полурёбер на skinned-модели, SHA/GLB replay и отказы от усечённых, подменённых или несоответствующих источнику записей. Скрипт `pro-studio-pass30-export-qa.mjs` дополнительно записывает `pass30-owned-topology-v2.bin` рядом с до/после GLB и отчётом.
-
-**Граница функциональности:** новый `MARKTOP2` пока самостоятельный candidate resource и не включён в ZIP `.markscene`. До добавления новой схемы и проверок нельзя утверждать, что команда Edge Split сохраняется в обычном проекте, проходит Undo/Redo, AI Bridge или UI. Старые проекты `MARKTOP1` открываются по прежним правилам; никаких рискованных изменений native-reader в этом инкременте нет. Для полноценной миграции потребуется проверенный versioned manifest, отдельный ресурс или расширение схемы, воспроизведение журналов и совместимость с уже отредактированным UV/MeshData.
+**Не сделано:** UI-кнопка, Bridge-команда и авторизация, история Undo/Redo для этого нового инструмента, поддержка нескольких последовательно разделённых рёбер, корректная композиция с ранее изменёнными UV/POSITION, N-gons, production full Blender parity, Chromium WebGL2 acceptance именно этого native split, Android/Kotlin APK и аппаратная проверка Huawei Pura 80 Ultra/EMUI 15. Старые инструменты редактора не следует считать доказательством поддержки новой операции. Следующий gate — явный Bridge command и native Undo/Redo с тестами, затем UI/Chromium.
