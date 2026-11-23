@@ -13,14 +13,17 @@ import {buildEditableMeshDataBinary,renderEditableMeshDataGlb}
  from './editable-meshdata-binary.js';
 import {buildOwnedTopologyBinary,ownedTopologyAnnotations}
  from './owned-topology-binary.js';
+import {buildSplitTopologyV2,verifySplitTopologyV2}
+ from './owned-split-topology-v2.js';
 
 const E=new TextEncoder(),D=new TextDecoder('utf-8',{fatal:true});
 const FILES=['manifest.json','assets/source.glb','mesh/editable-meshdata.bin',
- 'mesh/owned-topology.bin'];
+ 'mesh/owned-topology.bin','mesh/owned-split-topology-v2.bin'];
 const MAG={local:0x04034b50,central:0x02014b50,end:0x06054b50};
 const MAX_SOURCE=64*1024*1024,MAX_META=256*1024,
  MAX_MESH_DATA=8*1024*1024,MAX_TOPOLOGY=1*1024*1024,
- MAX_ARCHIVE=MAX_SOURCE+MAX_META+MAX_MESH_DATA+MAX_TOPOLOGY+8192;
+ MAX_SPLIT_TOPOLOGY=1*1024*1024,
+ MAX_ARCHIVE=MAX_SOURCE+MAX_META+MAX_MESH_DATA+MAX_TOPOLOGY+MAX_SPLIT_TOPOLOGY+8192;
 const ID=/^[a-z][a-z0-9_.-]{1,79}$/;
 const FMT='mark.professional-scene/3-preview',STATUS='EXPERIMENTAL_EDITABLE_SUBSET';
 const isUInt=x=>Number.isInteger(x)&&x>=0;
@@ -47,13 +50,13 @@ const table=Uint32Array.from({length:256},(_,i)=>{
 });
 function crc32(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
 function createArchive(entries){
- good([2,3,4].includes(entries.length)&&entries.every((entry,i)=>
+ good([2,3,4,5].includes(entries.length)&&entries.every((entry,i)=>
   entry[0]===FILES[i]),
   'ARCHIVE_FILES','Ordered manifest/source/MeshData/optional owned topology required');
  const info=entries.map(([name,value],i)=>{
   const data=bytesOf(value),key=E.encode(name);
   good(data.length<=(i===0?MAX_META:i===1?MAX_SOURCE:
-   i===2?MAX_MESH_DATA:MAX_TOPOLOGY),
+   i===2?MAX_MESH_DATA:i===3?MAX_TOPOLOGY:MAX_SPLIT_TOPOLOGY),
    'ARCHIVE_BUDGET','oversized project resource '+name);
   return{data,key,crc:crc32(data)};
  });
@@ -92,7 +95,7 @@ function readArchive(input){
  const v=new DataView(data.buffer,data.byteOffset,data.byteLength),end=data.length-22;
  good(v.getUint32(end,true)===MAG.end,'ZIP_END','missing terminal ZIP directory');
  const count=v.getUint16(end+10,true),central=v.getUint32(end+16,true),size=v.getUint32(end+12,true);
- good([2,3,4].includes(count)&&v.getUint16(end+8,true)===count&&
+ good([2,3,4,5].includes(count)&&v.getUint16(end+8,true)===count&&
   central+size===end,'ZIP_DIRECTORY','invalid ZIP directory');
  const found=new Map();let pos=central;const occupied=[];
  for(let i=0;i<count;i++){
@@ -107,7 +110,7 @@ function readArchive(input){
   good(FILES.includes(name)&&!found.has(name),'ZIP_NAME','duplicate or unsafe archive path');
   good(length<=(name===FILES[0]?MAX_META:
    name===FILES[1]?MAX_SOURCE:
-   name===FILES[2]?MAX_MESH_DATA:MAX_TOPOLOGY),
+   name===FILES[2]?MAX_MESH_DATA:name===FILES[3]?MAX_TOPOLOGY:MAX_SPLIT_TOPOLOGY),
    'ZIP_BUDGET','expanded file too large');
   good(local+30<=central&&v.getUint32(local,true)===MAG.local,'ZIP_LOCAL','bad local header');
   const localNameLen=v.getUint16(local+26,true),localExtra=v.getUint16(local+28,true);
@@ -463,6 +466,22 @@ function normalizeEdits(edits,doc,sourceGLB){
   }
   out.meshTopologyOperations=operations;
  }
+ if(edits.meshSplitOperation!==undefined){
+  const op=edits.meshSplitOperation;
+  good(keyed(op)&&Object.keys(op).length===5&&
+   ['kind','meshIndex','primitiveIndex','edgeId','t'].every(k=>Object.hasOwn(op,k))&&
+   op.kind==='mesh.topologySplitEdge'&&
+   op.meshIndex===0&&op.primitiveIndex===0&&
+   typeof op.edgeId==='string'&&op.edgeId.length<180&&
+   typeof op.t==='number'&&Number.isFinite(op.t)&&op.t>0&&op.t<1&&
+   Array.isArray(out.meshDataOperations)&&out.meshDataOperations.length===0&&
+   Array.isArray(out.meshTopologyOperations)&&out.meshTopologyOperations.length===0&&
+   !(out.meshOperations?.length)&&
+   !edits.meshSeamLinks?.length,
+   'SPLIT_OPERATION','One canonical split requires empty prior MeshData/Topology logs');
+  out.meshSplitOperation={kind:op.kind,meshIndex:0,primitiveIndex:0,
+   edgeId:op.edgeId,t:op.t};
+ }
  if(out.meshDataOperations&&
   edits.meshSeamLinks?.length)
   good(false,'MESHDATA_SEAMS',
@@ -506,8 +525,8 @@ function validateManifest(m,source,doc){
  good(m?.schema===FMT&&m.formatStatus===STATUS&&m.schemaVersion===3,
   'MANIFEST_SCHEMA','not experimental MARK v3 subset');
  good(ID.test(m.projectId)&&Array.isArray(m.assetManifest)&&
-  m.assetManifest.length===(m.ownedTopologyResource?3:
-   m.editableMeshDataResource?2:1)&&
+  m.assetManifest.length===(m.splitTopologyResource?4:
+   m.ownedTopologyResource?3:m.editableMeshDataResource?2:1)&&
   m.assetManifest[0].uri===FILES[1]&&m.assetManifest[0].kind==='source'&&
   m.assetManifest[0].sha256===m.checksums?.[FILES[1]]&&
   m.assetManifest[0].byteLength===source.length&&
@@ -534,7 +553,20 @@ function validateManifest(m,source,doc){
    m.assetManifest[2].kind==='owned-topology'&&
    m.assetManifest[2].uri===FILES[3]&&
    m.assetManifest[2].sha256===m.ownedTopologyResource.sha256&&
-   m.assetManifest[2].byteLength===m.ownedTopologyResource.byteLength),
+   m.assetManifest[2].byteLength===m.ownedTopologyResource.byteLength)&&
+  (!m.splitTopologyResource||
+   m.splitTopologyResource.schema==='mark.owned-topology-split/2'&&
+   m.splitTopologyResource.uri===FILES[4]&&
+   m.splitTopologyResource.sourceSha256===m.assetManifest[0].sha256&&
+   m.splitTopologyResource.sha256===m.checksums?.[FILES[4]]&&
+   Number.isSafeInteger(m.splitTopologyResource.byteLength)&&
+   m.splitTopologyResource.byteLength>128&&
+   m.splitTopologyResource.byteLength<=MAX_SPLIT_TOPOLOGY&&
+   m.ownedTopologyResource&&m.editableMeshDataResource&&
+   m.assetManifest[3].uri===FILES[4]&&
+   m.assetManifest[3].kind==='split-topology-v2'&&
+   m.assetManifest[3].sha256===m.splitTopologyResource.sha256&&
+   m.assetManifest[3].byteLength===m.splitTopologyResource.byteLength),
   'MANIFEST_ASSET','invalid source or optional MeshData/topology resources');
  good(Array.isArray(m.sceneGraph)&&m.sceneGraph.length===doc.nodes.length&&
   JSON.stringify(m.sceneGraph)===JSON.stringify(graph(doc)),
@@ -568,6 +600,14 @@ export async function createPreviewMarkscene(input,{
   buildOwnedTopologyBinary({sourceGLB:bytes,sourceSha256:hash,
    meshIndex:0,primitiveIndex:0,
    operations:normalized.meshTopologyOperations}):null;
+ const splitData=normalized.meshSplitOperation?
+  (await buildSplitTopologyV2({sourceGLB:bytes,sourceSha256:hash,
+   data:topoData,edgeId:normalized.meshSplitOperation.edgeId,
+   t:normalized.meshSplitOperation.t})).data:null;
+ const splitHash=splitData?await sha256(splitData):null;
+ const splitResource=splitData?{schema:'mark.owned-topology-split/2',
+  uri:FILES[4],sha256:splitHash,sourceSha256:hash,
+  byteLength:splitData.length,meshIndex:0,primitiveIndex:0}:null;
  const topoHash=topoData?await sha256(topoData):null;
  const topoResource=topoData?{
   schema:'mark.owned-topology/1',uri:FILES[3],
@@ -592,14 +632,19 @@ export async function createPreviewMarkscene(input,{
     license:'native MARK-authored geometry'}]:[]),
    ...(topoResource?[{uuid:'topology-source-0-0',kind:'owned-topology',
     uri:FILES[3],sha256:topoHash,byteLength:topoData.length,
-    license:'native MARK-authored topology'}]:[])],
+    license:'native MARK-authored topology'}]:[]),
+   ...(splitResource?[{uuid:'topology-split-source-0-0',kind:'split-topology-v2',
+    uri:FILES[4],sha256:splitHash,byteLength:splitData.length,
+    license:'native MARK-authored topology split'}]:[])],
   ...(meshResource?{editableMeshDataResource:meshResource}:{}),
   ...(topoResource?{ownedTopologyResource:topoResource}:{}),
+  ...(splitResource?{splitTopologyResource:splitResource}:{}),
   sceneGraph:graph(doc),collections:[{uuid:'collection-main',name:'Imported GLB',
    nodeUUIDs:doc.nodes.map((_,i)=>'gltf-node-'+i)}],
   dependencies:[],audioBindings:[],checksums:{
    [FILES[1]]:hash,...(meshResource?{[FILES[2]]:meshHash}:{}),
-   ...(topoResource?{[FILES[3]]:topoHash}:{})
+   ...(topoResource?{[FILES[3]]:topoHash}:{}),
+   ...(splitResource?{[FILES[4]]:splitHash}:{})
   },
   sourceSummary:summary(doc),edits:normalized,
   authoringFeatures:['node TRS override','material metallic/roughness/baseColor override',
@@ -615,9 +660,10 @@ export async function createPreviewMarkscene(input,{
  good(encoded.length<=MAX_META,'MANIFEST_BUDGET','scene manifest too large');
  const archive=createArchive([[FILES[0],encoded],[FILES[1],bytes],
   ...(meshData?[[FILES[2],meshData]]:[]),
-  ...(topoData?[[FILES[3],topoData]]:[])]);
+  ...(topoData?[[FILES[3],topoData]]:[]),
+  ...(splitData?[[FILES[4],splitData]]:[])]);
  return {archive,manifest,meshDataBinary:meshData,
-  ownedTopologyBinary:topoData,
+  ownedTopologyBinary:topoData,splitTopologyBinary:splitData,
   archiveSha256:await sha256(archive)};
 }
 export async function openPreviewMarkscene(input){
@@ -666,8 +712,24 @@ export async function openPreviewMarkscene(input){
    topo.every((x,i)=>x===rebuilt[i]),'TOPOLOGY_REPLAY',
    'Topology resource differs from canonical source and edit operations');
  }
+ const split=files.get(FILES[4]);
+ good(Boolean(split)===Boolean(manifest.splitTopologyResource)&&
+  Boolean(split)===Boolean(edits.meshSplitOperation)&&
+  (!split||Boolean(topo)&&Boolean(data)),
+  'SPLIT_RESOURCE','Split topology requires source MeshData and owned topology');
+ if(split){
+  good(split.length===manifest.splitTopologyResource.byteLength&&
+   await sha256(split)===manifest.splitTopologyResource.sha256,
+   'SPLIT_SHA','Split topology resource checksum mismatch');
+  const v=await verifySplitTopologyV2({sourceGLB:source,sourceSha256:hash,
+   sourceTopologyBinary:topo,data:split});
+  good(v.edgeId===edits.meshSplitOperation.edgeId&&
+   v.t===edits.meshSplitOperation.t,
+   'SPLIT_REPLAY','Split resource differs from canonical operation');
+ }
  return {manifest:clone(manifest),sourceGLB:source,edits,
   ...(topo?{ownedTopologyBinary:topo}:{}),
+  ...(split?{splitTopologyBinary:split}:{}),
   ...(data?{meshDataBinary:data}:{}),
   archiveSha256:await sha256(archive),sourceSha256:hash};
 }
@@ -682,13 +744,17 @@ export async function repackPreviewMarkscene(opened,edits){
  // Preserve unknown optional, forward-compatible fields. Never overwrite
  // the computed required fields / checksums with untrusted archive content.
  for(const [key,value] of Object.entries(original))
-  if(!Object.hasOwn(generated.manifest,key))generated.manifest[key]=clone(value);
+  if(!Object.hasOwn(generated.manifest,key)&&
+   !['editableMeshDataResource','ownedTopologyResource','splitTopologyResource'].includes(key))
+   generated.manifest[key]=clone(value);
  const manifestBytes=E.encode(JSON.stringify(generated.manifest,null,2)+'\n');
  good(manifestBytes.length<=MAX_META,'MANIFEST_BUDGET','edited manifest exceeds budget');
  generated.archive=createArchive([[FILES[0],manifestBytes],[FILES[1],opened.sourceGLB],
   ...(generated.meshDataBinary?[[FILES[2],generated.meshDataBinary]]:[]),
   ...(generated.ownedTopologyBinary?
-   [[FILES[3],generated.ownedTopologyBinary]]:[])]);
+   [[FILES[3],generated.ownedTopologyBinary]]:[]),
+  ...(generated.splitTopologyBinary?
+   [[FILES[4],generated.splitTopologyBinary]]:[])]);
  generated.archiveSha256=await sha256(generated.archive);
  return generated;
 }
@@ -701,7 +767,14 @@ export async function exportEditedSourceGlb(opened){
   buildEditableMeshDataBinary({sourceGLB:opened.sourceGLB,
    sourceSha256:opened.sourceSha256,meshIndex:0,primitiveIndex:0,
    operations:edits.meshDataOperations}):null;
- const updatedBinary=data?
+ const split=edits.meshSplitOperation?(await verifySplitTopologyV2({
+  sourceGLB:opened.sourceGLB,sourceSha256:opened.sourceSha256,
+  sourceTopologyBinary:buildOwnedTopologyBinary({sourceGLB:opened.sourceGLB,
+   sourceSha256:opened.sourceSha256,meshIndex:0,primitiveIndex:0,
+   operations:edits.meshTopologyOperations}),
+  data:opened.splitTopologyBinary
+ })):null;
+ const updatedBinary=split?split.glb:data?
   renderEditableMeshDataGlb({sourceGLB:opened.sourceGLB,
    sourceSha256:opened.sourceSha256,data}).glb:
   geometryModified?applyMeshOperations(opened.sourceGLB,edits.meshOperations):null;
@@ -735,9 +808,10 @@ export async function exportEditedSourceGlb(opened){
   summary:summary(doc),modifiedNodeCount:Object.keys(edits.nodeTransforms).length,
   modifiedMaterialCount:Object.keys(edits.materialPbr).length,
   meshOperations:edits.meshOperations?.length||0,
-  geometryModified:geometryModified||Boolean(data),
+  geometryModified:geometryModified||Boolean(data)||Boolean(split),
   persistedEditableMeshData:Boolean(data),
   persistedOwnedTopology:Boolean(edits.meshTopologyOperations),
-  preservesOriginalBinary:!geometryModified&&!data,
+  persistedSplitTopologyV2:Boolean(split),
+  preservesOriginalBinary:!geometryModified&&!data&&!split,
   originalSourcePreservedInNative:true};
 }

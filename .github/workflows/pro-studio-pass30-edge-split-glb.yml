@@ -1,0 +1,31 @@
+name: MARK Studio Pass30 edge split GLB materialization
+on:
+  push:
+    branches:
+      - feature/pro-studio-pass30-edge-split-plan
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  materialization-and-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: node --check src/pro-studio/owned-edge-split-glb.js
+      - run: node --check src/pro-studio/markscene-v3-preview.js
+      - run: node --test tests/pro-studio-pass30-edge-split-glb.test.mjs tests/pro-studio-pass30-owned-topology-v2.test.mjs tests/pro-studio-pass30-native-split.test.mjs
+      - run: node --test tests/pro-studio-pass30-edge-split-plan.test.mjs tests/pro-studio-pass29-owned-topology.test.mjs
+      - name: Build real before and after GLB evidence
+        run: node scripts/pro-studio-pass30-export-qa.mjs
+      - name: Upload verifiable skinned GLB and SHA report
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-pass30-skinned-glb-real-edge-split
+          path: dist/pro-studio/pass30/
+          if-no-files-found: error
+          retention-days: 30
